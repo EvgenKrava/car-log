@@ -45,6 +45,25 @@ importers:
         specifier: ^2.1.1
         version: 2.1.9
 
+  packages/domain:
+    dependencies:
+      '@carlog/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@carlog/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9
+
 packages:
 
   '@esbuild/aix-ppc64@0.21.5':
