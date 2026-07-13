@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CarSchema, type Car, type CreateCarInput } from '@carlog/contracts';
+import { CarSchema, type Car, type CreateCarInput, type UpdateCarInput } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -17,3 +17,12 @@ async function request<T>(token: string, path: string, schema: z.ZodType<T>, ini
 export const listCars = (token: string): Promise<Car[]> => request(token, '/cars', CarListSchema);
 export const createCar = (token: string, input: CreateCarInput): Promise<Car> =>
   request(token, '/cars', CarSchema, { method: 'POST', body: JSON.stringify(input) });
+
+export const getCar = (token: string, id: string): Promise<Car> =>
+  request(token, `/cars/${id}`, CarSchema);
+
+export const updateCar = (token: string, id: string, input: UpdateCarInput): Promise<Car> =>
+  request(token, `/cars/${id}`, CarSchema, { method: 'PUT', body: JSON.stringify(input) });
+
+export const deleteCar = (token: string, id: string): Promise<void> =>
+  request(token, `/cars/${id}`, CarSchema, { method: 'DELETE' }).then(() => undefined);
