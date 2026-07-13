@@ -7,14 +7,14 @@ import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 import {
   AccountRecovery, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider,
 } from 'aws-cdk-lib/aws-cognito';
-import { HttpApi, CorsHttpMethod, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpApi, CorsHttpMethod, HttpMethod, CfnStage } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket } from 'aws-cdk-lib/aws-s3';
-import { Distribution, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
+import { Distribution, PriceClass, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import type { Construct } from 'constructs';
 
@@ -63,6 +63,11 @@ export class CarLogStack extends Stack {
       handler: 'handler',
       environment: { TABLE_NAME: table.tableName },
       timeout: Duration.seconds(10),
+      // Cost: 256 MB is the price/performance sweet spot for this CRUD workload.
+      memorySize: 256,
+      // Cost + rate limiting: cap concurrent executions so a traffic spike (or abuse)
+      // cannot run away with compute spend or overwhelm DynamoDB.
+      reservedConcurrentExecutions: 10,
       logRetention: RetentionDays.ONE_WEEK,
       bundling: { format: undefined },
     });
@@ -83,6 +88,14 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
 
+    // Rate limiting: throttle the default stage so no client can flood the API.
+    // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.
+    const defaultStage = httpApi.defaultStage!.node.defaultChild as CfnStage;
+    defaultStage.defaultRouteSettings = {
+      throttlingRateLimit: 20,
+      throttlingBurstLimit: 40,
+    };
+
     const webBucket = new Bucket(this, 'WebBucket', {
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       removalPolicy: RemovalPolicy.DESTROY,
@@ -91,6 +104,8 @@ export class CarLogStack extends Stack {
 
     const distribution = new Distribution(this, 'WebDistribution', {
       defaultRootObject: 'index.html',
+      // Cost: cheapest price class (North America + Europe edges only).
+      priceClass: PriceClass.PRICE_CLASS_100,
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(webBucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
