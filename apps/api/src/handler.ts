@@ -7,7 +7,11 @@ import { DynamoCarRepository } from './dynamo-car-repository';
 import { route, type ApiEvent } from './router';
 
 const tableName = process.env.TABLE_NAME ?? '';
-const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+// removeUndefinedValues: optional car fields (nickname/vin/licensePlate) are `undefined`
+// when omitted or submitted blank; without this the marshaller throws on PutCommand.
+const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+  marshallOptions: { removeUndefinedValues: true },
+});
 const repo = new DynamoCarRepository(tableName, client);
 
 export async function handler(

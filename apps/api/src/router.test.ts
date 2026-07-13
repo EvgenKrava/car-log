@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { route, type ApiEvent } from './router';
+import { route } from './router';
 import { InMemoryCarRepository } from './in-memory-car-repository';
 
 let repo: InMemoryCarRepository;
