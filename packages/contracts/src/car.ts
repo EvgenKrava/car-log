@@ -2,8 +2,13 @@ import { z } from 'zod';
 
 export const FuelTypeSchema = z.enum(['petrol', 'diesel', 'electric', 'hybrid', 'lpg', 'other']);
 
+// Treat an empty string as "not provided": match '' first (→ undefined),
+// otherwise validate with the given string schema. Output type is `string | undefined`.
 const emptyToUndefined = (s: z.ZodString) =>
-  z.preprocess((v) => (v === '' ? undefined : v), s.optional());
+  z
+    .literal('')
+    .transform(() => undefined)
+    .or(s.optional());
 
 export const CreateCarSchema = z.object({
   make: z.string().min(1).max(60),
@@ -26,21 +31,6 @@ export const CarSchema = CreateCarSchema.extend({
 export const UpdateCarSchema = CreateCarSchema.partial();
 
 export type FuelType = z.infer<typeof FuelTypeSchema>;
+export type Car = z.infer<typeof CarSchema>;
 export type CreateCarInput = z.infer<typeof CreateCarSchema>;
 export type UpdateCarInput = z.infer<typeof UpdateCarSchema>;
-
-// Explicit type for Car to work around Zod preprocess inference limitation
-export type Car = {
-  make: string;
-  model: string;
-  year: number;
-  mileage: number;
-  fuelType: FuelType;
-  nickname?: string;
-  vin?: string;
-  licensePlate?: string;
-  id: string;
-  ownerId: string;
-  createdAt: string;
-  updatedAt: string;
-};
