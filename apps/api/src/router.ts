@@ -1,0 +1,32 @@
+import { CreateCarSchema, UpdateCarSchema } from '@carlog/contracts';
+import { createCar, type CarRepository } from '@carlog/domain';
+import { ok, withErrorHandling, type ApiResult } from './errors';
+
+export type ApiEvent = {
+  method: string;
+  path: string;
+  ownerId: string | null;
+  pathParams: Record<string, string>;
+  body: unknown;
+};
+
+export function route(repo: CarRepository, event: ApiEvent): Promise<ApiResult> {
+  return withErrorHandling(async () => {
+    const { method, path, ownerId, pathParams, body } = event;
+    if (!ownerId) return { statusCode: 401, headers: {}, body: JSON.stringify({ error: 'Unauthorized' }) };
+    const id = pathParams.id;
+
+    if (path === '/cars' && method === 'GET') return ok(200, await repo.listByOwner(ownerId));
+    if (path === '/cars' && method === 'POST') {
+      const car = createCar(ownerId, CreateCarSchema.parse(body));
+      return ok(201, await repo.create(car));
+    }
+    if (id && method === 'PUT') return ok(200, await repo.update(ownerId, id, UpdateCarSchema.parse(body)));
+    if (id && method === 'DELETE') { await repo.delete(ownerId, id); return ok(204, null); }
+    if (id && method === 'GET') {
+      const car = await repo.getById(ownerId, id);
+      return car ? ok(200, car) : ok(404, { error: 'NotFound' });
+    }
+    return { statusCode: 404, headers: {}, body: JSON.stringify({ error: 'NoRoute' }) };
+  });
+}
