@@ -65,9 +65,10 @@ export class CarLogStack extends Stack {
       timeout: Duration.seconds(10),
       // Cost: 256 MB is the price/performance sweet spot for this CRUD workload.
       memorySize: 256,
-      // Cost + rate limiting: cap concurrent executions so a traffic spike (or abuse)
-      // cannot run away with compute spend or overwhelm DynamoDB.
-      reservedConcurrentExecutions: 10,
+      // Note: we intentionally do NOT set reservedConcurrentExecutions. This account's
+      // total Lambda concurrency quota is 10, and AWS requires >=10 unreserved, so any
+      // reservation is rejected. The account-wide cap of 10 already bounds concurrent
+      // compute; API Gateway stage throttling (below) handles request-rate limiting.
       logRetention: RetentionDays.ONE_WEEK,
       bundling: { format: undefined },
     });
