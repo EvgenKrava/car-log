@@ -3,7 +3,8 @@ dist/
 out/
 cdk.out/
 .env
-.env.local
+.env.*
+!.env.example
 *.tsbuildinfo
 .turbo/
 .DS_Store
