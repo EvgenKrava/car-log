@@ -1,7 +1,6 @@
 import { ZodError } from 'zod';
 import { CarNotFoundError } from '@carlog/domain';
 
-export class NotFoundError extends Error {}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -23,7 +22,7 @@ export async function withErrorHandling(fn: () => Promise<ApiResult>): Promise<A
     if (err instanceof ZodError) {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'ValidationError', issues: err.issues }) };
     }
-    if (err instanceof CarNotFoundError || err instanceof NotFoundError) {
+    if (err instanceof CarNotFoundError) {
       return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'NotFound', message: err.message }) };
     }
     console.error('Unhandled error', err);

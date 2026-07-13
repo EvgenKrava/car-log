@@ -13,7 +13,7 @@ export type ApiEvent = {
 export function route(repo: CarRepository, event: ApiEvent): Promise<ApiResult> {
   return withErrorHandling(async () => {
     const { method, path, ownerId, pathParams, body } = event;
-    if (!ownerId) return { statusCode: 401, headers: {}, body: JSON.stringify({ error: 'Unauthorized' }) };
+    if (!ownerId) return ok(401, { error: 'Unauthorized' });
     const id = pathParams.id;
 
     if (path === '/cars' && method === 'GET') return ok(200, await repo.listByOwner(ownerId));
@@ -27,6 +27,6 @@ export function route(repo: CarRepository, event: ApiEvent): Promise<ApiResult> 
       const car = await repo.getById(ownerId, id);
       return car ? ok(200, car) : ok(404, { error: 'NotFound' });
     }
-    return { statusCode: 404, headers: {}, body: JSON.stringify({ error: 'NoRoute' }) };
+    return ok(404, { error: 'NoRoute' });
   });
 }
