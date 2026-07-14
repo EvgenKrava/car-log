@@ -28,7 +28,7 @@ aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$
   --logout-urls "$WEB_URL" "http://localhost:5173" \
   --allowed-o-auth-flows code --allowed-o-auth-scopes openid email profile \
   --allowed-o-auth-flows-user-pool-client \
-  --supported-identity-providers COGNITO >/dev/null
+  --supported-identity-providers COGNITO GOOGLE >/dev/null
 
 pnpm --filter @carlog/web build
 aws s3 sync apps/web/dist "s3://$BUCKET" --delete
