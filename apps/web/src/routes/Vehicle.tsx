@@ -7,6 +7,7 @@ import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PhotoGallery } from '../components/PhotoGallery';
+import { ServiceTimeline } from '../components/ServiceTimeline';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
@@ -58,6 +59,7 @@ function VehicleDetail({ car }: { car: Car }) {
           </CardContent>
         </Card>
         <PhotoGallery carId={car.id} />
+        <ServiceTimeline carId={car.id} />
         {del.isError ? <Alert severity="error" sx={{ mt: 2 }}>{t('vehicle:deleteFailed')}</Alert> : null}
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />
