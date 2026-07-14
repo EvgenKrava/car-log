@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import {
   Alert, Box, Button, CircularProgress, Dialog, IconButton, ImageList, ImageListItem, Stack, Typography,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { usePhotos, useUploadPhoto, useDeletePhoto } from '../queries';
@@ -10,6 +11,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { StatusView } from './ui/StatusView';
 
 export function PhotoGallery({ carId }: { carId: string }) {
+  const { t } = useTranslation(['photos', 'common']);
   const { data: photos, isLoading, isError } = usePhotos(carId);
   const upload = useUploadPhoto(carId);
   const del = useDeletePhoto(carId);
@@ -22,18 +24,18 @@ export function PhotoGallery({ carId }: { carId: string }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    const msg = validatePhotoFile({ type: file.type, size: file.size }, photos?.length ?? 0);
-    if (msg) { setError(msg); return; }
+    const v = validatePhotoFile({ type: file.type, size: file.size }, photos?.length ?? 0);
+    if (v) { setError(t(v.key, v.params)); return; }
     setError(null);
-    try { await upload.mutateAsync(file); } catch { setError('Upload failed. Please try again.'); }
+    try { await upload.mutateAsync(file); } catch { setError(t('photos:uploadFailed')); }
   };
 
   return (
     <Box sx={{ mt: 3 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        <Typography variant="h6">Photos</Typography>
+        <Typography variant="h6">{t('photos:title')}</Typography>
         <Button startIcon={<AddPhotoAlternateIcon />} onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
-          Add photo
+          {t('photos:add')}
         </Button>
         <input ref={inputRef} type="file" accept="image/*" hidden onChange={onPick} />
       </Stack>
@@ -43,9 +45,9 @@ export function PhotoGallery({ carId }: { carId: string }) {
       {isLoading ? (
         <StatusView state="loading" />
       ) : isError ? (
-        <StatusView state="error" message="Could not load photos." />
+        <StatusView state="error" message={t('photos:loadError')} />
       ) : !photos?.length ? (
-        <Typography color="text.secondary">No photos yet.</Typography>
+        <Typography color="text.secondary">{t('photos:empty')}</Typography>
       ) : (
         <ImageList cols={3} gap={8} sx={{ m: 0 }}>
           {photos.map((p) => (
@@ -73,8 +75,9 @@ export function PhotoGallery({ carId }: { carId: string }) {
 
       <ConfirmDialog
         open={Boolean(toDelete)}
-        title="Delete photo"
-        message="Delete this photo? This can't be undone."
+        title={t('photos:deleteTitle')}
+        message={t('photos:deleteConfirm')}
+        confirmLabel={t('common:delete')}
         onConfirm={async () => { if (toDelete) await del.mutateAsync(toDelete); setToDelete(null); }}
         onClose={() => setToDelete(null)}
         loading={del.isPending}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Alert, Button, Card, CardContent, Chip, Container, Stack, Typography } from '@mui/material';
 import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
@@ -9,6 +10,7 @@ import { PhotoGallery } from '../components/PhotoGallery';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
+import { formatNumber } from '../i18n/format';
 
 function SpecRow({ label, value }: { label: string; value: string | number }) {
   return (
@@ -20,6 +22,7 @@ function SpecRow({ label, value }: { label: string; value: string | number }) {
 }
 
 function VehicleDetail({ car }: { car: Car }) {
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
@@ -35,8 +38,8 @@ function VehicleDetail({ car }: { car: Car }) {
         onBack={() => navigate('/')}
         actions={
           <>
-            <Button variant="contained" onClick={() => setEditOpen(true)}>Edit</Button>
-            <Button color="error" onClick={() => setConfirmOpen(true)}>Delete</Button>
+            <Button variant="contained" onClick={() => setEditOpen(true)}>{t('common:edit')}</Button>
+            <Button color="error" onClick={() => setConfirmOpen(true)}>{t('common:delete')}</Button>
           </>
         }
       />
@@ -45,23 +48,23 @@ function VehicleDetail({ car }: { car: Car }) {
           <CardContent>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
               <Typography variant="h6">{car.make} {car.model}</Typography>
-              <Chip label={car.fuelType} color="primary" variant="outlined" />
+              <Chip label={t(`car:fuelType_${car.fuelType}`)} color="primary" variant="outlined" />
             </Stack>
-            <SpecRow label="Year" value={car.year} />
-            <SpecRow label="Mileage" value={`${car.mileage.toLocaleString()} mi`} />
-            {car.nickname ? <SpecRow label="Nickname" value={car.nickname} /> : null}
-            {car.vin ? <SpecRow label="VIN" value={car.vin} /> : null}
-            {car.licensePlate ? <SpecRow label="License plate" value={car.licensePlate} /> : null}
+            <SpecRow label={t('car:year')} value={car.year} />
+            <SpecRow label={t('car:mileage')} value={`${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`} />
+            {car.nickname ? <SpecRow label={t('car:nickname')} value={car.nickname} /> : null}
+            {car.vin ? <SpecRow label={t('car:vin')} value={car.vin} /> : null}
+            {car.licensePlate ? <SpecRow label={t('car:licensePlate')} value={car.licensePlate} /> : null}
           </CardContent>
         </Card>
         <PhotoGallery carId={car.id} />
-        {del.isError ? <Alert severity="error" sx={{ mt: 2 }}>Failed to delete. Please try again.</Alert> : null}
+        {del.isError ? <Alert severity="error" sx={{ mt: 2 }}>{t('vehicle:deleteFailed')}</Alert> : null}
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />
       <ConfirmDialog
         open={confirmOpen}
-        title="Delete car"
-        message="Delete this car? This can't be undone."
+        title={t('car:deleteTitle')}
+        message={t('car:deleteConfirm')}
         onConfirm={onDelete}
         onClose={() => setConfirmOpen(false)}
         loading={del.isPending}
@@ -71,6 +74,7 @@ function VehicleDetail({ car }: { car: Car }) {
 }
 
 export function Vehicle() {
+  const { t } = useTranslation(['vehicle', 'common']);
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { data: car, isLoading, isError } = useCar(id);
@@ -80,8 +84,8 @@ export function Vehicle() {
     return (
       <AppShell>
         <Container sx={{ py: 8, textAlign: 'center' }}>
-          <Typography variant="h6" gutterBottom>Car not found</Typography>
-          <Button variant="contained" onClick={() => navigate('/')}>Back to garage</Button>
+          <Typography variant="h6" gutterBottom>{t('vehicle:notFound')}</Typography>
+          <Button variant="contained" onClick={() => navigate('/')}>{t('vehicle:backToGarage')}</Button>
         </Container>
       </AppShell>
     );

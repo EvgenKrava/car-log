@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { AppBar, Box, IconButton, Toolbar, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 export function PageHeader({
   title, onBack, actions,
@@ -14,7 +15,10 @@ export function PageHeader({
           </IconButton>
         ) : null}
         <Typography variant="h6" sx={{ flexGrow: 1 }}>{title}</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>{actions}</Box>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <LanguageSwitcher />
+          {actions}
+        </Box>
       </Toolbar>
     </AppBar>
   );

@@ -1,1 +1,1 @@
-{}
+{ "make": "Марка", "model": "Модель", "year": "Рік", "mileage": "Пробіг", "fuelType": "Тип пального", "nickname": "Назва", "vin": "VIN", "licensePlate": "Номерний знак", "addTitle": "Додати авто", "editTitle": "Редагувати авто", "save": "Зберегти", "saveChanges": "Зберегти зміни", "deleteTitle": "Видалити авто", "deleteConfirm": "Видалити це авто? Цю дію не можна скасувати.", "fuelType_petrol": "Бензин", "fuelType_diesel": "Дизель", "fuelType_electric": "Електро", "fuelType_hybrid": "Гібрид", "fuelType_lpg": "Газ", "fuelType_other": "Інше" }

@@ -1,7 +1,10 @@
 import { Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import type { Car } from '@carlog/contracts';
+import { formatNumber } from '../../i18n/format';
 
 export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void }) {
+  const { t, i18n } = useTranslation(['vehicle']);
   const title = car.nickname || `${car.make} ${car.model}`;
   return (
     <Card sx={{ transition: 'box-shadow .15s, transform .15s', '&:hover': { transform: 'translateY(-2px)' } }}>
@@ -12,7 +15,7 @@ export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void })
             <Chip label={car.fuelType} size="small" color="primary" variant="outlined" />
           </Stack>
           <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-            {car.year} · {car.mileage.toLocaleString()} mi
+            {car.year} · {formatNumber(car.mileage, i18n.language)} {t('vehicle:mileageUnit')}
           </Typography>
           {car.nickname ? (
             <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>
