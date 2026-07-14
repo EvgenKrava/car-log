@@ -1,0 +1,20 @@
+{
+  "title": "Import from text",
+  "trigger": "Import from text",
+  "instructions": "Paste your maintenance notes, an old logbook, or a mechanic's invoice. We'll extract the events for you to review before adding them.",
+  "textLabel": "Paste text",
+  "extract": "Extract events",
+  "extracting": "Reading your text…",
+  "reviewTitle": "Review {{count}} event",
+  "reviewTitle_other": "Review {{count}} events",
+  "empty": "No events found in that text. Try adding more detail.",
+  "addAll": "Add {{count}} event",
+  "addAll_other": "Add {{count}} events",
+  "adding": "Adding…",
+  "remove": "Remove",
+  "cancel": "Cancel",
+  "errorFailed": "We couldn't read events from that text. Try rephrasing or adding detail.",
+  "errorUnavailable": "The AI service is busy right now. Please try again in a moment.",
+  "added": "Added {{count}} event to the timeline",
+  "added_other": "Added {{count}} events to the timeline"
+}
