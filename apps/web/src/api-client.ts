@@ -46,7 +46,7 @@ export async function uploadToS3(uploadUrl: string, file: File): Promise<void> {
   if (!res.ok) throw new Error(`S3 upload ${res.status}`);
 }
 
-export const confirmPhoto = (token: string, carId: string, input: { contentType: PhotoContentType; size: number }) =>
+export const confirmPhoto = (token: string, carId: string, input: { photoId: string; contentType: PhotoContentType; size: number }) =>
   request(token, `/cars/${carId}/photos`, PhotoSchema, { method: 'POST', body: JSON.stringify(input) });
 
 export const listPhotos = (token: string, carId: string): Promise<PhotoWithUrl[]> =>
@@ -57,7 +57,7 @@ export const deletePhoto = (token: string, carId: string, photoId: string): Prom
 
 export async function uploadPhoto(token: string, carId: string, file: File): Promise<void> {
   const input = { contentType: file.type as PhotoContentType, size: file.size };
-  const { uploadUrl } = await presignPhoto(token, carId, input);
+  const { uploadUrl, photoId } = await presignPhoto(token, carId, input);
   await uploadToS3(uploadUrl, file);
-  await confirmPhoto(token, carId, input);
+  await confirmPhoto(token, carId, { ...input, photoId });
 }

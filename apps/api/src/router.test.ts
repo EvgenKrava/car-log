@@ -10,6 +10,7 @@ const storage: PhotoStorage = {
   presignPut: async () => 'https://s3.example/put',
   presignGet: async () => 'https://s3.example/get',
   deleteObject: async () => {},
+  exists: async () => true,
 };
 let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage };
 beforeEach(() => {
@@ -85,7 +86,8 @@ describe('route', () => {
 
     it('confirm creates metadata, list returns it with a url', async () => {
       const carId = await makeCar('u1');
-      const created = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: img });
+      const photoId = crypto.randomUUID();
+      const created = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: { ...img, photoId } });
       expect(created.statusCode).toBe(201);
       const list = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId } });
       expect(list.statusCode).toBe(200);
@@ -97,7 +99,8 @@ describe('route', () => {
     it('presign 409s when the per-car cap is reached', async () => {
       const carId = await makeCar('u1');
       for (let i = 0; i < 20; i++) {
-        await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: img });
+        const photoId = crypto.randomUUID();
+        await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: { ...img, photoId } });
       }
       const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos/presign`, ownerId: 'u1', pathParams: { id: carId }, body: img });
       expect(res.statusCode).toBe(409);
@@ -105,7 +108,8 @@ describe('route', () => {
 
     it('delete removes a photo (404 when missing)', async () => {
       const carId = await makeCar('u1');
-      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: img })).body);
+      const photoId = crypto.randomUUID();
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: { ...img, photoId } })).body);
       const del = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/photos/${created.id}`, ownerId: 'u1', pathParams: { id: carId, photoId: created.id } });
       expect(del.statusCode).toBe(204);
       const missing = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/photos/${created.id}`, ownerId: 'u1', pathParams: { id: carId, photoId: created.id } });

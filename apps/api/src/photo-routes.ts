@@ -1,4 +1,4 @@
-import { PresignRequestSchema } from '@carlog/contracts';
+import { PresignRequestSchema, ConfirmRequestSchema } from '@carlog/contracts';
 import {
   CarNotFoundError, PhotoNotFoundError, createPhoto,
   type CarRepository, type PhotoRepository, type PhotoStorage,
@@ -35,8 +35,11 @@ export async function handlePhotoRoute(
 
   if (path === base && method === 'POST') {
     await requireCar(deps, ownerId, carId);
-    const req = PresignRequestSchema.parse(body);
-    const photo = createPhoto(ownerId, carId, req);
+    const { photoId, ...req } = ConfirmRequestSchema.parse(body);
+    const existing = await deps.photos.listByCar(ownerId, carId);
+    assertUnderCap(existing.length);
+    if (!(await deps.storage.exists(photoKey(ownerId, carId, photoId)))) throw new PhotoNotFoundError(photoId);
+    const photo = createPhoto(ownerId, carId, req, { newId: () => photoId });
     return ok(201, await deps.photos.create(photo));
   }
 

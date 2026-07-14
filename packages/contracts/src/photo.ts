@@ -11,6 +11,10 @@ export const PresignRequestSchema = z.object({
   size: z.number().int().min(1).max(MAX_PHOTO_SIZE),
 });
 
+export const ConfirmRequestSchema = PresignRequestSchema.extend({
+  photoId: z.string().uuid(),
+});
+
 export const PhotoSchema = z.object({
   id: z.string().uuid(),
   carId: z.string().uuid(),
@@ -30,6 +34,7 @@ export const PhotoWithUrlSchema = PhotoSchema.extend({ url: z.string().url() });
 
 export type PhotoContentType = z.infer<typeof PhotoContentTypeSchema>;
 export type PresignRequest = z.infer<typeof PresignRequestSchema>;
+export type ConfirmRequest = z.infer<typeof ConfirmRequestSchema>;
 export type Photo = z.infer<typeof PhotoSchema>;
 export type PresignResponse = z.infer<typeof PresignResponseSchema>;
 export type PhotoWithUrl = z.infer<typeof PhotoWithUrlSchema>;
