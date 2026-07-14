@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import {
   Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField,
 } from '@mui/material';
@@ -30,6 +31,7 @@ type CarFormDialogProps = {
 };
 
 export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) {
+  const { t } = useTranslation(['car', 'common']);
   const create = useCreateCar();
   const update = useUpdateCar(car?.id ?? '');
   const isPending = create.isPending || update.isPending;
@@ -68,30 +70,30 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <form onSubmit={onSubmit}>
-        <DialogTitle>{mode === 'edit' ? 'Edit car' : 'Add a car'}</DialogTitle>
+        <DialogTitle>{mode === 'edit' ? t('car:editTitle') : t('car:addTitle')}</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5} sx={{ mt: 1 }}>
             {(create.isError || update.isError) && (
-              <Alert severity="error">Something went wrong. Please try again.</Alert>
+              <Alert severity="error">{t('common:loadingError')} {t('common:tryAgain')}</Alert>
             )}
-            {text('make', 'Make')}
-            {text('model', 'Model')}
-            {text('year', 'Year', 'number')}
-            {text('mileage', 'Mileage', 'number')}
-            {text('nickname', 'Nickname')}
-            {text('vin', 'VIN')}
-            {text('licensePlate', 'License plate')}
+            {text('make', t('car:make'))}
+            {text('model', t('car:model'))}
+            {text('year', t('car:year'), 'number')}
+            {text('mileage', t('car:mileage'), 'number')}
+            {text('nickname', t('car:nickname'))}
+            {text('vin', t('car:vin'))}
+            {text('licensePlate', t('car:licensePlate'))}
             <Controller name="fuelType" control={control} render={({ field }) => (
-              <TextField {...field} select label="Fuel type" fullWidth>
+              <TextField {...field} select label={t('car:fuelType')} fullWidth>
                 {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
               </TextField>
             )} />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common:cancel')}</Button>
           <Button type="submit" variant="contained" disabled={isPending}>
-            {mode === 'edit' ? 'Save changes' : 'Save'}
+            {mode === 'edit' ? t('car:saveChanges') : t('car:save')}
           </Button>
         </DialogActions>
       </form>
