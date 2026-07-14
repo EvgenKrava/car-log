@@ -13,7 +13,7 @@ import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { BlockPublicAccess, Bucket } from 'aws-cdk-lib/aws-s3';
+import { BlockPublicAccess, Bucket, HttpMethods } from 'aws-cdk-lib/aws-s3';
 import { Distribution, PriceClass, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import type { Construct } from 'constructs';
@@ -57,11 +57,24 @@ export class CarLogStack extends Stack {
       },
     });
 
+    const photosBucket = new Bucket(this, 'PhotosBucket', {
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      cors: [{
+        allowedMethods: [HttpMethods.PUT, HttpMethods.GET],
+        allowedOrigins: ['https://dkn291e7rr9st.cloudfront.net', 'http://localhost:5173'],
+        allowedHeaders: ['*'],
+        maxAge: 3000,
+      }],
+      lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
+    });
+
     const fn = new NodejsFunction(this, 'CarsFn', {
       runtime: Runtime.NODEJS_20_X,
       entry: join(__dirnameLocal, '../../../apps/api/src/handler.ts'),
       handler: 'handler',
-      environment: { TABLE_NAME: table.tableName },
+      environment: { TABLE_NAME: table.tableName, PHOTOS_BUCKET: photosBucket.bucketName },
       timeout: Duration.seconds(10),
       // Cost: 256 MB is the price/performance sweet spot for this CRUD workload.
       memorySize: 256,
@@ -73,6 +86,7 @@ export class CarLogStack extends Stack {
       bundling: { format: undefined },
     });
     table.grantReadWriteData(fn);
+    photosBucket.grantReadWrite(fn);
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
       jwtAudience: [client.userPoolClientId],
@@ -88,6 +102,9 @@ export class CarLogStack extends Stack {
     const integration = new HttpLambdaIntegration('CarsIntegration', fn);
     httpApi.addRoutes({ path: '/cars', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/photos', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/photos/presign', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/photos/{photoId}', methods: [HttpMethod.DELETE], integration, authorizer });
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.
