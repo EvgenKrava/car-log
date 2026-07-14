@@ -26,7 +26,6 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/callback/],
         // No runtimeCaching: API (execute-api) and Cognito always hit the network.
       },
       devOptions: { enabled: false },

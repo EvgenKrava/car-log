@@ -4,7 +4,7 @@ import type { Car } from '@carlog/contracts';
 import { formatNumber } from '../../i18n/format';
 
 export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void }) {
-  const { t, i18n } = useTranslation(['vehicle']);
+  const { t, i18n } = useTranslation(['vehicle', 'car']);
   const title = car.nickname || `${car.make} ${car.model}`;
   return (
     <Card sx={{ transition: 'box-shadow .15s, transform .15s', '&:hover': { transform: 'translateY(-2px)' } }}>
@@ -12,7 +12,7 @@ export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void })
         <CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
             <Typography variant="h6" noWrap>{title}</Typography>
-            <Chip label={car.fuelType} size="small" color="primary" variant="outlined" />
+            <Chip label={t(`car:fuelType_${car.fuelType}`)} size="small" color="primary" variant="outlined" />
           </Stack>
           <Typography color="text.secondary" sx={{ mt: 0.5 }}>
             {car.year} · {formatNumber(car.mileage, i18n.language)} {t('vehicle:mileageUnit')}
