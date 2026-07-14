@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useCars } from '../queries';
-import { AddCarDialog } from '../components/AddCarDialog';
+import { CarFormDialog } from '../components/CarFormDialog';
 
 export function Garage() {
   const auth = useAuth();
@@ -46,7 +46,7 @@ export function Garage() {
       <Fab color="primary" onClick={() => setOpen(true)} sx={{ position: 'fixed', bottom: 24, right: 24 }}>
         <AddIcon />
       </Fab>
-      <AddCarDialog open={open} onClose={() => setOpen(false)} />
+      <CarFormDialog open={open} onClose={() => setOpen(false)} mode="create" />
       <Box sx={{ height: 80 }} />
     </>
   );
