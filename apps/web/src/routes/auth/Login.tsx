@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Alert, Button, Link, Stack, TextField } from '@mui/material';
+import { Alert, Button, Divider, Link, Stack, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../auth';
 import { authErrorKey } from '../../auth/auth-error';
 import { AuthLayout } from './AuthLayout';
 import { PasswordField } from '../../components/ui/PasswordField';
+import { GoogleSignInButton } from '../../components/ui/GoogleSignInButton';
 
 export function Login() {
   const { t } = useTranslation(['auth']);
@@ -28,6 +29,8 @@ export function Login() {
     <AuthLayout title={t('auth:signInTitle')}>
       <form onSubmit={onSubmit}>
         <Stack spacing={2}>
+          <GoogleSignInButton />
+          <Divider>{t('auth:orDivider')}</Divider>
           {error ? <Alert severity="error">{error}</Alert> : null}
           <TextField label={t('auth:email')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth autoComplete="email" />
           <PasswordField label={t('auth:password')} value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoComplete="current-password" />

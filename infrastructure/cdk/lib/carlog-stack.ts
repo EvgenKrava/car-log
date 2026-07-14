@@ -1,11 +1,12 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CfnOutput, Duration, RemovalPolicy, Stack, type StackProps,
+  CfnOutput, Duration, RemovalPolicy, SecretValue, Stack, type StackProps,
 } from 'aws-cdk-lib';
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 import {
-  AccountRecovery, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider,
+  AccountRecovery, OAuthScope, ProviderAttribute, UserPool, UserPoolClient,
+  UserPoolClientIdentityProvider, UserPoolIdentityProviderGoogle,
 } from 'aws-cdk-lib/aws-cognito';
 import { HttpApi, CorsHttpMethod, HttpMethod, CfnStage } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
@@ -43,12 +44,26 @@ export class CarLogStack extends Stack {
       cognitoDomain: { domainPrefix: `carlog-${this.account}` },
     });
 
+    // Google federated sign-in. The client id is non-secret; the client secret is
+    // pulled from SSM SecureString at deploy time via a CloudFormation dynamic
+    // reference so it never lands in the synth output or the repo.
+    const googleIdP = new UserPoolIdentityProviderGoogle(this, 'GoogleIdP', {
+      userPool,
+      clientId: '290283855365-pqhjtbokk5k7bfccg3phiurskol4u8qs.apps.googleusercontent.com',
+      clientSecretValue: SecretValue.ssmSecure('/carlog/google-client-secret'),
+      scopes: ['openid', 'email', 'profile'],
+      attributeMapping: { email: ProviderAttribute.GOOGLE_EMAIL },
+    });
+
     // Web origin known after distribution is created; use placeholder callback that we
     // reconcile post-deploy via CLI, plus localhost for dev.
     const client = new UserPoolClient(this, 'UserPoolClient', {
       userPool,
       generateSecret: false,
-      supportedIdentityProviders: [UserPoolClientIdentityProvider.COGNITO],
+      supportedIdentityProviders: [
+        UserPoolClientIdentityProvider.COGNITO,
+        UserPoolClientIdentityProvider.GOOGLE,
+      ],
       oAuth: {
         flows: { authorizationCodeGrant: true },
         scopes: [OAuthScope.OPENID, OAuthScope.EMAIL, OAuthScope.PROFILE],
@@ -56,6 +71,9 @@ export class CarLogStack extends Stack {
         logoutUrls: ['http://localhost:5173'],
       },
     });
+    // CloudFormation must create the IdP before updating the client to reference it,
+    // otherwise the deploy fails with "identity provider Google does not exist".
+    client.node.addDependency(googleIdP);
 
     const photosBucket = new Bucket(this, 'PhotosBucket', {
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
