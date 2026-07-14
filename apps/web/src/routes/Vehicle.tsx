@@ -48,7 +48,7 @@ function VehicleDetail({ car }: { car: Car }) {
           <CardContent>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
               <Typography variant="h6">{car.make} {car.model}</Typography>
-              <Chip label={car.fuelType} color="primary" variant="outlined" />
+              <Chip label={t(`car:fuelType_${car.fuelType}`)} color="primary" variant="outlined" />
             </Stack>
             <SpecRow label={t('car:year')} value={car.year} />
             <SpecRow label={t('car:mileage')} value={`${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`} />

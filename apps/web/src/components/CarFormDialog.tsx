@@ -85,7 +85,7 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
             {text('licensePlate', t('car:licensePlate'))}
             <Controller name="fuelType" control={control} render={({ field }) => (
               <TextField {...field} select label={t('car:fuelType')} fullWidth>
-                {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
+                {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{t(`car:fuelType_${f}`)}</MenuItem>)}
               </TextField>
             )} />
           </Stack>
