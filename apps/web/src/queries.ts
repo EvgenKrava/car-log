@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from 'react-oidc-context';
+import { useAuth } from './auth';
 import type { CreateCarInput } from '@carlog/contracts';
 import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto } from './api-client';
 
 export function useCars() {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   return useQuery({ queryKey: ['cars'], queryFn: () => listCars(token), enabled: Boolean(token) });
 }
 
 export function useCreateCar() {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateCarInput) => createCar(token, input),
@@ -20,8 +20,8 @@ export function useCreateCar() {
 }
 
 export function useCar(id: string) {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   return useQuery({
     queryKey: ['cars', id],
     queryFn: () => getCar(token, id),
@@ -30,8 +30,8 @@ export function useCar(id: string) {
 }
 
 export function useUpdateCar(id: string) {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateCarInput) => updateCar(token, id, input),
@@ -43,8 +43,8 @@ export function useUpdateCar(id: string) {
 }
 
 export function useDeleteCar() {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteCar(token, id),
@@ -53,8 +53,8 @@ export function useDeleteCar() {
 }
 
 export function usePhotos(carId: string) {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   return useQuery({
     queryKey: ['cars', carId, 'photos'],
     queryFn: () => listPhotos(token, carId),
@@ -63,8 +63,8 @@ export function usePhotos(carId: string) {
 }
 
 export function useUploadPhoto(carId: string) {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => uploadPhoto(token, carId, file),
@@ -73,8 +73,8 @@ export function useUploadPhoto(carId: string) {
 }
 
 export function useDeletePhoto(carId: string) {
-  const auth = useAuth();
-  const token = auth.user?.access_token ?? '';
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (photoId: string) => deletePhoto(token, carId, photoId),
