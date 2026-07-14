@@ -25,8 +25,11 @@ export class DynamoCarRepository implements CarRepository {
   async listByOwner(ownerId: string): Promise<Car[]> {
     const res = await this.client.send(new QueryCommand({
       TableName: this.tableName,
+      // begins_with(SK, "CAR#") also matches photo rows (SK = CAR#<id>#PHOTO#<photoId>),
+      // so exclude any SK containing a nested "#PHOTO#" segment — leaving only car rows.
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-      ExpressionAttributeValues: { ':pk': pk(ownerId), ':sk': 'CAR#' },
+      FilterExpression: 'NOT contains(SK, :photoMarker)',
+      ExpressionAttributeValues: { ':pk': pk(ownerId), ':sk': 'CAR#', ':photoMarker': '#PHOTO#' },
     }));
     return (res.Items ?? []).map(toCar);
   }
