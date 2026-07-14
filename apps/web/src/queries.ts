@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import type { CreateCarInput } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto } from './api-client';
 
 export function useCars() {
   const auth = useAuth();
@@ -49,5 +49,35 @@ export function useDeleteCar() {
   return useMutation({
     mutationFn: (id: string) => deleteCar(token, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cars'] }),
+  });
+}
+
+export function usePhotos(carId: string) {
+  const auth = useAuth();
+  const token = auth.user?.access_token ?? '';
+  return useQuery({
+    queryKey: ['cars', carId, 'photos'],
+    queryFn: () => listPhotos(token, carId),
+    enabled: Boolean(token && carId),
+  });
+}
+
+export function useUploadPhoto(carId: string) {
+  const auth = useAuth();
+  const token = auth.user?.access_token ?? '';
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => uploadPhoto(token, carId, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'photos'] }),
+  });
+}
+
+export function useDeletePhoto(carId: string) {
+  const auth = useAuth();
+  const token = auth.user?.access_token ?? '';
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (photoId: string) => deletePhoto(token, carId, photoId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'photos'] }),
   });
 }
