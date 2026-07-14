@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from 'react-oidc-context';
+import { useNavigate } from 'react-router-dom';
 import {
   AppBar, Box, Button, Card, CardContent, CircularProgress, Container, Fab, Grid,
   Toolbar, Typography,
@@ -10,6 +11,7 @@ import { CarFormDialog } from '../components/CarFormDialog';
 
 export function Garage() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const { data: cars, isLoading } = useCars();
   const [open, setOpen] = useState(false);
 
@@ -31,7 +33,7 @@ export function Garage() {
               const details: string = `${car.year} · ${car.mileage.toLocaleString()} mi`;
               return (
                 <Grid item xs={12} sm={6} md={4} key={car.id}>
-                  <Card>
+                  <Card onClick={() => navigate(`/cars/${car.id}`)} sx={{ cursor: 'pointer' }}>
                     <CardContent>
                       <Typography variant="h6">{displayName}</Typography>
                       <Typography color="text.secondary">{details}</Typography>

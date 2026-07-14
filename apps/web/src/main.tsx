@@ -7,6 +7,7 @@ import { AppAuthProvider, RequireAuth } from './auth';
 import { buildTheme } from './theme';
 import { Garage } from './routes/Garage';
 import { Callback } from './routes/Callback';
+import { Vehicle } from './routes/Vehicle';
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ function Root() {
             <Routes>
               <Route path="/callback" element={<Callback />} />
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
+              <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
             </Routes>
           </BrowserRouter>
         </QueryClientProvider>
