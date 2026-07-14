@@ -24,9 +24,9 @@ describe('CreateEventSchema', () => {
   });
   it('normalizes empty-string optional part fields to undefined (empty purchaseLink is OK)', () => {
     const parsed = CreateEventSchema.parse({ ...validEvent, works: [{ description: 'x', parts: [{ name: 'p', quantity: 1, brand: '', partNumber: '', notes: '', purchaseLink: '' }] }] });
-    const part = parsed.works[0].parts[0];
-    expect(part.purchaseLink).toBeUndefined();
-    expect(part.brand).toBeUndefined();
+    const part = parsed.works[0]?.parts[0];
+    expect(part?.purchaseLink).toBeUndefined();
+    expect(part?.brand).toBeUndefined();
   });
   it('defaults works and currency', () => {
     const e = CreateEventSchema.parse({ date: '2026-07-14', mileage: 0, cost: 0, category: 'other' });
