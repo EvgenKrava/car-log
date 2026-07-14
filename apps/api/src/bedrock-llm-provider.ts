@@ -2,10 +2,12 @@ import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
 import type { LlmProvider, ExtractionContext } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 
-// Bedrock model IDs carry the `anthropic.` prefix; cross-region inference profiles
-// take a `global.` prefix (no regional premium). Overridable via env so a deploy can
-// target the Bedrock-enabled account's region/inference-profile without a code change.
-const MODEL = process.env.BEDROCK_MODEL_ID ?? 'global.anthropic.claude-opus-4-8';
+// Bare on-demand foundation-model id. The Bedrock-enabled account (677276119483) that
+// issued our bearer token does NOT have the `global.`/`us.` cross-region inference
+// profiles provisioned — verified live: `global.anthropic.claude-opus-4-8` 404s there,
+// the bare id returns 200. Overridable via env so a deploy can target a different
+// account's provisioned model/profile without a code change.
+const MODEL = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-opus-4-8';
 
 // The tool schema mirrors the CandidateEvent shape so the model emits committable JSON.
 // The domain use-case (extractEvents) is the authoritative validator — this schema only
@@ -83,8 +85,11 @@ export class BedrockLlmProvider implements LlmProvider {
         messages: [{ role: 'user', content: prompt(text, ctx) }],
       });
     } catch (err) {
-      // Never leak the token; log the error class only.
-      console.error('Bedrock call failed', (err as Error).name);
+      // Log the error class + message for diagnosis (model-not-found, throttling, etc.).
+      // The Bedrock SDK's error message carries the status/model, NOT the bearer token, so
+      // this does not leak the credential.
+      const e = err as Error;
+      console.error('Bedrock call failed', e.name, e.message);
       throw new LlmUnavailableError();
     }
     // Pull the tool-use input (the structured JSON) out of the response content.

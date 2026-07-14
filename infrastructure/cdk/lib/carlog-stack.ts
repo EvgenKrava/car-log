@@ -21,8 +21,16 @@ import type { Construct } from 'constructs';
 
 const __dirnameLocal = dirname(fileURLToPath(import.meta.url));
 
+type CarLogStackProps = StackProps & {
+  // Resolved from SSM SecureString parameters at synth time in bin/carlog.ts. Both must be
+  // literal values at deploy: CloudFormation does not support ssm-secure dynamic references
+  // in Cognito IdP ProviderDetails or Lambda environment variables.
+  googleClientSecret: string;
+  bedrockBearerToken: string;
+};
+
 export class CarLogStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: CarLogStackProps) {
     super(scope, id, props);
 
     const table = new Table(this, 'CarLogTable', {
@@ -45,12 +53,13 @@ export class CarLogStack extends Stack {
     });
 
     // Google federated sign-in. The client id is non-secret; the client secret is
-    // pulled from SSM SecureString at deploy time via a CloudFormation dynamic
-    // reference so it never lands in the synth output or the repo.
+    // resolved from SSM SecureString at synth time (see bin/carlog.ts) and passed in as a
+    // literal — CloudFormation rejects ssm-secure dynamic references in Cognito IdP
+    // ProviderDetails, so the plaintext must reach the template directly.
     const googleIdP = new UserPoolIdentityProviderGoogle(this, 'GoogleIdP', {
       userPool,
       clientId: '290283855365-pqhjtbokk5k7bfccg3phiurskol4u8qs.apps.googleusercontent.com',
-      clientSecretValue: SecretValue.ssmSecure('/carlog/google-client-secret'),
+      clientSecretValue: SecretValue.unsafePlainText(props.googleClientSecret),
       scopes: ['openid', 'email', 'profile'],
       attributeMapping: { email: ProviderAttribute.GOOGLE_EMAIL },
     });
@@ -102,10 +111,11 @@ export class CarLogStack extends Stack {
       environment: {
         TABLE_NAME: table.tableName,
         PHOTOS_BUCKET: photosBucket.bucketName,
-        // Bearer token (issued by the Bedrock-enabled account) from SSM SecureString via a
-        // CloudFormation dynamic reference — never in synth output or the repo. Read by
+        // Bearer token (issued by the Bedrock-enabled account), resolved from SSM
+        // SecureString at synth time (see bin/carlog.ts). CloudFormation rejects ssm-secure
+        // dynamic references in Lambda env vars, so it must be a literal. Read by
         // AnthropicBedrockMantle; self-identifying, so it reaches that account cross-account.
-        AWS_BEARER_TOKEN_BEDROCK: SecretValue.ssmSecure('/carlog/bedrock-bearer-token').unsafeUnwrap(),
+        AWS_BEARER_TOKEN_BEDROCK: props.bedrockBearerToken,
         // Only set BEDROCK_REGION when a region was passed via context (keeps the env clean
         // otherwise; the adapter falls back to AWS_REGION).
         ...(bedrockRegion ? { BEDROCK_REGION: bedrockRegion } : {}),
