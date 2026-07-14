@@ -1,1 +1,1 @@
-{ "appName": "CarLog", "signOut": "Вийти", "cancel": "Скасувати", "save": "Зберегти", "delete": "Видалити", "edit": "Редагувати", "loadingError": "Щось пішло не так", "tryAgain": "Спробуйте ще раз.", "language": "Мова" }
+{ "appName": "CarLog", "signOut": "Вийти", "cancel": "Скасувати", "save": "Зберегти", "delete": "Видалити", "edit": "Редагувати", "loadingError": "Щось пішло не так", "tryAgain": "Спробуйте ще раз.", "language": "Мова", "batchUploading": "Завантаження {{done}} з {{total}}…" }
