@@ -5,6 +5,7 @@ import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PhotoGallery } from '../components/PhotoGallery';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
@@ -53,6 +54,7 @@ function VehicleDetail({ car }: { car: Car }) {
             {car.licensePlate ? <SpecRow label="License plate" value={car.licensePlate} /> : null}
           </CardContent>
         </Card>
+        <PhotoGallery carId={car.id} />
         {del.isError ? <Alert severity="error" sx={{ mt: 2 }}>Failed to delete. Please try again.</Alert> : null}
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />
