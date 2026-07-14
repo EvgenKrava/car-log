@@ -1,55 +1,54 @@
 import { useState } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { useNavigate } from 'react-router-dom';
-import {
-  AppBar, Box, Button, Card, CardContent, CircularProgress, Container, Fab, Grid,
-  Toolbar, Typography,
-} from '@mui/material';
+import { Button, Container, Fab, Grid } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useCars } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
+import { AppShell } from '../components/ui/AppShell';
+import { PageHeader } from '../components/ui/PageHeader';
+import { EmptyState } from '../components/ui/EmptyState';
+import { StatusView } from '../components/ui/StatusView';
+import { VehicleCard } from '../components/ui/VehicleCard';
 
 export function Garage() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const { data: cars, isLoading } = useCars();
+  const { data: cars, isLoading, isError } = useCars();
   const [open, setOpen] = useState(false);
 
   return (
-    <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>CarLog</Typography>
-          <Button color="inherit" onClick={() => void auth.signoutRedirect()}>Sign out</Button>
-        </Toolbar>
-      </AppBar>
+    <AppShell>
+      <PageHeader
+        title="CarLog"
+        actions={<Button color="inherit" onClick={() => void auth.signoutRedirect()}>Sign out</Button>}
+      />
       <Container sx={{ py: 3 }}>
-        {isLoading ? <CircularProgress /> : !cars?.length ? (
-          <Typography color="text.secondary">Add your first car.</Typography>
+        {isLoading ? (
+          <StatusView state="loading" />
+        ) : isError ? (
+          <StatusView state="error" message="Could not load your garage." />
+        ) : !cars?.length ? (
+          <EmptyState
+            title="Add your first car"
+            description="Start keeping a maintenance history for every vehicle you own."
+            action={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>Add a car</Button>}
+          />
         ) : (
           <Grid container spacing={2}>
-            {cars.map((car) => {
-              const displayName: string = car.nickname || `${car.make} ${car.model}`;
-              const details: string = `${car.year} · ${car.mileage.toLocaleString()} mi`;
-              return (
-                <Grid item xs={12} sm={6} md={4} key={car.id}>
-                  <Card onClick={() => navigate(`/cars/${car.id}`)} sx={{ cursor: 'pointer' }}>
-                    <CardContent>
-                      <Typography variant="h6">{displayName}</Typography>
-                      <Typography color="text.secondary">{details}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
+            {cars.map((car) => (
+              <Grid item xs={12} sm={6} md={4} key={car.id}>
+                <VehicleCard car={car} onClick={() => navigate(`/cars/${car.id}`)} />
+              </Grid>
+            ))}
           </Grid>
         )}
       </Container>
-      <Fab color="primary" onClick={() => setOpen(true)} sx={{ position: 'fixed', bottom: 24, right: 24 }}>
+      <Fab color="primary" onClick={() => setOpen(true)} aria-label="Add car"
+        sx={{ position: 'fixed', bottom: 24, right: 24 }}>
         <AddIcon />
       </Fab>
       <CarFormDialog open={open} onClose={() => setOpen(false)} mode="create" />
-      <Box sx={{ height: 80 }} />
-    </>
+    </AppShell>
   );
 }
