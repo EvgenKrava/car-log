@@ -17,6 +17,7 @@ import { SignUp } from './routes/auth/SignUp';
 import { ConfirmSignUp } from './routes/auth/ConfirmSignUp';
 import { ForgotPassword } from './routes/auth/ForgotPassword';
 import { ResetPassword } from './routes/auth/ResetPassword';
+import { Callback } from './routes/Callback';
 import { InstallPrompt } from './components/InstallPrompt';
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ function Root() {
               <Route path="/confirm" element={<ConfirmSignUp />} />
               <Route path="/forgot" element={<ForgotPassword />} />
               <Route path="/reset" element={<ResetPassword />} />
+              <Route path="/callback" element={<Callback />} />
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
             </Routes>

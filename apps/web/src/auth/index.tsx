@@ -6,6 +6,7 @@ import {
   resendSignUpCode, resetPassword, confirmResetPassword, signOut as awsSignOut,
   fetchAuthSession, getCurrentUser,
 } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
 import { configureAmplify } from './amplify';
 
 configureAmplify();
@@ -51,6 +52,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Federated sign-ins complete outside the normal signIn() call path, so listen on
+  // the Amplify Hub and refresh session state whenever auth changes anywhere.
+  useEffect(() => {
+    const stop = Hub.listen('auth', ({ payload }) => {
+      if (payload.event === 'signInWithRedirect' || payload.event === 'signedIn' || payload.event === 'signedOut') {
+        void refresh();
+      }
+    });
+    return () => stop();
+  }, [refresh]);
 
   const value = useMemo<AuthValue>(() => ({
     status, email, accessToken, refresh,
