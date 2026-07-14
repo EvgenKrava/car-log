@@ -1,42 +1,50 @@
 import { useRef, useState } from 'react';
-import { Alert, Box, Button, Dialog, IconButton, Link, Stack, Typography } from '@mui/material';
+import { Box, Button, Dialog, IconButton, Link, Stack, Typography } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
+import { MAX_PROOFS_PER_EVENT } from '@carlog/contracts';
 import { useProofs, useUploadProof, useDeleteProof } from '../queries';
 import { validateAttachmentFile } from '../lib/validate-attachment';
+import { useBatchUpload } from '../lib/use-batch-upload';
 import { ConfirmDialog } from './ConfirmDialog';
+import { BatchUploadStatus } from './ui/BatchUploadStatus';
 
 export function ProofList({ carId, eventId }: { carId: string; eventId: string }) {
   const { t } = useTranslation(['event', 'common']);
   const { data: proofs } = useProofs(carId, eventId);
   const upload = useUploadProof(carId, eventId);
   const del = useDeleteProof(carId, eventId);
+  const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
 
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; e.target.value = '';
-    if (!file) return;
-    const v = validateAttachmentFile({ type: file.type, size: file.size }, proofs?.length ?? 0);
-    if (v) { setError(t(v.key, v.params)); return; }
-    setError(null);
-    try { await upload.mutateAsync(file); } catch { setError(t('event:proofUploadFailed')); }
+  const batch = useBatchUpload({
+    upload: (file) => upload.mutateAsync(file).then(() => undefined),
+    validateOne: validateAttachmentFile,
+    remaining: () => MAX_PROOFS_PER_EVENT - (proofs?.length ?? 0),
+    onComplete: () => { void qc.invalidateQueries({ queryKey: ['cars', carId, 'events', eventId, 'proofs'] }); },
+  });
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    batch.start(files);
   };
 
   return (
     <Box sx={{ mt: 1 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
         <Typography variant="subtitle2">{t('event:proofs')}</Typography>
-        <Button size="small" startIcon={<AttachFileIcon />} onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
+        <Button size="small" startIcon={<AttachFileIcon />} onClick={() => inputRef.current?.click()} disabled={batch.running}>
           {t('event:addProof')}
         </Button>
-        <input ref={inputRef} type="file" accept="image/*,application/pdf" hidden onChange={onPick} />
+        <input ref={inputRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={onPick} />
       </Stack>
-      {error ? <Alert severity="error" sx={{ my: 1 }}>{error}</Alert> : null}
+      <BatchUploadStatus items={batch.items} running={batch.running} />
       {!proofs?.length ? (
         <Typography variant="body2" color="text.secondary">{t('event:noProofs')}</Typography>
       ) : (
