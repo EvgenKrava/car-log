@@ -1,46 +1,52 @@
 import { useRef, useState } from 'react';
 import {
-  Alert, Box, Button, CircularProgress, Dialog, IconButton, ImageList, ImageListItem, Stack, Typography,
+  Box, Button, Dialog, IconButton, ImageList, ImageListItem, Stack, Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { useQueryClient } from '@tanstack/react-query';
+import { MAX_PHOTOS_PER_CAR } from '@carlog/contracts';
 import { usePhotos, useUploadPhoto, useDeletePhoto } from '../queries';
 import { validatePhotoFile } from '../lib/validate-photo';
+import { useBatchUpload } from '../lib/use-batch-upload';
 import { ConfirmDialog } from './ConfirmDialog';
 import { StatusView } from './ui/StatusView';
+import { BatchUploadStatus } from './ui/BatchUploadStatus';
 
 export function PhotoGallery({ carId }: { carId: string }) {
   const { t } = useTranslation(['photos', 'common']);
   const { data: photos, isLoading, isError } = usePhotos(carId);
   const upload = useUploadPhoto(carId);
   const del = useDeletePhoto(carId);
+  const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
 
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const batch = useBatchUpload({
+    upload: (file) => upload.mutateAsync(file).then(() => undefined),
+    validateOne: validatePhotoFile,
+    remaining: () => MAX_PHOTOS_PER_CAR - (photos?.length ?? 0),
+    onComplete: () => { void qc.invalidateQueries({ queryKey: ['cars', carId, 'photos'] }); },
+  });
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
-    const v = validatePhotoFile({ type: file.type, size: file.size }, photos?.length ?? 0);
-    if (v) { setError(t(v.key, v.params)); return; }
-    setError(null);
-    try { await upload.mutateAsync(file); } catch { setError(t('photos:uploadFailed')); }
+    batch.start(files);
   };
 
   return (
     <Box sx={{ mt: 3 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Typography variant="h6">{t('photos:title')}</Typography>
-        <Button startIcon={<AddPhotoAlternateIcon />} onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
+        <Button startIcon={<AddPhotoAlternateIcon />} onClick={() => inputRef.current?.click()} disabled={batch.running}>
           {t('photos:add')}
         </Button>
-        <input ref={inputRef} type="file" accept="image/*" hidden onChange={onPick} />
+        <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={onPick} />
       </Stack>
-      {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
-      {upload.isPending ? <Box sx={{ mb: 2 }}><CircularProgress size={20} /></Box> : null}
+      <BatchUploadStatus items={batch.items} running={batch.running} />
 
       {isLoading ? (
         <StatusView state="loading" />
