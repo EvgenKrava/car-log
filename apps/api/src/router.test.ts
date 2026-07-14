@@ -4,6 +4,8 @@ import { InMemoryCarRepository } from './in-memory-car-repository';
 import { InMemoryPhotoRepository } from './in-memory-photo-repository';
 import { InMemoryEventRepository } from './in-memory-event-repository';
 import { InMemoryProofRepository } from './in-memory-proof-repository';
+import { InMemoryLlmProvider } from './in-memory-llm-provider';
+import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 
 let cars: InMemoryCarRepository;
@@ -14,7 +16,7 @@ const storage: PhotoStorage = {
   deleteObject: async () => {},
   exists: async () => true,
 };
-let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository };
+let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; llm: InMemoryLlmProvider };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   photos = new InMemoryPhotoRepository();
@@ -22,6 +24,7 @@ beforeEach(() => {
     cars, photos, storage,
     events: new InMemoryEventRepository(),
     proofs: new InMemoryProofRepository(),
+    llm: new InMemoryLlmProvider({ events: [{ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' }] }),
   };
 });
 
@@ -167,6 +170,46 @@ describe('route', () => {
       const proofs = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id } });
       // event is gone -> requireEvent throws 404
       expect(proofs.statusCode).toBe(404);
+    });
+  });
+
+  describe('POST /import/extract', () => {
+    async function makeCar(ownerId: string): Promise<string> {
+      const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
+      return JSON.parse(res.body).id as string;
+    }
+
+    it('returns extracted candidate events for the owner car', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/extract', ownerId: 'u1', body: { carId, text: 'oil change at 45000' } });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).events).toHaveLength(1);
+    });
+
+    it('404s when the car is not owned by the caller', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/extract', ownerId: 'u2', body: { carId, text: 'x' } });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('400s on empty text', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/extract', ownerId: 'u1', body: { carId, text: '' } });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('503s when the LLM provider is unavailable', async () => {
+      const carId = await makeCar('u1');
+      deps.llm = new InMemoryLlmProvider(null, new LlmUnavailableError());
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/extract', ownerId: 'u1', body: { carId, text: 'x' } });
+      expect(res.statusCode).toBe(503);
+    });
+
+    it('422s when extraction yields shapeless output twice', async () => {
+      const carId = await makeCar('u1');
+      deps.llm = new InMemoryLlmProvider('not an array or events object');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/extract', ownerId: 'u1', body: { carId, text: 'x' } });
+      expect(res.statusCode).toBe(422);
     });
   });
 });

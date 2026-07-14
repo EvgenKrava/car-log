@@ -6,6 +6,7 @@ import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ImportEventsDialog } from '../components/ImportEventsDialog';
 import { PhotoGallery } from '../components/PhotoGallery';
 import { ServiceTimeline } from '../components/ServiceTimeline';
 import { AppShell } from '../components/ui/AppShell';
@@ -23,11 +24,12 @@ function SpecRow({ label, value }: { label: string; value: string | number }) {
 }
 
 function VehicleDetail({ car }: { car: Car }) {
-  const { t, i18n } = useTranslation(['vehicle', 'car', 'common']);
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const title = car.nickname || `${car.make} ${car.model}`;
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
@@ -59,6 +61,9 @@ function VehicleDetail({ car }: { car: Car }) {
           </CardContent>
         </Card>
         <PhotoGallery carId={car.id} />
+        <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+          <Button variant="outlined" onClick={() => setImportOpen(true)}>{t('import:trigger')}</Button>
+        </Stack>
         <ServiceTimeline carId={car.id} />
         {del.isError ? <Alert severity="error" sx={{ mt: 2 }}>{t('vehicle:deleteFailed')}</Alert> : null}
       </Container>
@@ -71,6 +76,7 @@ function VehicleDetail({ car }: { car: Car }) {
         onClose={() => setConfirmOpen(false)}
         loading={del.isPending}
       />
+      <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
     </AppShell>
   );
 }

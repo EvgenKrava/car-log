@@ -1,5 +1,6 @@
 import { ZodError } from 'zod';
-import { CarNotFoundError, CapExceededError, PhotoNotFoundError, EventNotFoundError, ProofNotFoundError } from '@carlog/domain';
+import { CarNotFoundError, CapExceededError, PhotoNotFoundError, EventNotFoundError, ProofNotFoundError, ExtractionFailedError } from '@carlog/domain';
+import { LlmUnavailableError } from './llm-errors';
 
 
 const CORS = {
@@ -33,6 +34,12 @@ export async function withErrorHandling(fn: () => Promise<ApiResult>): Promise<A
     }
     if (err instanceof EventNotFoundError || err instanceof ProofNotFoundError) {
       return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'NotFound', message: err.message }) };
+    }
+    if (err instanceof ExtractionFailedError) {
+      return { statusCode: 422, headers: CORS, body: JSON.stringify({ error: 'ExtractionFailed', message: err.message }) };
+    }
+    if (err instanceof LlmUnavailableError) {
+      return { statusCode: 503, headers: CORS, body: JSON.stringify({ error: 'LlmUnavailable', message: err.message }) };
     }
     console.error('Unhandled error', err);
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'InternalError' }) };

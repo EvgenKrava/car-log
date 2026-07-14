@@ -21,8 +21,16 @@ import type { Construct } from 'constructs';
 
 const __dirnameLocal = dirname(fileURLToPath(import.meta.url));
 
+type CarLogStackProps = StackProps & {
+  // Resolved from SSM SecureString parameters at synth time in bin/carlog.ts. Both must be
+  // literal values at deploy: CloudFormation does not support ssm-secure dynamic references
+  // in Cognito IdP ProviderDetails or Lambda environment variables.
+  googleClientSecret: string;
+  bedrockBearerToken: string;
+};
+
 export class CarLogStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: CarLogStackProps) {
     super(scope, id, props);
 
     const table = new Table(this, 'CarLogTable', {
@@ -45,12 +53,13 @@ export class CarLogStack extends Stack {
     });
 
     // Google federated sign-in. The client id is non-secret; the client secret is
-    // pulled from SSM SecureString at deploy time via a CloudFormation dynamic
-    // reference so it never lands in the synth output or the repo.
+    // resolved from SSM SecureString at synth time (see bin/carlog.ts) and passed in as a
+    // literal — CloudFormation rejects ssm-secure dynamic references in Cognito IdP
+    // ProviderDetails, so the plaintext must reach the template directly.
     const googleIdP = new UserPoolIdentityProviderGoogle(this, 'GoogleIdP', {
       userPool,
       clientId: '290283855365-pqhjtbokk5k7bfccg3phiurskol4u8qs.apps.googleusercontent.com',
-      clientSecretValue: SecretValue.ssmSecure('/carlog/google-client-secret'),
+      clientSecretValue: SecretValue.unsafePlainText(props.googleClientSecret),
       scopes: ['openid', 'email', 'profile'],
       attributeMapping: { email: ProviderAttribute.GOOGLE_EMAIL },
     });
@@ -88,12 +97,32 @@ export class CarLogStack extends Stack {
       lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
     });
 
+    // Bedrock runs in a DIFFERENT (Bedrock-enabled) account: the bearer token in
+    // /carlog/bedrock-bearer-token is issued BY that account, so the runtime call reaches
+    // that account's Bedrock with no cross-account IAM. Its model access may live in a
+    // different region than this stack — pass `-c bedrockRegion=<region>` at deploy to set
+    // BEDROCK_REGION; when unset, the Lambda falls back to its own AWS_REGION.
+    const bedrockRegion = this.node.tryGetContext('bedrockRegion') as string | undefined;
+
     const fn = new NodejsFunction(this, 'CarsFn', {
       runtime: Runtime.NODEJS_20_X,
       entry: join(__dirnameLocal, '../../../apps/api/src/handler.ts'),
       handler: 'handler',
-      environment: { TABLE_NAME: table.tableName, PHOTOS_BUCKET: photosBucket.bucketName },
-      timeout: Duration.seconds(10),
+      environment: {
+        TABLE_NAME: table.tableName,
+        PHOTOS_BUCKET: photosBucket.bucketName,
+        // Bearer token (issued by the Bedrock-enabled account), resolved from SSM
+        // SecureString at synth time (see bin/carlog.ts). CloudFormation rejects ssm-secure
+        // dynamic references in Lambda env vars, so it must be a literal. Read by
+        // AnthropicBedrockMantle; self-identifying, so it reaches that account cross-account.
+        AWS_BEARER_TOKEN_BEDROCK: props.bedrockBearerToken,
+        // Only set BEDROCK_REGION when a region was passed via context (keeps the env clean
+        // otherwise; the adapter falls back to AWS_REGION).
+        ...(bedrockRegion ? { BEDROCK_REGION: bedrockRegion } : {}),
+      },
+      // 29s: the extract route makes a Bedrock call that can take 10-20s; other routes
+      // are fast. 29s stays under the API Gateway HTTP API 30s integration hard cap.
+      timeout: Duration.seconds(29),
       // Cost: 256 MB is the price/performance sweet spot for this CRUD workload.
       memorySize: 256,
       // Note: we intentionally do NOT set reservedConcurrentExecutions. This account's
@@ -128,6 +157,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs/{proofId}', methods: [HttpMethod.DELETE], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.

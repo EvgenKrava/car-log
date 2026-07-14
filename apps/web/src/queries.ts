@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -110,4 +110,9 @@ export function useUploadProof(carId: string, eventId: string) {
 export function useDeleteProof(carId: string, eventId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
   return useMutation({ mutationFn: (proofId: string) => deleteProof(token, carId, eventId, proofId), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events', eventId, 'proofs'] }) });
+}
+
+export function useExtractEvents(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useMutation({ mutationFn: (text: string) => extractEvents(token, carId, text) });
 }
