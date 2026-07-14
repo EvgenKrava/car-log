@@ -69,8 +69,8 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <form onSubmit={onSubmit}>
         <DialogTitle>{mode === 'edit' ? 'Edit car' : 'Add a car'}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2.5} sx={{ mt: 1 }}>
             {(create.isError || update.isError) && (
               <Alert severity="error">Something went wrong. Please try again.</Alert>
             )}
