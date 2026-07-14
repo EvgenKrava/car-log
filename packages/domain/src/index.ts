@@ -6,3 +6,5 @@ export * from './photo-repository';
 export * from './event';
 export * from './event-repository';
 export * from './proof-repository';
+export * from './llm-provider';
+export { extractEvents, ExtractionFailedError } from './extract-events';
