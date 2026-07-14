@@ -28,9 +28,6 @@ export const CarSchema = CreateCarSchema.extend({
   updatedAt: z.string().datetime(),
 });
 
-export const UpdateCarSchema = CreateCarSchema.partial();
-
 export type FuelType = z.infer<typeof FuelTypeSchema>;
 export type Car = z.infer<typeof CarSchema>;
 export type CreateCarInput = z.infer<typeof CreateCarSchema>;
-export type UpdateCarInput = z.infer<typeof UpdateCarSchema>;

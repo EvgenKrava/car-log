@@ -1,4 +1,4 @@
-import { CreateCarSchema, UpdateCarSchema } from '@carlog/contracts';
+import { CreateCarSchema } from '@carlog/contracts';
 import { CarNotFoundError, createCar, type CarRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 
@@ -21,7 +21,7 @@ export function route(repo: CarRepository, event: ApiEvent): Promise<ApiResult> 
       const car = createCar(ownerId, CreateCarSchema.parse(body));
       return ok(201, await repo.create(car));
     }
-    if (id && method === 'PUT') return ok(200, await repo.update(ownerId, id, UpdateCarSchema.parse(body)));
+    if (id && method === 'PUT') return ok(200, await repo.update(ownerId, id, CreateCarSchema.parse(body)));
     if (id && method === 'DELETE') { await repo.delete(ownerId, id); return ok(204, null); }
     if (id && method === 'GET') {
       const car = await repo.getById(ownerId, id);

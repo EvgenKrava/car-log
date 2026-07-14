@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  AppBar, Box, Button, CircularProgress, Container, IconButton, Stack, Toolbar, Typography,
+  Alert, AppBar, Box, Button, CircularProgress, Container, IconButton, Stack, Toolbar, Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import type { Car } from '@carlog/contracts';
@@ -56,6 +56,9 @@ function VehicleDetail({ car }: { car: Car }) {
           <Button variant="contained" onClick={() => setEditOpen(true)}>Edit</Button>
           <Button color="error" onClick={() => setConfirmOpen(true)}>Delete</Button>
         </Stack>
+        {del.isError && (
+          <Alert severity="error" sx={{ mt: 2 }}>Failed to delete. Please try again.</Alert>
+        )}
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />
       <ConfirmDialog

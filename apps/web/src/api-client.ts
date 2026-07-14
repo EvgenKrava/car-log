@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CarSchema, type Car, type CreateCarInput, type UpdateCarInput } from '@carlog/contracts';
+import { CarSchema, type Car, type CreateCarInput } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -21,7 +21,7 @@ export const createCar = (token: string, input: CreateCarInput): Promise<Car> =>
 export const getCar = (token: string, id: string): Promise<Car> =>
   request(token, `/cars/${id}`, CarSchema);
 
-export const updateCar = (token: string, id: string, input: UpdateCarInput): Promise<Car> =>
+export const updateCar = (token: string, id: string, input: CreateCarInput): Promise<Car> =>
   request(token, `/cars/${id}`, CarSchema, { method: 'PUT', body: JSON.stringify(input) });
 
 export const deleteCar = (token: string, id: string): Promise<void> =>

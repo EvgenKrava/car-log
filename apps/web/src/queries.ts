@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import type { CreateCarInput, UpdateCarInput } from '@carlog/contracts';
+import type { CreateCarInput } from '@carlog/contracts';
 import { createCar, deleteCar, getCar, listCars, updateCar } from './api-client';
 
 export function useCars() {
@@ -34,7 +34,7 @@ export function useUpdateCar(id: string) {
   const token = auth.user?.access_token ?? '';
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: UpdateCarInput) => updateCar(token, id, input),
+    mutationFn: (input: CreateCarInput) => updateCar(token, id, input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['cars'] });
       void qc.invalidateQueries({ queryKey: ['cars', id] });

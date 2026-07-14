@@ -1,7 +1,7 @@
 import {
   DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
-import type { Car, UpdateCarInput } from '@carlog/contracts';
+import type { Car, CreateCarInput } from '@carlog/contracts';
 import { CarNotFoundError, type CarRepository } from '@carlog/domain';
 
 const pk = (ownerId: string) => `USER#${ownerId}`;
@@ -38,10 +38,16 @@ export class DynamoCarRepository implements CarRepository {
     return res.Item ? toCar(res.Item) : null;
   }
 
-  async update(ownerId: string, id: string, patch: UpdateCarInput): Promise<Car> {
+  async update(ownerId: string, id: string, input: CreateCarInput): Promise<Car> {
     const existing = await this.getById(ownerId, id);
     if (!existing) throw new CarNotFoundError(id);
-    const updated: Car = { ...existing, ...patch, updatedAt: new Date().toISOString() };
+    const updated: Car = {
+      ...input,
+      id: existing.id,
+      ownerId: existing.ownerId,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
     await this.client.send(new PutCommand({ TableName: this.tableName, Item: toRow(updated) }));
     return updated;
   }

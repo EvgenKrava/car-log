@@ -39,4 +39,11 @@ describe('route', () => {
     const res = await route(repo, { ...base, method: 'DELETE', path: '/cars/nope', ownerId: 'u1', pathParams: { id: 'nope' } });
     expect(res.statusCode).toBe(404);
   });
+
+  it('PUT /cars/{id} clears an omitted optional field (full replace)', async () => {
+    const created = JSON.parse((await route(repo, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: { ...validBody, vin: '1HGCM82633A004352' } })).body);
+    const res = await route(repo, { ...base, method: 'PUT', path: `/cars/${created.id}`, ownerId: 'u1', pathParams: { id: created.id }, body: validBody });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).vin).toBeUndefined();
+  });
 });

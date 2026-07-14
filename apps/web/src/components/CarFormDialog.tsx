@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import {
-  Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField,
+  Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField,
 } from '@mui/material';
 import { CreateCarSchema, FuelTypeSchema, type Car, type CreateCarInput } from '@carlog/contracts';
 import { useCreateCar, useUpdateCar } from '../queries';
@@ -47,7 +47,7 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
   }, [open, mode, car, reset]);
 
   const onSubmit = handleSubmit(async (data) => {
-    if (mode === 'edit') {
+    if (mode === 'edit' && car) {
       await update.mutateAsync(data);
     } else {
       await create.mutateAsync(data);
@@ -71,6 +71,9 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
         <DialogTitle>{mode === 'edit' ? 'Edit car' : 'Add a car'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {(create.isError || update.isError) && (
+              <Alert severity="error">Something went wrong. Please try again.</Alert>
+            )}
             {text('make', 'Make')}
             {text('model', 'Model')}
             {text('year', 'Year', 'number')}

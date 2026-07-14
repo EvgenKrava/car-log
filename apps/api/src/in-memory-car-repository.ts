@@ -1,4 +1,4 @@
-import type { Car, UpdateCarInput } from '@carlog/contracts';
+import type { Car, CreateCarInput } from '@carlog/contracts';
 import { CarNotFoundError, type CarRepository } from '@carlog/domain';
 
 export class InMemoryCarRepository implements CarRepository {
@@ -15,10 +15,16 @@ export class InMemoryCarRepository implements CarRepository {
   async getById(ownerId: string, id: string): Promise<Car | null> {
     return this.cars.get(this.key(ownerId, id)) ?? null;
   }
-  async update(ownerId: string, id: string, patch: UpdateCarInput): Promise<Car> {
+  async update(ownerId: string, id: string, input: CreateCarInput): Promise<Car> {
     const existing = this.cars.get(this.key(ownerId, id));
     if (!existing) throw new CarNotFoundError(id);
-    const updated: Car = { ...existing, ...patch, updatedAt: new Date().toISOString() };
+    const updated: Car = {
+      ...input,
+      id: existing.id,
+      ownerId: existing.ownerId,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
     this.cars.set(this.key(ownerId, id), updated);
     return updated;
   }
