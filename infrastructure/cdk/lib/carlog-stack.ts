@@ -92,8 +92,16 @@ export class CarLogStack extends Stack {
       runtime: Runtime.NODEJS_20_X,
       entry: join(__dirnameLocal, '../../../apps/api/src/handler.ts'),
       handler: 'handler',
-      environment: { TABLE_NAME: table.tableName, PHOTOS_BUCKET: photosBucket.bucketName },
-      timeout: Duration.seconds(10),
+      environment: {
+        TABLE_NAME: table.tableName,
+        PHOTOS_BUCKET: photosBucket.bucketName,
+        // Bedrock bearer token from SSM SecureString via a CloudFormation dynamic
+        // reference — never in synth output or the repo. Read by AnthropicBedrockMantle.
+        AWS_BEARER_TOKEN_BEDROCK: SecretValue.ssmSecure('/carlog/bedrock-bearer-token').unsafeUnwrap(),
+      },
+      // 29s: the extract route makes a Bedrock call that can take 10-20s; other routes
+      // are fast. 29s stays under the API Gateway HTTP API 30s integration hard cap.
+      timeout: Duration.seconds(29),
       // Cost: 256 MB is the price/performance sweet spot for this CRUD workload.
       memorySize: 256,
       // Note: we intentionally do NOT set reservedConcurrentExecutions. This account's
@@ -128,6 +136,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs/{proofId}', methods: [HttpMethod.DELETE], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.
