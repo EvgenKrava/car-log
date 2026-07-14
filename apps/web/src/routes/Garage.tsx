@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from 'react-oidc-context';
+import { useAuth } from '../auth';
 import { useNavigate } from 'react-router-dom';
 import { Button, Container, Fab, Grid } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,7 +12,7 @@ import { StatusView } from '../components/ui/StatusView';
 import { VehicleCard } from '../components/ui/VehicleCard';
 
 export function Garage() {
-  const auth = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const { data: cars, isLoading, isError } = useCars();
   const [open, setOpen] = useState(false);
@@ -21,7 +21,7 @@ export function Garage() {
     <AppShell>
       <PageHeader
         title="CarLog"
-        actions={<Button color="inherit" onClick={() => void auth.signoutRedirect()}>Sign out</Button>}
+        actions={<Button color="inherit" onClick={() => void signOut()}>Sign out</Button>}
       />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
