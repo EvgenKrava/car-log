@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { CarNotFoundError } from '@carlog/domain';
+import { CarNotFoundError, CapExceededError, PhotoNotFoundError } from '@carlog/domain';
 
 
 const CORS = {
@@ -23,6 +23,12 @@ export async function withErrorHandling(fn: () => Promise<ApiResult>): Promise<A
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'ValidationError', issues: err.issues }) };
     }
     if (err instanceof CarNotFoundError) {
+      return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'NotFound', message: err.message }) };
+    }
+    if (err instanceof CapExceededError) {
+      return { statusCode: 409, headers: CORS, body: JSON.stringify({ error: 'CapExceeded', message: err.message }) };
+    }
+    if (err instanceof PhotoNotFoundError) {
       return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'NotFound', message: err.message }) };
     }
     console.error('Unhandled error', err);
