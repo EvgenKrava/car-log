@@ -64,7 +64,7 @@ export function InstallPrompt() {
     <Paper
       elevation={8}
       sx={{
-        position: 'fixed', left: 16, right: 16, bottom: 16,
+        position: 'fixed', left: 16, right: 16, bottom: { xs: 96, sm: 16 },
         zIndex: (t) => t.zIndex.snackbar,
         p: 2, borderRadius: 3, maxWidth: 560, mx: 'auto',
       }}

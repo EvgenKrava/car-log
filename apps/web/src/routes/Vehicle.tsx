@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Chip, Container, Stack, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Chip, Container, Stack, Typography } from '@mui/material';
 import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
@@ -53,6 +53,7 @@ function VehicleDetail({ car }: { car: Car }) {
             {car.licensePlate ? <SpecRow label="License plate" value={car.licensePlate} /> : null}
           </CardContent>
         </Card>
+        {del.isError ? <Alert severity="error" sx={{ mt: 2 }}>Failed to delete. Please try again.</Alert> : null}
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />
       <ConfirmDialog
@@ -63,10 +64,6 @@ function VehicleDetail({ car }: { car: Car }) {
         onClose={() => setConfirmOpen(false)}
         loading={del.isPending}
       />
-      {del.isError ? (
-        <Container><Typography color="error" sx={{ mt: 1 }}>Failed to delete. Please try again.</Typography></Container>
-      ) : null}
-      <Box />
     </AppShell>
   );
 }
