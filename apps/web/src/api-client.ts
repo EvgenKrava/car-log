@@ -10,6 +10,7 @@ import {
   type PresignResponse,
   type PhotoContentType,
   EventSchema,
+  type Event,
   type CreateEventInput,
   ProofWithUrlSchema,
   ProofSchema,
@@ -25,14 +26,20 @@ const EventListSchema = z.array(EventSchema);
 const ProofListSchema = z.array(ProofWithUrlSchema);
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-async function request<T>(token: string, path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
+// Bind the generic to the schema's OUTPUT type (post-parse). Schemas that use
+// `.default()` (e.g. Event.currency/works) have a looser INPUT type where those
+// fields are optional; `.parse()` returns the output where they are present, so
+// callers get the correct required-field types.
+async function request<S extends z.ZodTypeAny>(
+  token: string, path: string, schema: S, init?: RequestInit,
+): Promise<z.output<S>> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
-  if (res.status === 204) return undefined as T;
-  return schema.parse(await res.json());
+  if (res.status === 204) return undefined as z.output<S>;
+  return schema.parse(await res.json()) as z.output<S>;
 }
 
 export const listCars = (token: string): Promise<Car[]> => request(token, '/cars', CarListSchema);
@@ -72,11 +79,11 @@ export async function uploadPhoto(token: string, carId: string, file: File): Pro
   await confirmPhoto(token, carId, { ...input, photoId });
 }
 
-export const getEvents = (token: string, carId: string) =>
+export const getEvents = (token: string, carId: string): Promise<Event[]> =>
   request(token, `/cars/${carId}/events`, EventListSchema);
-export const createEvent = (token: string, carId: string, input: CreateEventInput) =>
+export const createEvent = (token: string, carId: string, input: CreateEventInput): Promise<Event> =>
   request(token, `/cars/${carId}/events`, EventSchema, { method: 'POST', body: JSON.stringify(input) });
-export const updateEvent = (token: string, carId: string, eventId: string, input: CreateEventInput) =>
+export const updateEvent = (token: string, carId: string, eventId: string, input: CreateEventInput): Promise<Event> =>
   request(token, `/cars/${carId}/events/${eventId}`, EventSchema, { method: 'PUT', body: JSON.stringify(input) });
 export const deleteEvent = (token: string, carId: string, eventId: string): Promise<void> =>
   request(token, `/cars/${carId}/events/${eventId}`, EventSchema, { method: 'DELETE' }).then(() => undefined);
