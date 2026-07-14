@@ -9,5 +9,9 @@ export function Callback() {
   useEffect(() => {
     if (!auth.isLoading && auth.isAuthenticated) navigate('/', { replace: true });
   }, [auth.isLoading, auth.isAuthenticated, navigate]);
-  return <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}><CircularProgress /></Box>;
+  return (
+    <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <CircularProgress />
+    </Box>
+  );
 }
