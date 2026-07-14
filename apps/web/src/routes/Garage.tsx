@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button, Container, Fab, Grid } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useCars } from '../queries';
@@ -12,6 +13,7 @@ import { StatusView } from '../components/ui/StatusView';
 import { VehicleCard } from '../components/ui/VehicleCard';
 
 export function Garage() {
+  const { t } = useTranslation(['garage', 'common']);
   const auth = useAuth();
   const navigate = useNavigate();
   const { data: cars, isLoading, isError } = useCars();
@@ -20,19 +22,19 @@ export function Garage() {
   return (
     <AppShell>
       <PageHeader
-        title="CarLog"
-        actions={<Button color="inherit" onClick={() => void auth.signoutRedirect()}>Sign out</Button>}
+        title={t('common:appName')}
+        actions={<Button color="inherit" onClick={() => void auth.signoutRedirect()}>{t('common:signOut')}</Button>}
       />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
           <StatusView state="loading" />
         ) : isError ? (
-          <StatusView state="error" message="Could not load your garage." />
+          <StatusView state="error" message={t('garage:loadError')} />
         ) : !cars?.length ? (
           <EmptyState
-            title="Add your first car"
-            description="Start keeping a maintenance history for every vehicle you own."
-            action={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>Add a car</Button>}
+            title={t('garage:empty')}
+            description={t('garage:emptyHint')}
+            action={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('garage:addCar')}</Button>}
           />
         ) : (
           <Grid container spacing={2}>
