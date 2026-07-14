@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useTranslation } from 'react-i18next';
-import type { Event } from '@carlog/contracts';
 import { useEvents } from '../queries';
 import { EventCard } from './EventCard';
 import { EventFormDialog } from './EventFormDialog';
@@ -13,7 +12,7 @@ export function ServiceTimeline({ carId }: { carId: string }) {
   const { data: events, isLoading, isError } = useEvents(carId);
   const [open, setOpen] = useState(false);
 
-  const sorted = [...(events ?? [])].map((e) => ({ ...e, currency: e.currency ?? 'UAH', works: e.works ?? [] } as Event)).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const sorted = [...(events ?? [])].sort((a, b) => (a.date < b.date ? 1 : -1));
 
   return (
     <Box sx={{ mt: 4 }}>
