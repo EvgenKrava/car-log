@@ -28,11 +28,14 @@ export class DynamoCarRepository implements CarRepository {
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
       ExpressionAttributeValues: { ':pk': pk(ownerId), ':sk': 'CAR#' },
     }));
-    // begins_with(SK, "CAR#") also matches photo rows (SK = CAR#<id>#PHOTO#<photoId>).
-    // FilterExpression can't reference the SK key attribute, so exclude photo rows here:
-    // a car SK is exactly "CAR#<id>" with no nested "#PHOTO#" segment.
+    // begins_with(SK, "CAR#") also matches nested rows: photos (CAR#<id>#PHOTO#<pid>),
+    // events (CAR#<id>#EVENT#<eid>), proofs, etc. FilterExpression can't reference the SK
+    // key attribute, so filter in code. Whitelist the car row shape rather than blacklist
+    // each nested type: a car SK is exactly "CAR#<carId>" — two "#"-segments, no more.
+    // This stays collision-proof as new nested entities are added.
+    const isCarRow = (sk: string): boolean => sk.split('#').length === 2 && sk.startsWith('CAR#');
     return (res.Items ?? [])
-      .filter((item) => !String((item as Row).SK).includes('#PHOTO#'))
+      .filter((item) => isCarRow(String((item as Row).SK)))
       .map(toCar);
   }
 
