@@ -42,13 +42,21 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   const onCommit = async () => {
     setCommitting(true);
     setError(null);
-    try {
-      for (const d of drafts) { await create.mutateAsync(d); }
-      close();
-    } catch {
-      setError(t('import:errorFailed'));
-      setCommitting(false);
+    // Commit against a snapshot and drop each draft only after it succeeds, so a retry
+    // after a mid-loop failure re-sends only the events that were NOT yet created (no
+    // duplicates). `create` invalidates the timeline query per success.
+    const pending = drafts;
+    for (let i = 0; i < pending.length; i += 1) {
+      try {
+        await create.mutateAsync(pending[i]!);
+      } catch {
+        setDrafts(pending.slice(i)); // keep the failed one + the rest for retry
+        setError(t('import:errorFailed'));
+        setCommitting(false);
+        return;
+      }
     }
+    close();
   };
 
   return (
