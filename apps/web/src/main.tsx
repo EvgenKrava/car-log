@@ -8,6 +8,7 @@ import { buildTheme } from './theme';
 import { Garage } from './routes/Garage';
 import { Callback } from './routes/Callback';
 import { Vehicle } from './routes/Vehicle';
+import { InstallPrompt } from './components/InstallPrompt';
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ function Root() {
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
             </Routes>
+            <InstallPrompt />
           </BrowserRouter>
         </QueryClientProvider>
       </AppAuthProvider>
