@@ -88,6 +88,13 @@ export class CarLogStack extends Stack {
       lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
     });
 
+    // Bedrock runs in a DIFFERENT (Bedrock-enabled) account: the bearer token in
+    // /carlog/bedrock-bearer-token is issued BY that account, so the runtime call reaches
+    // that account's Bedrock with no cross-account IAM. Its model access may live in a
+    // different region than this stack — pass `-c bedrockRegion=<region>` at deploy to set
+    // BEDROCK_REGION; when unset, the Lambda falls back to its own AWS_REGION.
+    const bedrockRegion = this.node.tryGetContext('bedrockRegion') as string | undefined;
+
     const fn = new NodejsFunction(this, 'CarsFn', {
       runtime: Runtime.NODEJS_20_X,
       entry: join(__dirnameLocal, '../../../apps/api/src/handler.ts'),
@@ -95,9 +102,13 @@ export class CarLogStack extends Stack {
       environment: {
         TABLE_NAME: table.tableName,
         PHOTOS_BUCKET: photosBucket.bucketName,
-        // Bedrock bearer token from SSM SecureString via a CloudFormation dynamic
-        // reference — never in synth output or the repo. Read by AnthropicBedrockMantle.
+        // Bearer token (issued by the Bedrock-enabled account) from SSM SecureString via a
+        // CloudFormation dynamic reference — never in synth output or the repo. Read by
+        // AnthropicBedrockMantle; self-identifying, so it reaches that account cross-account.
         AWS_BEARER_TOKEN_BEDROCK: SecretValue.ssmSecure('/carlog/bedrock-bearer-token').unsafeUnwrap(),
+        // Only set BEDROCK_REGION when a region was passed via context (keeps the env clean
+        // otherwise; the adapter falls back to AWS_REGION).
+        ...(bedrockRegion ? { BEDROCK_REGION: bedrockRegion } : {}),
       },
       // 29s: the extract route makes a Bedrock call that can take 10-20s; other routes
       // are fast. 29s stays under the API Gateway HTTP API 30s integration hard cap.

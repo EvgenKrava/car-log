@@ -2,8 +2,10 @@ import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
 import type { LlmProvider, ExtractionContext } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 
-// Bedrock model IDs carry the `anthropic.` prefix (per the claude-api skill).
-const MODEL = 'anthropic.claude-opus-4-8';
+// Bedrock model IDs carry the `anthropic.` prefix; cross-region inference profiles
+// take a `global.` prefix (no regional premium). Overridable via env so a deploy can
+// target the Bedrock-enabled account's region/inference-profile without a code change.
+const MODEL = process.env.BEDROCK_MODEL_ID ?? 'global.anthropic.claude-opus-4-8';
 
 // The tool schema mirrors the CandidateEvent shape so the model emits committable JSON.
 // The domain use-case (extractEvents) is the authoritative validator — this schema only
@@ -59,9 +61,13 @@ function prompt(text: string, ctx: ExtractionContext): string {
 }
 
 export class BedrockLlmProvider implements LlmProvider {
-  // Auth via AWS_BEARER_TOKEN_BEDROCK env (set by CDK from SSM). Region via AWS_REGION.
+  // Auth via AWS_BEARER_TOKEN_BEDROCK env (a bearer token ISSUED BY the Bedrock-enabled
+  // account — the token is self-identifying, so this reaches that account's Bedrock with
+  // no cross-account IAM). The SDK auto-detects the env token. BEDROCK_REGION lets the
+  // Bedrock region differ from this Lambda's own AWS_REGION (the issuing account may host
+  // model access elsewhere); falls back to AWS_REGION, then us-east-1.
   private readonly client = new AnthropicBedrockMantle({
-    awsRegion: process.env.AWS_REGION ?? 'us-east-1',
+    awsRegion: process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? 'us-east-1',
   });
 
   async extractEvents(text: string, ctx: ExtractionContext): Promise<unknown> {
