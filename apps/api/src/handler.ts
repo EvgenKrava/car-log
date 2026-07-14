@@ -1,28 +1,24 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { S3Client } from '@aws-sdk/client-s3';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2,
 } from 'aws-lambda';
 import { DynamoCarRepository } from './dynamo-car-repository';
+import { DynamoPhotoRepository } from './dynamo-photo-repository';
+import { S3PhotoStorage } from './s3-photo-storage';
 import { route, type ApiEvent, type RouteDeps } from './router';
-import { InMemoryPhotoRepository } from './in-memory-photo-repository';
-import type { PhotoStorage } from '@carlog/domain';
 
 const tableName = process.env.TABLE_NAME ?? '';
-// removeUndefinedValues: optional car fields (nickname/vin/licensePlate) are `undefined`
-// when omitted or submitted blank; without this the marshaller throws on PutCommand.
+const photosBucket = process.env.PHOTOS_BUCKET ?? '';
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
 });
-const repo = new DynamoCarRepository(tableName, client);
-
-// TODO Task 5: replace with real S3PhotoStorage + DynamoPhotoRepository
-const photoStorage: PhotoStorage = {
-  presignPut: async () => { throw new Error('Photo storage not yet configured'); },
-  presignGet: async () => { throw new Error('Photo storage not yet configured'); },
-  deleteObject: async () => { throw new Error('Photo storage not yet configured'); },
+const deps: RouteDeps = {
+  cars: new DynamoCarRepository(tableName, client),
+  photos: new DynamoPhotoRepository(tableName, client),
+  storage: new S3PhotoStorage(photosBucket, new S3Client({})),
 };
-const deps: RouteDeps = { cars: repo, photos: new InMemoryPhotoRepository(), storage: photoStorage };
 
 export async function handler(
   event: APIGatewayProxyEventV2WithJWTAuthorizer,

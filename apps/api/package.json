@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.658.0",
+    "@aws-sdk/client-s3": "^3.658.0",
     "@aws-sdk/lib-dynamodb": "^3.658.0",
+    "@aws-sdk/s3-request-presigner": "^3.658.0",
     "@carlog/contracts": "workspace:*",
     "@carlog/domain": "workspace:*",
     "zod": "^3.23.8"
