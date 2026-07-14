@@ -32,5 +32,11 @@ aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$
 
 pnpm --filter @carlog/web build
 aws s3 sync apps/web/dist "s3://$BUCKET" --delete
+# The service worker and manifest must never be edge-cached, or clients get stuck
+# on a stale SW. Re-upload them with no-cache (hashed assets/* stay long-cached).
+aws s3 cp apps/web/dist/sw.js "s3://$BUCKET/sw.js" \
+  --cache-control "no-cache" --content-type "application/javascript"
+aws s3 cp apps/web/dist/manifest.webmanifest "s3://$BUCKET/manifest.webmanifest" \
+  --cache-control "no-cache" --content-type "application/manifest+json"
 aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" >/dev/null
 echo "Deployed web to $WEB_URL"
