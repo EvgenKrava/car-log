@@ -22,13 +22,17 @@ VITE_REDIRECT_URI=$WEB_URL/callback
 VITE_LOGOUT_URI=$WEB_URL
 EOF
 
-# Reconcile Cognito callback/logout URLs to the live CloudFront URL
+# Reconcile Cognito callback/logout URLs to the live CloudFront URL.
+# Preserve whatever social identity providers actually exist on the pool
+# (provider names are case-sensitive, e.g. "Google") plus COGNITO.
+IDP_NAMES=$(aws cognito-idp list-identity-providers --user-pool-id "$POOL_ID" \
+  --query "Providers[].ProviderName" --output text)
 aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$CLIENT_ID" \
   --callback-urls "$WEB_URL/callback" "http://localhost:5173/callback" \
   --logout-urls "$WEB_URL" "http://localhost:5173" \
   --allowed-o-auth-flows code --allowed-o-auth-scopes openid email profile \
   --allowed-o-auth-flows-user-pool-client \
-  --supported-identity-providers COGNITO GOOGLE >/dev/null
+  --supported-identity-providers COGNITO $IDP_NAMES >/dev/null
 
 pnpm --filter @carlog/web build
 aws s3 sync apps/web/dist "s3://$BUCKET" --delete
