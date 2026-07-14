@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { route } from './router';
 import { InMemoryCarRepository } from './in-memory-car-repository';
 import { InMemoryPhotoRepository } from './in-memory-photo-repository';
+import { InMemoryEventRepository } from './in-memory-event-repository';
+import { InMemoryProofRepository } from './in-memory-proof-repository';
 import type { PhotoStorage } from '@carlog/domain';
 
 let cars: InMemoryCarRepository;
@@ -12,11 +14,15 @@ const storage: PhotoStorage = {
   deleteObject: async () => {},
   exists: async () => true,
 };
-let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage };
+let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   photos = new InMemoryPhotoRepository();
-  deps = { cars, photos, storage };
+  deps = {
+    cars, photos, storage,
+    events: new InMemoryEventRepository(),
+    proofs: new InMemoryProofRepository(),
+  };
 });
 
 const base = { pathParams: {}, body: null } as const;
@@ -114,6 +120,53 @@ describe('route', () => {
       expect(del.statusCode).toBe(204);
       const missing = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/photos/${created.id}`, ownerId: 'u1', pathParams: { id: carId, photoId: created.id } });
       expect(missing.statusCode).toBe(404);
+    });
+  });
+
+  describe('event routes', () => {
+    const ev = { date: '2026-07-14', mileage: 1000, cost: 500, category: 'oil_change', works: [{ description: 'Oil change', parts: [{ name: 'Filter', quantity: 1 }] }] };
+
+    async function makeCar(ownerId: string) {
+      const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
+      return JSON.parse(res.body).id as string;
+    }
+
+    it('creates and lists events for the owner car', async () => {
+      const carId = await makeCar('u1');
+      const created = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: ev });
+      expect(created.statusCode).toBe(201);
+      const list = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId } });
+      expect(list.statusCode).toBe(200);
+      const arr = JSON.parse(list.body);
+      expect(arr).toHaveLength(1);
+      expect(arr[0].works[0].parts[0].name).toBe('Filter');
+    });
+
+    it('event list excludes proof rows (collision guard)', async () => {
+      const carId = await makeCar('u1');
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: ev })).body);
+      // confirm a proof for the event
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id }, body: { proofId: '99999999-9999-9999-9999-999999999999', contentType: 'application/pdf', size: 1024 } });
+      const list = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(list).toHaveLength(1); // only the event, not the proof
+      expect(list[0].works).toBeDefined();
+    });
+
+    it('404s an event on a car the caller does not own', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/events`, ownerId: 'u2', pathParams: { id: carId } });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('deleting an event cascade-deletes its proofs', async () => {
+      const carId = await makeCar('u1');
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: ev })).body);
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id }, body: { proofId: '88888888-8888-8888-8888-888888888888', contentType: 'application/pdf', size: 1024 } });
+      const del = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/events/${created.id}`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id } });
+      expect(del.statusCode).toBe(204);
+      const proofs = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id } });
+      // event is gone -> requireEvent throws 404
+      expect(proofs.statusCode).toBe(404);
     });
   });
 });

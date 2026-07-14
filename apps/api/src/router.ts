@@ -1,7 +1,8 @@
 import { CreateCarSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, type CarRepository, type PhotoRepository, type PhotoStorage } from '@carlog/domain';
+import { CarNotFoundError, createCar, type CarRepository, type PhotoRepository, type PhotoStorage, type EventRepository, type ProofRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handlePhotoRoute } from './photo-routes';
+import { handleEventRoute } from './event-routes';
 
 export type ApiEvent = {
   method: string;
@@ -11,7 +12,10 @@ export type ApiEvent = {
   body: unknown;
 };
 
-export type RouteDeps = { cars: CarRepository; photos: PhotoRepository; storage: PhotoStorage };
+export type RouteDeps = {
+  cars: CarRepository; photos: PhotoRepository; storage: PhotoStorage;
+  events: EventRepository; proofs: ProofRepository;
+};
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
   return withErrorHandling(async () => {
@@ -22,6 +26,11 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     // Photo sub-routes: /cars/{id}/photos*
     if (id && path.startsWith(`/cars/${id}/photos`)) {
       const result = await handlePhotoRoute(deps, event, ownerId, id);
+      if (result) return result;
+    }
+
+    if (id && path.startsWith(`/cars/${id}/events`)) {
+      const result = await handleEventRoute(deps, event, ownerId, id);
       if (result) return result;
     }
 

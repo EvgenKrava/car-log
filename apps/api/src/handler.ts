@@ -6,6 +6,8 @@ import type {
 } from 'aws-lambda';
 import { DynamoCarRepository } from './dynamo-car-repository';
 import { DynamoPhotoRepository } from './dynamo-photo-repository';
+import { DynamoEventRepository } from './dynamo-event-repository';
+import { DynamoProofRepository } from './dynamo-proof-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { route, type ApiEvent, type RouteDeps } from './router';
 
@@ -18,6 +20,8 @@ const deps: RouteDeps = {
   cars: new DynamoCarRepository(tableName, client),
   photos: new DynamoPhotoRepository(tableName, client),
   storage: new S3PhotoStorage(photosBucket, new S3Client({})),
+  events: new DynamoEventRepository(tableName, client),
+  proofs: new DynamoProofRepository(tableName, client),
 };
 
 export async function handler(
