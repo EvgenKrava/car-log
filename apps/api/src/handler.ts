@@ -9,7 +9,7 @@ import { DynamoPhotoRepository } from './dynamo-photo-repository';
 import { DynamoEventRepository } from './dynamo-event-repository';
 import { DynamoProofRepository } from './dynamo-proof-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
-import { InMemoryLlmProvider } from './in-memory-llm-provider';
+import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { route, type ApiEvent, type RouteDeps } from './router';
 
 const tableName = process.env.TABLE_NAME ?? '';
@@ -23,7 +23,7 @@ const deps: RouteDeps = {
   storage: new S3PhotoStorage(photosBucket, new S3Client({})),
   events: new DynamoEventRepository(tableName, client),
   proofs: new DynamoProofRepository(tableName, client),
-  llm: new InMemoryLlmProvider({ events: [] }), // TODO Task 4: replace with BedrockLlmProvider
+  llm: new BedrockLlmProvider(),
 };
 
 export async function handler(
