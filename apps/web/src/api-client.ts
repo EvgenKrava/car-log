@@ -9,10 +9,20 @@ import {
   type PhotoWithUrl,
   type PresignResponse,
   type PhotoContentType,
+  EventSchema,
+  type CreateEventInput,
+  ProofWithUrlSchema,
+  ProofSchema,
+  ProofPresignResponseSchema,
+  type ProofWithUrl,
+  type ProofPresignResponse,
+  type AttachmentContentType,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
 const PhotoListSchema = z.array(PhotoWithUrlSchema);
+const EventListSchema = z.array(EventSchema);
+const ProofListSchema = z.array(ProofWithUrlSchema);
 const API_URL = import.meta.env.VITE_API_URL as string;
 
 async function request<T>(token: string, path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
@@ -60,4 +70,30 @@ export async function uploadPhoto(token: string, carId: string, file: File): Pro
   const { uploadUrl, photoId } = await presignPhoto(token, carId, input);
   await uploadToS3(uploadUrl, file);
   await confirmPhoto(token, carId, { ...input, photoId });
+}
+
+export const getEvents = (token: string, carId: string) =>
+  request(token, `/cars/${carId}/events`, EventListSchema);
+export const createEvent = (token: string, carId: string, input: CreateEventInput) =>
+  request(token, `/cars/${carId}/events`, EventSchema, { method: 'POST', body: JSON.stringify(input) });
+export const updateEvent = (token: string, carId: string, eventId: string, input: CreateEventInput) =>
+  request(token, `/cars/${carId}/events/${eventId}`, EventSchema, { method: 'PUT', body: JSON.stringify(input) });
+export const deleteEvent = (token: string, carId: string, eventId: string): Promise<void> =>
+  request(token, `/cars/${carId}/events/${eventId}`, EventSchema, { method: 'DELETE' }).then(() => undefined);
+
+const proofBase = (carId: string, eventId: string) => `/cars/${carId}/events/${eventId}/proofs`;
+export const presignProof = (token: string, carId: string, eventId: string, input: { contentType: AttachmentContentType; size: number; filename?: string }): Promise<ProofPresignResponse> =>
+  request(token, `${proofBase(carId, eventId)}/presign`, ProofPresignResponseSchema, { method: 'POST', body: JSON.stringify(input) });
+export const confirmProof = (token: string, carId: string, eventId: string, input: { proofId: string; contentType: AttachmentContentType; size: number; filename?: string }) =>
+  request(token, proofBase(carId, eventId), ProofSchema, { method: 'POST', body: JSON.stringify(input) });
+export const listProofs = (token: string, carId: string, eventId: string): Promise<ProofWithUrl[]> =>
+  request(token, proofBase(carId, eventId), ProofListSchema);
+export const deleteProof = (token: string, carId: string, eventId: string, proofId: string): Promise<void> =>
+  request(token, `${proofBase(carId, eventId)}/${proofId}`, ProofSchema, { method: 'DELETE' }).then(() => undefined);
+
+export async function uploadProof(token: string, carId: string, eventId: string, file: File): Promise<void> {
+  const input = { contentType: file.type as AttachmentContentType, size: file.size, filename: file.name };
+  const { uploadUrl, proofId } = await presignProof(token, carId, eventId, input);
+  await uploadToS3(uploadUrl, file);
+  await confirmProof(token, carId, eventId, { ...input, proofId });
 }

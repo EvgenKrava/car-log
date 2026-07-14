@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
-import type { CreateCarInput } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto } from './api-client';
+import type { CreateCarInput, CreateEventInput } from '@carlog/contracts';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -80,4 +80,34 @@ export function useDeletePhoto(carId: string) {
     mutationFn: (photoId: string) => deletePhoto(token, carId, photoId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'photos'] }),
   });
+}
+
+export function useEvents(carId: string) {
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
+  return useQuery({ queryKey: ['cars', carId, 'events'], queryFn: () => getEvents(token, carId), enabled: Boolean(token && carId) });
+}
+export function useCreateEvent(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: (input: CreateEventInput) => createEvent(token, carId, input), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events'] }) });
+}
+export function useUpdateEvent(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: ({ eventId, input }: { eventId: string; input: CreateEventInput }) => updateEvent(token, carId, eventId, input), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events'] }) });
+}
+export function useDeleteEvent(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: (eventId: string) => deleteEvent(token, carId, eventId), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events'] }) });
+}
+export function useProofs(carId: string, eventId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({ queryKey: ['cars', carId, 'events', eventId, 'proofs'], queryFn: () => listProofs(token, carId, eventId), enabled: Boolean(token && carId && eventId) });
+}
+export function useUploadProof(carId: string, eventId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: (file: File) => uploadProof(token, carId, eventId, file), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events', eventId, 'proofs'] }) });
+}
+export function useDeleteProof(carId: string, eventId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: (proofId: string) => deleteProof(token, carId, eventId, proofId), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events', eventId, 'proofs'] }) });
 }
