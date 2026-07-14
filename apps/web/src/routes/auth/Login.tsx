@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../auth';
 import { authErrorKey } from '../../auth/auth-error';
 import { AuthLayout } from './AuthLayout';
+import { PasswordField } from '../../components/ui/PasswordField';
 
 export function Login() {
   const { t } = useTranslation(['auth']);
@@ -29,7 +30,7 @@ export function Login() {
         <Stack spacing={2}>
           {error ? <Alert severity="error">{error}</Alert> : null}
           <TextField label={t('auth:email')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth autoComplete="email" />
-          <TextField label={t('auth:password')} type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoComplete="current-password" />
+          <PasswordField label={t('auth:password')} value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoComplete="current-password" />
           <Button type="submit" variant="contained" disabled={busy}>{t('auth:signInAction')}</Button>
           <Link component={RouterLink} to="/forgot">{t('auth:toForgot')}</Link>
           <Link component={RouterLink} to="/signup">{t('auth:toSignUp')}</Link>
