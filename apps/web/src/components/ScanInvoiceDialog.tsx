@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
+  Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
 import { prepareScanFile } from '../lib/prepare-scan';
@@ -185,30 +186,38 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
         {phase === 'input' ? (
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              {t('import:instructions')}
+              {t('import:scanInstructions')}
             </Typography>
-            <Box>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,application/pdf,.heic,.heif"
-                onChange={onFileSelect}
-                style={{ display: 'none' }}
-              />
-              <Button variant="outlined" onClick={() => fileInputRef.current?.click()}>
-                {t('import:uploadTxt')}
-              </Button>
-              {file ? (
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  {file.name}
-                </Typography>
-              ) : null}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf,.heic,.heif"
+              onChange={onFileSelect}
+              style={{ display: 'none' }}
+            />
+            {/* Tappable dropzone-style CTA — one big target that reads as "put a document here". */}
+            <Box
+              onClick={() => fileInputRef.current?.click()}
+              sx={{
+                border: '1px dashed', borderColor: file ? 'primary.main' : 'divider', borderRadius: 3,
+                p: 3, textAlign: 'center', cursor: 'pointer', bgcolor: 'action.hover',
+                transition: 'border-color 120ms', '&:hover': { borderColor: 'primary.main' },
+              }}
+            >
+              <DocumentScannerIcon color={file ? 'primary' : 'action'} sx={{ fontSize: 40, mb: 1 }} />
+              <Typography sx={{ fontWeight: 600 }}>
+                {file ? file.name : t('import:scanPickCta')}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                {t('import:scanPickHint')}
+              </Typography>
             </Box>
           </Stack>
         ) : phase === 'scanning' ? (
-          <Typography color="text.secondary" sx={{ mt: 1 }}>
-            {t('import:scanning')}
-          </Typography>
+          <Stack spacing={2} alignItems="center" sx={{ py: 4 }}>
+            <CircularProgress />
+            <Typography color="text.secondary">{t('import:scanning')}</Typography>
+          </Stack>
         ) : drafts.length === 0 ? (
           <Typography color="text.secondary" sx={{ mt: 1 }}>
             {t('import:empty')}
@@ -290,7 +299,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
               onClick={() => void onScan()}
               disabled={!file || extractScan.isPending}
             >
-              {t('import:startImport')}
+              {t('import:scanStart')}
             </Button>
           </>
         ) : phase === 'scanning' ? null : (
