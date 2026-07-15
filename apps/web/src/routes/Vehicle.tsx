@@ -191,7 +191,13 @@ function VehicleDetail({ car }: { car: Car }) {
               docs, "the timeline is the primary screen"). Sits last so the
               hero context frames every entry the reader scrolls through. */}
           <Box sx={{ '& > *': { mt: 0 } }}>
-            <ServiceTimeline carId={car.id} addOpen={manualOpen} onAddOpenChange={setManualOpen} />
+            <ServiceTimeline
+              carId={car.id}
+              addOpen={manualOpen}
+              onAddOpenChange={setManualOpen}
+              onScan={() => setScanOpen(true)}
+              onImport={() => setImportOpen(true)}
+            />
           </Box>
 
           {del.isError ? <Alert severity="error">{t('vehicle:deleteFailed')}</Alert> : null}
