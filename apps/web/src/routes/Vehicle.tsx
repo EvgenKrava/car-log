@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Alert, Box, Button, Card, CardContent, Container, IconButton, ListItemIcon,
-  ListItemText, Menu, MenuItem, Stack, Typography,
+  ListItemText, Menu, MenuItem, SpeedDial, SpeedDialAction, SpeedDialIcon, Stack, Typography,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
@@ -11,6 +11,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
 import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
 import TextSnippetIcon from '@mui/icons-material/TextSnippet';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
@@ -71,6 +72,7 @@ function VehicleDetail({ car }: { car: Car }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   const title = car.nickname || `${car.make} ${car.model}`;
@@ -177,41 +179,6 @@ function VehicleDetail({ car }: { car: Car }) {
             </CardContent>
           </Card>
 
-          {/* Add-to-history — the two AI-powered ingestion paths grouped under a
-              single labeled section, with Scan invoice as the flagship primary
-              action. Manual entry lives inside the Service history section
-              below via ServiceTimeline's own "Add service" button. */}
-          <Card>
-            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-              <Stack spacing={0.5} sx={{ mb: { xs: 1.75, sm: 2 } }}>
-                <Typography variant="h6">{t('vehicle:addSectionTitle')}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {t('vehicle:addSectionHelp')}
-                </Typography>
-              </Stack>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1}
-                sx={{ '& > .MuiButton-root': { flex: { sm: '0 1 auto' } } }}
-              >
-                <Button
-                  variant="contained"
-                  startIcon={<DocumentScannerIcon />}
-                  onClick={() => setScanOpen(true)}
-                >
-                  {t('import:scanInvoice')}
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<TextSnippetIcon />}
-                  onClick={() => setImportOpen(true)}
-                >
-                  {t('import:trigger')}
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-
           {/* Photos — the component owns its own header + "Add photo" action.
               A wrapper Box neutralises the component's built-in top margin so
               the outer Stack fully controls section spacing. */}
@@ -223,7 +190,7 @@ function VehicleDetail({ car }: { car: Car }) {
               docs, "the timeline is the primary screen"). Sits last so the
               hero context frames every entry the reader scrolls through. */}
           <Box sx={{ '& > *': { mt: 0 } }}>
-            <ServiceTimeline carId={car.id} />
+            <ServiceTimeline carId={car.id} addOpen={manualOpen} onAddOpenChange={setManualOpen} />
           </Box>
 
           {del.isError ? <Alert severity="error">{t('vehicle:deleteFailed')}</Alert> : null}
@@ -240,6 +207,33 @@ function VehicleDetail({ car }: { car: Car }) {
       />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
+
+      {/* Single entry point for adding history — a SpeedDial that fans out the three
+          ways to record a service: scan a document, bulk-import text, or enter manually. */}
+      <SpeedDial
+        ariaLabel={t('vehicle:addSectionTitle')}
+        icon={<SpeedDialIcon />}
+        sx={{ position: 'fixed', bottom: { xs: 16, sm: 24 }, right: { xs: 16, sm: 24 } }}
+      >
+        <SpeedDialAction
+          icon={<DocumentScannerIcon />}
+          tooltipTitle={t('import:scanInvoice')}
+          tooltipOpen
+          onClick={() => setScanOpen(true)}
+        />
+        <SpeedDialAction
+          icon={<TextSnippetIcon />}
+          tooltipTitle={t('import:trigger')}
+          tooltipOpen
+          onClick={() => setImportOpen(true)}
+        />
+        <SpeedDialAction
+          icon={<EditNoteIcon />}
+          tooltipTitle={t('event:addService')}
+          tooltipOpen
+          onClick={() => setManualOpen(true)}
+        />
+      </SpeedDial>
     </AppShell>
   );
 }
