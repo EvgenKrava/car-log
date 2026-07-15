@@ -46,20 +46,20 @@ export function ServiceTimeline({
         {hasMenu ? (
           <>
             <Button variant="contained" startIcon={<AddIcon />} onClick={(e) => setMenuAnchor(e.currentTarget)}>
-              {t('event:addService')}
+              {t('event:addRecord')}
             </Button>
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
               <MenuItem onClick={() => { setMenuAnchor(null); onScan!(); }}>
                 <ListItemIcon><DocumentScannerIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t('import:scanInvoice')}</ListItemText>
+                <ListItemText>{t('event:addScan')}</ListItemText>
               </MenuItem>
               <MenuItem onClick={() => { setMenuAnchor(null); onImport!(); }}>
                 <ListItemIcon><TextSnippetIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t('import:trigger')}</ListItemText>
+                <ListItemText>{t('event:addBulk')}</ListItemText>
               </MenuItem>
               <MenuItem onClick={() => { setMenuAnchor(null); setOpen(true); }}>
                 <ListItemIcon><EditNoteIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t('event:addService')}</ListItemText>
+                <ListItemText>{t('event:addManual')}</ListItemText>
               </MenuItem>
             </Menu>
           </>

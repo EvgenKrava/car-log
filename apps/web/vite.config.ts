@@ -26,6 +26,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
+        // Activate a new SW immediately and take control of open pages, so a deploy never
+        // leaves a client on a stale cached index.html pointing at a deleted bundle (which
+        // renders as a white screen until every tab is closed). `cleanupOutdatedCaches`
+        // removes precaches from prior SW versions.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         // No runtimeCaching: API (execute-api) and Cognito always hit the network.
       },
       devOptions: { enabled: false },

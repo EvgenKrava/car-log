@@ -229,19 +229,19 @@ function VehicleDetail({ car }: { car: Car }) {
       >
         <SpeedDialAction
           icon={<DocumentScannerIcon />}
-          tooltipTitle={t('import:scanInvoice')}
+          tooltipTitle={t('event:addScan')}
           tooltipOpen
           onClick={() => { setDialOpen(false); setScanOpen(true); }}
         />
         <SpeedDialAction
           icon={<TextSnippetIcon />}
-          tooltipTitle={t('import:trigger')}
+          tooltipTitle={t('event:addBulk')}
           tooltipOpen
           onClick={() => { setDialOpen(false); setImportOpen(true); }}
         />
         <SpeedDialAction
           icon={<EditNoteIcon />}
-          tooltipTitle={t('event:addService')}
+          tooltipTitle={t('event:addManual')}
           tooltipOpen
           onClick={() => { setDialOpen(false); setManualOpen(true); }}
         />
