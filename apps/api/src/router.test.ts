@@ -16,6 +16,7 @@ const storage: PhotoStorage = {
   presignGet: async () => 'https://s3.example/get',
   deleteObject: async () => {},
   exists: async () => true,
+  copyObject: async () => {},
 };
 let enqueueSpy: ReturnType<typeof vi.fn>;
 let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; newId: () => string };
@@ -176,6 +177,27 @@ describe('route', () => {
       const proofs = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id } });
       // event is gone -> requireEvent throws 404
       expect(proofs.statusCode).toBe(404);
+    });
+
+    it('from-scan proof with valid scans/ key creates proof and copies object', async () => {
+      const carId = await makeCar('u1');
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: ev })).body);
+      const copySpy = vi.fn().mockResolvedValue(undefined);
+      deps.storage = { ...storage, copyObject: copySpy };
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events/${created.id}/proofs/from-scan`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id }, body: { s3Key: 'scans/u1/test.jpg', contentType: 'image/jpeg', size: 5000 } });
+      expect(res.statusCode).toBe(201);
+      const proof = JSON.parse(res.body);
+      expect(proof.id).toBeDefined();
+      expect(proof.size).toBe(5000);
+      expect(copySpy).toHaveBeenCalledWith('scans/u1/test.jpg', expect.stringContaining('proofs/'));
+    });
+
+    it('from-scan proof rejects foreign key prefix (IDOR guard)', async () => {
+      const carId = await makeCar('u1');
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: ev })).body);
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events/${created.id}/proofs/from-scan`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id }, body: { s3Key: 'photos/other/x.jpg', contentType: 'image/jpeg', size: 5000 } });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toBe('invalid s3Key');
     });
   });
 
