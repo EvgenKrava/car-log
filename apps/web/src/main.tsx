@@ -11,6 +11,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireAuth } from './auth';
 import { buildTheme } from './theme';
 import { Garage } from './routes/Garage';
+import { Profile } from './routes/Profile';
 import { Vehicle } from './routes/Vehicle';
 import { Login } from './routes/auth/Login';
 import { SignUp } from './routes/auth/SignUp';
@@ -38,6 +39,7 @@ function Root() {
               <Route path="/reset" element={<ResetPassword />} />
               <Route path="/callback" element={<Callback />} />
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
+              <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
             </Routes>
             <InstallPrompt />
