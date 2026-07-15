@@ -23,8 +23,8 @@ const EXTRACT_TOOL = {
         items: {
           type: 'object',
           properties: {
-            date: { type: 'string', description: 'YYYY-MM-DD; best estimate if partial' },
-            mileage: { type: 'integer', description: 'odometer in km, 0 if unknown' },
+            date: { type: 'string', description: 'YYYY-MM-DD. OMIT entirely if the document states no date and it cannot be estimated from mileage — never use today.' },
+            mileage: { type: 'integer', description: 'odometer in km; omit if unknown' },
             cost: { type: 'number', description: 'total cost, 0 if unknown' },
             currency: { type: 'string', description: 'ISO-ish code, default UAH' },
             category: { type: 'string', enum: ['oil_change', 'tires', 'brakes', 'inspection', 'repair', 'other'] },
@@ -32,19 +32,34 @@ const EXTRACT_TOOL = {
             notes: { type: 'string' },
             works: {
               type: 'array',
+              description: 'One entry per LABOR line / service performed (e.g. "Ремонт супорта", "Oil change"). NOT the parts — parts go inside each work\'s parts array.',
               items: {
                 type: 'object',
                 properties: {
-                  description: { type: 'string' },
-                  parts: { type: 'array', items: { type: 'object' } },
+                  description: { type: 'string', description: 'The labor/service performed, e.g. "Caliper repair".' },
+                  parts: {
+                    type: 'array',
+                    description: 'Physical parts/materials used for this work (from the parts/Запчастини table).',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string', description: 'Part name, e.g. "Brake caliper repair kit".' },
+                        brand: { type: 'string' },
+                        partNumber: { type: 'string' },
+                        quantity: { type: 'integer', description: 'Quantity, >= 1.' },
+                        notes: { type: 'string' },
+                      },
+                      required: ['name', 'quantity'],
+                    },
+                  },
                 },
                 required: ['description'],
               },
             },
           },
-          // Pasted notes are often partial: only the category is required. Omitted
-          // date/mileage/cost get safe defaults in CandidateEventSchema (today / 0 / 0),
-          // which the user sees and edits in the review dialog before committing.
+          // Notes/documents are often partial: only the category is required. Omitted
+          // mileage/cost default to 0; an omitted date stays blank for the user to fill
+          // (the model is told to estimate from mileage when possible, never to use today).
           required: ['category'],
         },
       },
@@ -53,17 +68,40 @@ const EXTRACT_TOOL = {
   },
 };
 
-function prompt(text: string, ctx: ExtractionContext): string {
+// Shared extraction rules for both the text and the document (vision) paths. `source`
+// names what's being read ("text" / "document") for the closing instruction.
+function instructions(ctx: ExtractionContext, source: string): string {
   const { make, model, year } = ctx.car;
-  return [
-    `You extract vehicle maintenance events from free-form text for a ${year ?? ''} ${make} ${model}.`.trim(),
-    'Return ONLY structured data via the record_events tool. Do not invent events that are not in the text.',
-    'Use category "other" when unsure. The notes may be partial: OMIT any field the text does not state',
-    '(date, mileage, cost) rather than guessing a value. When a date IS stated, format it YYYY-MM-DD.',
+  const lines = [
+    `You extract vehicle maintenance events from a ${source} for a ${year ?? ''} ${make} ${model}.`.trim(),
+    'Return ONLY structured data via the record_events tool. Do not invent anything not in the source.',
+    'A single document/note may cover SEVERAL services — return one event per distinct service.',
     '',
-    'TEXT:',
-    text,
-  ].join('\n');
+    'WORKS vs PARTS (important):',
+    '- Each labor line / service performed is a WORK (its `description` = the service, e.g. "Caliper repair").',
+    '- Physical parts, materials, fluids, and kits are PARTS nested inside the relevant work (name + quantity).',
+    '- Do NOT dump parts into a work description or the event notes; put them in the parts array.',
+    '- If a document has separate "parts" and "labor/works" tables, map the labor rows to works and',
+    '  attach the parts rows to the most relevant work (or the single work if there is only one).',
+    '',
+    'FIELDS: use category "other" when unsure. OMIT any field the source does not state (mileage, cost,',
+    'currency) rather than guessing.',
+    '',
+    'DATE:',
+    '- If the source states a date, use it (YYYY-MM-DD).',
+    '- If NO date is stated but a mileage/odometer reading is, estimate the date by interpolating against',
+    '  the known service points below (assume roughly linear mileage over time); output your best estimate.',
+    '- If neither a date nor a usable mileage signal exists, OMIT the date entirely. NEVER use today\'s date.',
+  ];
+  if (ctx.history && ctx.history.length > 0) {
+    lines.push('', 'Known service points (date @ mileage km), newest first:');
+    for (const h of ctx.history) lines.push(`- ${h.date} @ ${h.mileage} km`);
+  }
+  return lines.join('\n');
+}
+
+function prompt(text: string, ctx: ExtractionContext): string {
+  return [instructions(ctx, 'free-form text'), '', 'TEXT:', text].join('\n');
 }
 
 export class BedrockLlmProvider implements LlmProvider {
@@ -112,13 +150,7 @@ export class BedrockLlmProvider implements LlmProvider {
     const docBlock = mediaType === 'application/pdf'
       ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
       : { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp', data: base64 } };
-    const { make, model, year } = ctx.car;
-    const promptText = [
-      `Read this vehicle maintenance invoice/receipt for a ${year ?? ''} ${make} ${model}.`.trim(),
-      'It may list MULTIPLE distinct services (e.g. an oil change AND a repair) — return ONE event per',
-      'service via the record_events tool. Use category "other" when unsure. OMIT any field the document',
-      'does not state (do not guess date/mileage/cost). When a date IS stated, format it YYYY-MM-DD.',
-    ].join('\n');
+    const promptText = instructions(ctx, 'maintenance invoice/receipt document');
     let res;
     try {
       res = await this.client.messages.create({

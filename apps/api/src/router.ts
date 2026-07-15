@@ -40,7 +40,7 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (path.startsWith('/import/scan')) {
       const result = await handleScanRoute(
-        { cars: deps.cars, storage: deps.storage, llm: deps.llm, loadScanBase64: deps.loadScanBase64, newId: deps.newId },
+        { cars: deps.cars, events: deps.events, storage: deps.storage, llm: deps.llm, loadScanBase64: deps.loadScanBase64, newId: deps.newId },
         event, ownerId,
       );
       if (result) return result;

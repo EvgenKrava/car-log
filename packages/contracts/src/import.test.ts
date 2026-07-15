@@ -18,13 +18,17 @@ describe('CandidateEventSchema', () => {
     const parsed = CandidateEventSchema.parse({ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' });
     expect(parsed).toMatchObject({ category: 'oil_change', currency: 'UAH', works: [] });
   });
-  it('accepts a partial candidate (category only) with safe defaults', () => {
+  it('accepts a partial candidate (category only): mileage/cost default to 0, date stays blank', () => {
     const parsed = CandidateEventSchema.parse({ category: 'repair' });
     expect(parsed.mileage).toBe(0);
     expect(parsed.cost).toBe(0);
-    expect(parsed.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    // The defaulted output is committable via the create route (which requires these fields).
+    // An unknown date is a blank string (never today) — the review dialog requires the user
+    // to fill it before commit, so what reaches the create route is a valid date.
+    expect(parsed.date).toBe('');
     expect(parsed).toMatchObject({ category: 'repair', currency: 'UAH', works: [] });
+  });
+  it('accepts a stated YYYY-MM-DD date', () => {
+    expect(CandidateEventSchema.parse({ category: 'repair', date: '2025-09-23' }).date).toBe('2025-09-23');
   });
   it('still rejects a candidate with no category', () => {
     expect(CandidateEventSchema.safeParse({ date: '2024-01-15' }).success).toBe(false);

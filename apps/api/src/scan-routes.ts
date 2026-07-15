@@ -1,10 +1,12 @@
 import { ScanPresignRequestSchema, ExtractFromScanRequestSchema } from '@carlog/contracts';
-import { CarNotFoundError, extractEventsFromDocument, type CarRepository, type PhotoStorage, type LlmProvider } from '@carlog/domain';
+import { CarNotFoundError, extractEventsFromDocument, type CarRepository, type EventRepository, type PhotoStorage, type LlmProvider } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
+import { buildExtractionContext } from './extraction-context';
 import type { ApiEvent } from './router';
 
 export type ScanDeps = {
   cars: CarRepository;
+  events: EventRepository;
   storage: PhotoStorage;
   llm: LlmProvider;
   loadScanBase64: (key: string) => Promise<string | null>;
@@ -29,7 +31,8 @@ export async function handleScanRoute(deps: ScanDeps, event: ApiEvent, ownerId: 
     if (!req.s3Key.startsWith(`scans/${ownerId}/`)) return ok(400, { error: 'ValidationError', message: 'invalid s3Key' });
     const base64 = await deps.loadScanBase64(req.s3Key);
     if (!base64) return ok(422, { error: 'ExtractionFailed', message: 'Could not read the document' });
-    const events = await extractEventsFromDocument(base64, req.contentType, deps.llm, { car: { make: car.make, model: car.model, year: car.year } });
+    const ctx = await buildExtractionContext(deps.events, ownerId, car);
+    const events = await extractEventsFromDocument(base64, req.contentType, deps.llm, ctx);
     return ok(200, { events });
   }
 
