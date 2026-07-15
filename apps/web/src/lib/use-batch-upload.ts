@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { planBatch } from './batch-plan';
 
 export type UploadState = 'queued' | 'uploading' | 'done' | 'failed' | 'skipped';
@@ -11,6 +11,10 @@ export type BatchItem = {
 };
 
 const CONCURRENCY = 3;
+// How long the finished status list stays visible. Failures/skips linger longer so the
+// user can read the reason; an all-success batch clears quickly.
+const DISMISS_OK_MS = 4000;
+const DISMISS_ISSUES_MS = 10000;
 
 type Opts = {
   upload: (file: File) => Promise<void>;
@@ -74,6 +78,15 @@ export function useBatchUpload({ upload, validateOne, remaining, onComplete }: O
   }, [upload, validateOne, remaining, onComplete]);
 
   const reset = useCallback(() => setItems([]), []);
+
+  // Auto-dismiss the status list once the batch has settled (also covers all-skipped
+  // batches, which never set `running`). Any new `start` resets the timer via deps.
+  useEffect(() => {
+    if (running || items.length === 0) return;
+    const hasIssues = items.some((it) => it.state === 'failed' || it.state === 'skipped');
+    const timer = setTimeout(() => setItems([]), hasIssues ? DISMISS_ISSUES_MS : DISMISS_OK_MS);
+    return () => clearTimeout(timer);
+  }, [running, items]);
 
   return { items, running, start, reset };
 }
