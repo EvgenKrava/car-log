@@ -1,12 +1,14 @@
 import {
-  chunkText, extractEvents, type CarRepository, type LlmProvider,
+  chunkText, extractEvents, type CarRepository, type EventRepository, type LlmProvider,
 } from '@carlog/domain';
 import { IMPORT_CHUNK_SIZE, MAX_JOB_EVENTS } from '@carlog/contracts';
+import { buildExtractionContext } from './extraction-context';
 import type { ImportJobRepository } from './import-job-repository';
 
 export type ImportWorkerDeps = {
   jobs: ImportJobRepository;
   cars: CarRepository;
+  events: EventRepository;
   llm: LlmProvider;
   loadS3Text: (key: string) => Promise<string | null>;
   remainingMs: () => number;
@@ -47,7 +49,7 @@ export async function runImportJob(deps: ImportWorkerDeps, payload: ImportWorkPa
   job.progress = { done: 0, total: chunks.length, found: 0 };
   await deps.jobs.update(job);
 
-  const ctx = { car: { make: car.make, model: car.model, year: car.year } };
+  const ctx = await buildExtractionContext(deps.events, payload.ownerId, car);
   for (const chunk of chunks) {
     if (deps.remainingMs() < MIN_BUDGET_MS) {
       return fail('timeBudgetExceeded'); // partial events/progress already persisted on `job`

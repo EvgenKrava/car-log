@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { runImportJob, type ImportWorkerDeps } from './import-worker';
 import { InMemoryImportJobRepository } from './in-memory-import-job-repository';
 import { InMemoryCarRepository } from './in-memory-car-repository';
+import { InMemoryEventRepository } from './in-memory-event-repository';
 import { InMemoryLlmProvider } from './in-memory-llm-provider';
 import type { ImportJobRecord } from './import-job-repository';
 
@@ -39,6 +40,7 @@ describe('runImportJob', () => {
 
   const deps = (llmOutput: unknown, extra?: Partial<ImportWorkerDeps>): ImportWorkerDeps => ({
     jobs, cars,
+    events: new InMemoryEventRepository(),
     llm: new InMemoryLlmProvider(llmOutput),
     loadS3Text: async () => null,
     remainingMs: () => 300_000,

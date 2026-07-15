@@ -26,6 +26,7 @@ const lambda = new LambdaClient({});
 const llm = new BedrockLlmProvider();
 const cars = new DynamoCarRepository(tableName, client);
 const importJobs = new DynamoImportJobRepository(tableName, client);
+const events = new DynamoEventRepository(tableName, client);
 
 const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
   await lambda.send(new InvokeCommand({
@@ -63,7 +64,7 @@ const deps: RouteDeps = {
   cars,
   photos: new DynamoPhotoRepository(tableName, client),
   storage: new S3PhotoStorage(photosBucket, s3),
-  events: new DynamoEventRepository(tableName, client),
+  events,
   proofs: new DynamoProofRepository(tableName, client),
   llm,
   importJobs,
@@ -82,7 +83,7 @@ export async function handler(
   // Detached worker invocation (async self-invoke) — no API Gateway envelope.
   if (isImportPayload(event)) {
     await runImportJob(
-      { jobs: importJobs, cars, llm, loadS3Text, remainingMs: () => context.getRemainingTimeInMillis() },
+      { jobs: importJobs, cars, events, llm, loadS3Text, remainingMs: () => context.getRemainingTimeInMillis() },
       event,
     );
     return;

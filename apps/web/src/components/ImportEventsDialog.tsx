@@ -109,8 +109,13 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
-    // Client-side validation
-    const isText = selected.type.includes('text/plain') || selected.name.endsWith('.txt');
+    // The importer reads the file as UTF-8 text, so accept any text-like file
+    // (.txt/.md/.csv/.log and any text/* MIME), not just .txt. Binary docs (PDF/images)
+    // go through "Scan invoice" instead.
+    const nameLower = selected.name.toLowerCase();
+    const isText = selected.type.startsWith('text/')
+      || selected.type === '' // some OSes report no MIME for .md/.log
+      || /\.(txt|md|markdown|csv|log|text)$/i.test(nameLower);
     if (!isText) {
       setError(t('import:notTxt'));
       setFile(null);
@@ -203,7 +208,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,text/plain"
+                accept="text/*,.txt,.md,.markdown,.csv,.log"
                 onChange={onFileSelect}
                 style={{ display: 'none' }}
               />
@@ -239,7 +244,8 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
                   </TextField>
                   <Stack direction="row" spacing={1.5}>
                     <TextField label={t('event:date')} type="date" size="small" value={d.date}
-                      onChange={(e) => patch(i, { date: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth />
+                      onChange={(e) => patch(i, { date: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth
+                      required error={!d.date} helperText={!d.date ? t('import:dateRequired') : undefined} />
                     <NumberField label={t('event:mileage')} size="small" value={d.mileage}
                       onChange={(v) => patch(i, { mileage: v ?? 0 })} fullWidth />
                   </Stack>
@@ -282,7 +288,8 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
         ) : (
           <>
             <Button onClick={hideDialog}>{t('import:cancel')}</Button>
-            <Button variant="contained" onClick={() => void onCommit()} disabled={drafts.length === 0 || committing}>
+            <Button variant="contained" onClick={() => void onCommit()}
+              disabled={drafts.length === 0 || committing || drafts.some((d) => !d.date)}>
               {committing ? t('import:adding') : t('import:addAll', { count: drafts.length })}
             </Button>
           </>

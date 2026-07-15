@@ -6,6 +6,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
+import { prepareScanFile } from '../lib/prepare-scan';
 import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
 import { useAuth } from '../auth';
@@ -48,17 +49,19 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     const selected = e.target.files?.[0];
     if (!selected) return;
 
-    // IMPORTANT: HEIC is explicitly excluded — Claude vision cannot read it
-    // Client-side supported types: image/jpeg, image/png, image/webp, application/pdf
-    const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    // Accept any image (incl. HEIC/HEIF — converted to JPEG on scan) or a PDF. The raw
+    // file isn't size-checked here: large photos are downscaled by prepareScanFile before
+    // upload, so only the PREPARED file's size matters (checked in onScan).
     const nameLower = selected.name.toLowerCase();
-    if (!supportedTypes.includes(selected.type) || nameLower.endsWith('.heic') || nameLower.endsWith('.heif')) {
+    const isImage = selected.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp)$/i.test(nameLower);
+    const isPdf = selected.type === 'application/pdf' || nameLower.endsWith('.pdf');
+    if (!isImage && !isPdf) {
       setError(t('import:scanBadType'));
       setFile(null);
       return;
     }
-
-    if (selected.size > maxScanSize(selected.type)) {
+    // PDFs aren't downscaled, so enforce their cap up front.
+    if (isPdf && selected.size > maxScanSize('application/pdf')) {
       setError(t('import:scanTooLarge'));
       setFile(null);
       return;
@@ -75,7 +78,25 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     setPhase('scanning');
 
     try {
-      const { events, s3Key, contentType, size } = await extractScan.mutateAsync({ file });
+      // Convert HEIC→JPEG and downscale large photos before upload (PDFs pass through).
+      let prepared: File;
+      try {
+        prepared = await prepareScanFile(file);
+      } catch {
+        setError(t('import:scanBadType'));
+        setPhase('input');
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      if (prepared.size > maxScanSize(prepared.type)) {
+        setError(t('import:scanTooLarge'));
+        setPhase('input');
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      const { events, s3Key, contentType, size } = await extractScan.mutateAsync({ file: prepared });
 
       if (events.length === 0) {
         // Show unreadable message with manual entry option
@@ -170,7 +191,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
+                accept="image/*,application/pdf,.heic,.heif"
                 onChange={onFileSelect}
                 style={{ display: 'none' }}
               />
@@ -225,6 +246,9 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
                       value={d.date}
                       onChange={(e) => patch(i, { date: e.target.value })}
                       InputLabelProps={{ shrink: true }}
+                      required
+                      error={!d.date}
+                      helperText={!d.date ? t('import:dateRequired') : undefined}
                       fullWidth
                     />
                     <NumberField
@@ -275,7 +299,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
             <Button
               variant="contained"
               onClick={() => void onCommit()}
-              disabled={drafts.length === 0 || committing}
+              disabled={drafts.length === 0 || committing || drafts.some((d) => !d.date)}
             >
               {committing ? t('import:adding') : t('import:addAll', { count: drafts.length })}
             </Button>

@@ -1,14 +1,14 @@
 import { z } from 'zod';
 import { CreateEventSchema } from './event';
 
-// A CandidateEvent is an Event the user has NOT committed yet. Its OUTPUT shape equals
-// the body the existing `POST /cars/{id}/events` route accepts (CreateEventSchema), so a
-// reviewed candidate is POSTed verbatim with no field remapping. Its INPUT is lenient:
-// pasted notes are often partial, so fields the model omits get safe defaults instead of
-// the whole event being dropped — missing mileage/cost become 0 and a missing date
-// becomes today, all visible and editable in the review dialog before commit.
+// A CandidateEvent is an Event the user has NOT committed yet. Extraction is lenient:
+// partial notes/documents are common, so fields the model omits get safe placeholders
+// instead of the whole event being dropped. Missing mileage/cost become 0; a missing date
+// becomes an EMPTY STRING (never today) — the review dialog surfaces the blank date as a
+// required field the user must fill before commit. When committing, the empty date is
+// replaced by the user's input, so what reaches the create route is a valid CreateEvent.
 export const CandidateEventSchema = CreateEventSchema.extend({
-  date: CreateEventSchema.shape.date.default(() => new Date().toISOString().slice(0, 10)),
+  date: CreateEventSchema.shape.date.or(z.literal('')).default(''),
   mileage: CreateEventSchema.shape.mileage.default(0),
   cost: CreateEventSchema.shape.cost.default(0),
 });
