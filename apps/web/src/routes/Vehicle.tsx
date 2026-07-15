@@ -43,43 +43,29 @@ function VehicleDetail({ car }: { car: Car }) {
 
   return (
     <AppShell>
-      <PageHeader
-        title={title}
-        onBack={() => navigate('/')}
-        actions={
-          <>
-            {/* Desktop: inline text buttons. Mobile: a single kebab menu — two text
-                buttons don't fit next to the title + language switcher on a phone. */}
-            <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', sm: 'flex' } }}>
-              <Button variant="contained" onClick={() => setEditOpen(true)}>{t('common:edit')}</Button>
-              <Button color="error" onClick={() => setConfirmOpen(true)}>{t('common:delete')}</Button>
-            </Stack>
-            <IconButton
-              aria-label={t('vehicle:carActions')}
-              onClick={(e) => setMenuAnchor(e.currentTarget)}
-              sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
-            >
-              <MoreVertIcon />
-            </IconButton>
-            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
-              <MenuItem onClick={() => { setMenuAnchor(null); setEditOpen(true); }}>
-                <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t('common:edit')}</ListItemText>
-              </MenuItem>
-              <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
-                <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
-                <ListItemText>{t('common:delete')}</ListItemText>
-              </MenuItem>
-            </Menu>
-          </>
-        }
-      />
+      <PageHeader title={title} onBack={() => navigate('/')} />
       <Container sx={{ py: 3 }}>
         <Card>
           <CardContent>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
               <Typography variant="h6">{car.make} {car.model}</Typography>
-              <Chip label={t(`car:fuelType_${car.fuelType}`)} color="primary" variant="outlined" />
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                <Chip label={t(`car:fuelType_${car.fuelType}`)} color="primary" variant="outlined" />
+                {/* Car actions live on the card, not the app header. */}
+                <IconButton size="small" aria-label={t('vehicle:carActions')} onClick={(e) => setMenuAnchor(e.currentTarget)}>
+                  <MoreVertIcon />
+                </IconButton>
+                <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+                  <MenuItem onClick={() => { setMenuAnchor(null); setEditOpen(true); }}>
+                    <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>{t('common:edit')}</ListItemText>
+                  </MenuItem>
+                  <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
+                    <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+                    <ListItemText>{t('common:delete')}</ListItemText>
+                  </MenuItem>
+                </Menu>
+              </Stack>
             </Stack>
             <SpecRow label={t('car:year')} value={car.year} />
             <SpecRow label={t('car:mileage')} value={`${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`} />
