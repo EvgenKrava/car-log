@@ -82,7 +82,7 @@ describe('scan schemas', () => {
     expect(ExtractFromScanRequestSchema.safeParse({ carId, s3Key: 'scans/u/x.jpg', contentType: 'image/jpeg' }).success).toBe(true);
   });
   it('validates a from-scan proof request', () => {
-    expect(FromScanProofSchema.safeParse({ s3Key: 'scans/u/x.jpg', contentType: 'image/jpeg' }).success).toBe(true);
+    expect(FromScanProofSchema.safeParse({ s3Key: 'scans/u/x.jpg', contentType: 'image/jpeg', size: 5000 }).success).toBe(true);
   });
 });
 ```
@@ -119,6 +119,9 @@ export type ExtractFromScanRequest = z.infer<typeof ExtractFromScanRequestSchema
 export const FromScanProofSchema = z.object({
   s3Key: z.string().min(1),
   contentType: ScanDocContentTypeSchema,
+  // The client holds the picked File, so it sends the byte size — the Proof row requires
+  // size >= 1 and the server-side CopyObject doesn't re-measure it.
+  size: z.number().int().min(1).max(MAX_SCAN_SIZE),
 });
 export type FromScanProof = z.infer<typeof FromScanProofSchema>;
 ```
@@ -307,14 +310,17 @@ if (path === `${pbase}/from-scan` && method === 'POST') {
   await deps.storage.copyObject(req.s3Key, destKey);
   const proof = {
     id: newProofId, eventId, carId, ownerId,
-    contentType: req.contentType, size: 0, filename: undefined,
+    contentType: req.contentType, size: req.size, filename: undefined,
     createdAt: new Date().toISOString(),
   };
   return ok(201, await deps.proofs.create(proof));
 }
 ```
 
-Import `FromScanProofSchema` from `@carlog/contracts`. Note `size: 0` — the scan's byte size isn't re-measured here (the proof row's `size` is informational; confirm the Proof schema allows 0 or make it optional — check `packages/contracts/src/proof.ts`; if `size` is required `min(1)`, pass a HeadObject-derived length instead: `const head = await deps.storage`… — SIMPLER: add `size` to the copy by reading it. If the Proof schema requires size≥1, extend `PhotoStorage` with nothing and instead have the route accept the size from the client `FromScanProof` (add `size` to `FromScanProofSchema`). Pick whichever keeps the Proof contract unchanged; the implementer confirms against `proof.ts` and notes the choice.)
+Import `FromScanProofSchema` from `@carlog/contracts`. `size` comes from the client's
+`FromScanProof` (the picked File's byte size) because the `Proof` schema requires
+`size >= 1` (confirmed in `packages/contracts/src/proof.ts`) and the server-side
+`CopyObject` doesn't re-measure the object — this keeps the `Proof` contract unchanged.
 
 - [ ] **Step 4: Update the in-memory storage fake** used in `router.test.ts` to implement `copyObject` (record src→dest; make `exists` return true for `scans/` keys in the relevant test). The fake is defined inline in `router.test.ts` — add `copyObject: async () => {}` (or a spy) there.
 
@@ -501,13 +507,13 @@ export const presignScan = (token: string, contentType: string, size: number): P
   request(token, '/import/scan/presign', ScanPresignSchema, { method: 'POST', body: JSON.stringify({ contentType, size }) });
 export const extractFromScan = (token: string, carId: string, s3Key: string, contentType: string): Promise<ExtractEventsResponse> =>
   request(token, '/import/scan', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, s3Key, contentType }) });
-export const confirmProofFromScan = (token: string, carId: string, eventId: string, s3Key: string, contentType: string) =>
-  request(token, `/cars/${carId}/events/${eventId}/proofs/from-scan`, ProofSchema, { method: 'POST', body: JSON.stringify({ s3Key, contentType }) });
+export const confirmProofFromScan = (token: string, carId: string, eventId: string, s3Key: string, contentType: string, size: number) =>
+  request(token, `/cars/${carId}/events/${eventId}/proofs/from-scan`, ProofSchema, { method: 'POST', body: JSON.stringify({ s3Key, contentType, size }) });
 ```
 
 (`ProofSchema` is already imported in this file for proofs.)
 
-- [ ] **Step 2: queries** — `useExtractFromScan(carId)`: a mutation taking `{file: File}` that presigns (by `file.type`, `file.size`), `uploadToS3`, then `extractFromScan(token, carId, key, file.type)` and returns `{ events, s3Key: key, contentType: file.type }` so the caller can attach later. (The attach calls `confirmProofFromScan` directly per created event — no dedicated hook needed, or add `useAttachScanProof` if cleaner.)
+- [ ] **Step 2: queries** — `useExtractFromScan(carId)`: a mutation taking `{file: File}` that presigns (by `file.type`, `file.size`), `uploadToS3`, then `extractFromScan(token, carId, key, file.type)` and returns `{ events, s3Key: key, contentType: file.type, size: file.size }` so the caller can attach later (the attach needs the byte size). The attach calls `confirmProofFromScan(token, carId, eventId, s3Key, contentType, size)` directly per created event.
 
 - [ ] **Step 3: i18n** (`import` namespace EN+UK, symmetric): `scanInvoice` ("Scan invoice" / "Сканувати рахунок"), `scanning` ("Reading the document…" / "Читаємо документ…"), `scanUnreadable` ("Couldn't read that document. Add the event manually." / "Не вдалося прочитати документ. Додайте подію вручну."), `enterManually` ("Enter manually" / "Ввести вручну"), `scanBadType` ("Choose an image or PDF." / "Оберіть зображення або PDF."), `scanTooLarge` ("File is larger than 10 MB." / "Файл більший за 10 МБ."), `scanAttachFailed` ("Event saved, but attaching the scan failed." / "Подію збережено, але не вдалося прикріпити скан.").
 
@@ -523,8 +529,8 @@ export const confirmProofFromScan = (token: string, carId: string, eventId: stri
 **Behavior contract:**
 - Trigger: a "Scan invoice" button on the Vehicle screen near the existing import/add controls; opens `ScanInvoiceDialog`.
 - Phases: `input` (pick file — accept `image/*,application/pdf`; validate `SCAN_DOC_CONTENT_TYPES` membership → `scanBadType`, size ≤ `MAX_SCAN_SIZE` → `scanTooLarge`; "Scan" button) → `scanning` (spinner + `scanning`) → `review` (the SAME editable candidate-card list as the text import — category/date/mileage/cost/title + remove; unknown cost field editable, blank when 0) → commit.
-- Scan: `useExtractFromScan(carId).mutateAsync({file})`. On success store `{events, s3Key, contentType}`; if `events.length === 0` show `scanUnreadable` + `enterManually` (closes and opens the normal Add-Event dialog, OR just closes — reuse existing add path). On 422/503 error, reuse `errorFailed`/`errorUnavailable`.
-- Commit: for each reviewed candidate → create event via `useCreateEvent(carId).mutateAsync(candidate)` (committed-prefix retry: on failure keep the remainder), then `confirmProofFromScan(token, carId, createdEventId, s3Key, contentType)`. If the attach throws, DON'T fail the whole commit — collect a `scanAttachFailed` warning and continue (event stays). After all committed, close.
+- Scan: `useExtractFromScan(carId).mutateAsync({file})`. On success store `{events, s3Key, contentType, size}`; if `events.length === 0` show `scanUnreadable` + `enterManually` (closes and opens the normal Add-Event dialog, OR just closes — reuse existing add path). On 422/503 error, reuse `errorFailed`/`errorUnavailable`.
+- Commit: for each reviewed candidate → create event via `useCreateEvent(carId).mutateAsync(candidate)` (committed-prefix retry: on failure keep the remainder), then `confirmProofFromScan(token, carId, createdEventId, s3Key, contentType, size)`. If the attach throws, DON'T fail the whole commit — collect a `scanAttachFailed` warning and continue (event stays). After all committed, close.
 - Note: `useCreateEvent().mutateAsync` returns the created `Event` — use its `id` for the attach call.
 - Strict TS; MUI only; strings via t().
 
@@ -557,6 +563,6 @@ export const confirmProofFromScan = (token: string, carId: string, eventId: stri
 
 - **Spec coverage:** scan schemas+from-scan → T1; vision port+use-case (shared retry) → T2; Bedrock vision method (claude-api skill) + fake → T3; CopyObject + from-scan proof route (IDOR + cap + exists) → T4; scan routes (ownership/IDOR/422) + handler base64 loader → T5; CDK routes+lifecycle → T6; unknown-cost display → T7; web client+i18n → T8; dialog+trigger+attach loop → T9; deploy+smoke → T10. Naming rule (no "invoice" in code) honored across tasks. All spec sections mapped.
 - **Type consistency:** `extractEventsFromDocument` signature identical in port (T2), fake (T3), use-case (T2), scan route (T5). `PhotoStorage.copyObject` added T4, used T4 route + implemented T4 + faked T4. `ExtractEventsResponseSchema` reused for the scan response (T1 note → T5 route → T8 client). `FromScanProofSchema` T1 → T4 route → T8 client. `formatCost` T7 used in EventCard T7 (and available to the review card).
-- **Open decision flagged for the implementer (T4 Step 3):** the Proof schema's `size` field — if it requires `min(1)`, either add `size` to `FromScanProofSchema` (client sends `file.size`) or HeadObject the copied key. The implementer confirms against `proof.ts` and picks the one that leaves the Proof contract unchanged; this is a genuine "confirm against reality" step, not a placeholder.
+- **Proof.size resolved:** `Proof` requires `size >= 1` (confirmed in `proof.ts`), so `FromScanProofSchema` carries `size` (the client's `file.size`) end to end (T1 schema → T8 client → T4 route → proof row). No `size: 0`, no HeadObject needed.
 - **Placeholder scan:** T9 is a behavior contract (the review-card JSX mirrors the existing ImportEventsDialog, which must not be duplicated verbatim in the plan); every other code step is complete.
 - **Risks noted:** claude-api vision block shape (T3 reconciles); route ordering `/import/scan*` before `/import/` job dispatch (T5 Step 2); Proof.size handling (T4).
