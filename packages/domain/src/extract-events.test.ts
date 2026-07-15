@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { extractEvents, ExtractionFailedError } from './extract-events';
+import { extractEvents, extractEventsFromDocument, ExtractionFailedError } from './extract-events';
 import type { LlmProvider, ExtractionContext } from './llm-provider';
 
 const ctx: ExtractionContext = { car: { make: 'Toyota', model: 'Corolla', year: 2020 } };
@@ -8,7 +8,7 @@ const valid = { date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_c
 const providerReturning = (...outputs: unknown[]): LlmProvider => {
   const fn = vi.fn();
   outputs.forEach((o) => fn.mockResolvedValueOnce(o));
-  return { extractEvents: fn };
+  return { extractEvents: fn, extractEventsFromDocument: vi.fn() };
 };
 
 describe('extractEvents', () => {
@@ -57,5 +57,32 @@ describe('extractEvents', () => {
     const many = Array.from({ length: 60 }, () => valid);
     const out = await extractEvents('text', providerReturning({ events: many }), ctx);
     expect(out).toHaveLength(50);
+  });
+});
+
+const docProvider = (...outputs: unknown[]): LlmProvider => {
+  const fn = vi.fn();
+  outputs.forEach((o) => fn.mockResolvedValueOnce(o));
+  // extractEvents unused in these tests but required by the interface
+  return { extractEvents: vi.fn(), extractEventsFromDocument: fn };
+};
+
+describe('extractEventsFromDocument', () => {
+  it('returns multiple candidates from one document', async () => {
+    const out = await extractEventsFromDocument('BASE64', 'image/jpeg', docProvider({ events: [valid, { ...valid, category: 'repair' }] }), ctx);
+    expect(out).toHaveLength(2);
+  });
+  it('returns [] when the document is unreadable (no events)', async () => {
+    const out = await extractEventsFromDocument('BASE64', 'application/pdf', docProvider({ events: [] }), ctx);
+    expect(out).toEqual([]);
+  });
+  it('drops malformed items', async () => {
+    const out = await extractEventsFromDocument('BASE64', 'image/png', docProvider({ events: [valid, { junk: 1 }] }), ctx);
+    expect(out).toHaveLength(1);
+  });
+  it('retries once on shapeless then throws ExtractionFailedError', async () => {
+    const p = docProvider('garbage', 'still garbage');
+    await expect(extractEventsFromDocument('B', 'image/jpeg', p, ctx)).rejects.toBeInstanceOf(ExtractionFailedError);
+    expect(p.extractEventsFromDocument).toHaveBeenCalledTimes(2);
   });
 });
