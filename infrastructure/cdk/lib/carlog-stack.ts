@@ -4,6 +4,7 @@ import {
   CfnOutput, Duration, RemovalPolicy, SecretValue, Stack, type StackProps,
 } from 'aws-cdk-lib';
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import {
   AccountRecovery, OAuthScope, ProviderAttribute, UserPool, UserPoolClient,
   UserPoolClientIdentityProvider, UserPoolIdentityProviderGoogle,
@@ -38,6 +39,7 @@ export class CarLogStack extends Stack {
       sortKey: { name: 'SK', type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.DESTROY,
+      timeToLiveAttribute: 'ttl',
     });
 
     const userPool = new UserPool(this, 'UserPool', {
@@ -94,7 +96,11 @@ export class CarLogStack extends Stack {
         allowedHeaders: ['*'],
         maxAge: 3000,
       }],
-      lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
+      lifecycleRules: [
+        { abortIncompleteMultipartUploadAfter: Duration.days(1) },
+        // Uploaded import .txt files are transient job inputs — purge after a day.
+        { prefix: 'imports/', expiration: Duration.days(1) },
+      ],
     });
 
     // Bedrock runs in a DIFFERENT (Bedrock-enabled) account: the bearer token in
@@ -120,9 +126,10 @@ export class CarLogStack extends Stack {
         // otherwise; the adapter falls back to AWS_REGION).
         ...(bedrockRegion ? { BEDROCK_REGION: bedrockRegion } : {}),
       },
-      // 29s: the extract route makes a Bedrock call that can take 10-20s; other routes
-      // are fast. 29s stays under the API Gateway HTTP API 30s integration hard cap.
-      timeout: Duration.seconds(29),
+      // 300s: detached import-worker invocations (async self-invoke) chunk large files
+      // through Bedrock and need minutes. HTTP calls are still bounded by API Gateway's
+      // own 30s integration cap regardless of this value.
+      timeout: Duration.seconds(300),
       // Cost: 256 MB is the price/performance sweet spot for this CRUD workload.
       memorySize: 256,
       // Note: we intentionally do NOT set reservedConcurrentExecutions. This account's
@@ -134,6 +141,13 @@ export class CarLogStack extends Stack {
     });
     table.grantReadWriteData(fn);
     photosBucket.grantReadWrite(fn);
+    // The import worker runs as a detached async invocation of this same function.
+    // grantInvoke(fn) self-references and can cycle; a wildcard-scoped policy statement
+    // on the role avoids the circular dependency.
+    fn.addToRolePolicy(new PolicyStatement({
+      actions: ['lambda:InvokeFunction'],
+      resources: [`arn:aws:lambda:${this.region}:${this.account}:function:*`],
+    }));
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
       jwtAudience: [client.userPoolClientId],
@@ -158,6 +172,9 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs/{proofId}', methods: [HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/jobs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/jobs/{jobId}', methods: [HttpMethod.GET], integration, authorizer });
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.
