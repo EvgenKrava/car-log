@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import {
   Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton,
@@ -7,10 +8,48 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { CreateEventSchema, EVENT_CATEGORIES, type Event, type CreateEventInput } from '@carlog/contracts';
 import { useCreateEvent, useUpdateEvent } from '../queries';
 import { NumberField } from './ui/NumberField';
 import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+
+// The form validates against the shared CreateEventSchema (the API contract) but layers on
+// localized messages and a future-date guard that only makes sense for user-entered events
+// (imported/backdated events must still pass at the API, so this stays form-side). Nested
+// works[].description and parts[].name are required by the schema — surfacing their errors
+// here is the main gap this closes: previously an empty work silently blocked Save.
+function buildFormSchema(t: TFunction) {
+  const required = t('event:errorRequired');
+  const todayISO = new Date().toISOString().slice(0, 10);
+  return CreateEventSchema.extend({
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, t('event:errorInvalidDate'))
+      .refine((d) => d <= todayISO, t('event:errorFutureDate')),
+    works: z
+      .array(
+        z.object({
+          description: z.string().min(1, required).max(200),
+          parts: z
+            .array(
+              z.object({
+                name: z.string().min(1, required).max(80),
+                brand: z.literal('').transform(() => undefined).or(z.string().max(60).optional()),
+                partNumber: z.literal('').transform(() => undefined).or(z.string().max(60).optional()),
+                quantity: z.number().int().min(1),
+                notes: z.literal('').transform(() => undefined).or(z.string().max(500).optional()),
+                purchaseLink: z.literal('').transform(() => undefined).or(z.string().url(t('event:errorInvalidLink')).max(500).optional()),
+              }),
+            )
+            .max(30)
+            .default([]),
+        }),
+      )
+      .max(30)
+      .default([]),
+  });
+}
 
 const EMPTY: CreateEventInput = {
   date: new Date().toISOString().slice(0, 10), mileage: 0, cost: 0, currency: 'UAH', category: 'other', works: [],
@@ -29,8 +68,9 @@ export function EventFormDialog({
   const update = useUpdateEvent(carId);
   const isPending = create.isPending || update.isPending;
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<CreateEventInput>({
-    resolver: zodResolver(CreateEventSchema), defaultValues: EMPTY,
+  const formSchema = useMemo(() => buildFormSchema(t), [t]);
+  const { control, handleSubmit, reset, formState: { errors, isSubmitted } } = useForm<CreateEventInput>({
+    resolver: zodResolver(formSchema), defaultValues: EMPTY,
   });
   const works = useFieldArray({ control, name: 'works' });
   const sheet = useBottomSheetDismiss(onClose);
@@ -55,6 +95,9 @@ export function EventFormDialog({
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5} sx={{ mt: 1 }}>
             {isError ? <Alert severity="error">{t('event:saveFailed')}</Alert> : null}
+            {isSubmitted && Object.keys(errors).length > 0 ? (
+              <Alert severity="warning">{t('event:errorFixFields')}</Alert>
+            ) : null}
             <Controller name="date" control={control} render={({ field }) => (
               <TextField {...field} type="date" label={t('event:date')} fullWidth InputLabelProps={{ shrink: true }}
                 error={Boolean(errors.date)} helperText={errors.date?.message as string | undefined} />
@@ -85,11 +128,13 @@ export function EventFormDialog({
               <Stack key={w.id} spacing={1} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Controller name={`works.${wi}.description`} control={control} render={({ field }) => (
-                    <TextField {...field} label={t('event:workDescription')} fullWidth size="small" />
+                    <TextField {...field} label={t('event:workDescription')} fullWidth size="small"
+                      error={Boolean(errors.works?.[wi]?.description)}
+                      helperText={errors.works?.[wi]?.description?.message as string | undefined} />
                   )} />
                   <IconButton aria-label="remove work" onClick={() => works.remove(wi)}><DeleteIcon /></IconButton>
                 </Stack>
-                <PartsEditor control={control} workIndex={wi} />
+                <PartsEditor control={control} workIndex={wi} errors={errors} />
               </Stack>
             ))}
             <Button onClick={() => works.append({ description: '', parts: [] })}>{t('event:addWork')}</Button>
@@ -106,13 +151,21 @@ export function EventFormDialog({
   );
 }
 
-function PartsEditor({ control, workIndex }: { control: import('react-hook-form').Control<CreateEventInput>; workIndex: number }) {
+function PartsEditor({ control, workIndex, errors }: {
+  control: import('react-hook-form').Control<CreateEventInput>;
+  workIndex: number;
+  errors: import('react-hook-form').FieldErrors<CreateEventInput>;
+}) {
   const { t } = useTranslation(['event']);
   const parts = useFieldArray({ control, name: `works.${workIndex}.parts` });
   const text = (pi: number, field: 'name' | 'brand' | 'partNumber' | 'notes' | 'purchaseLink', label: string) => (
-    <Controller name={`works.${workIndex}.parts.${pi}.${field}`} control={control} render={({ field: f }) => (
-      <TextField {...f} label={label} size="small" fullWidth value={f.value ?? ''} />
-    )} />
+    <Controller name={`works.${workIndex}.parts.${pi}.${field}`} control={control} render={({ field: f }) => {
+      const err = errors.works?.[workIndex]?.parts?.[pi]?.[field];
+      return (
+        <TextField {...f} label={label} size="small" fullWidth value={f.value ?? ''}
+          error={Boolean(err)} helperText={err?.message as string | undefined} />
+      );
+    }} />
   );
   return (
     <Stack spacing={1.5} sx={{ pl: 1 }}>
