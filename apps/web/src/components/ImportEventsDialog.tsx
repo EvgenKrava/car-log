@@ -6,6 +6,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from './ui/NumberField';
 import { EVENT_CATEGORIES, IMPORT_INLINE_MAX, IMPORT_FILE_MAX, type CandidateEvent, type ImportJob } from '@carlog/contracts';
 import { useCreateImportJob, useImportJob, useLatestImportJob, useCreateEvent } from '../queries';
 
@@ -239,12 +240,12 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
                   <Stack direction="row" spacing={1.5}>
                     <TextField label={t('event:date')} type="date" size="small" value={d.date}
                       onChange={(e) => patch(i, { date: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth />
-                    <TextField label={t('event:mileage')} type="number" size="small" value={d.mileage}
-                      onChange={(e) => patch(i, { mileage: Number(e.target.value) })} fullWidth />
+                    <NumberField label={t('event:mileage')} size="small" value={d.mileage}
+                      onChange={(v) => patch(i, { mileage: v ?? 0 })} fullWidth />
                   </Stack>
                   <Stack direction="row" spacing={1.5}>
-                    <TextField label={t('event:cost')} type="number" size="small" value={d.cost}
-                      onChange={(e) => patch(i, { cost: Number(e.target.value) })} fullWidth />
+                    <NumberField label={t('event:cost')} size="small" value={d.cost}
+                      onChange={(v) => patch(i, { cost: v ?? 0 })} fullWidth />
                     <TextField label={t('event:title')} size="small" value={d.title ?? ''}
                       onChange={(e) => patch(i, { title: e.target.value })} fullWidth />
                   </Stack>
