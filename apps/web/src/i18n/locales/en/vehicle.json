@@ -1,1 +1,1 @@
-{ "notFound": "Car not found", "backToGarage": "Back to garage", "deleteFailed": "Failed to delete. Please try again.", "mileageUnit": "mi", "carActions": "Car actions" }
+{ "notFound": "Car not found", "backToGarage": "Back to garage", "deleteFailed": "Failed to delete. Please try again.", "mileageUnit": "mi", "carActions": "Car actions", "addSectionTitle": "Add to history", "addSectionHelp": "Let AI read a paper invoice or a block of text and turn it into service records." }

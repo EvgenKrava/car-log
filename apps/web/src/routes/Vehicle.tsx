@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert, Button, Card, CardContent, Chip, Container, IconButton, ListItemIcon,
+  Alert, Box, Button, Card, CardContent, Container, IconButton, ListItemIcon,
   ListItemText, Menu, MenuItem, Stack, Typography,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
+import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
+import TextSnippetIcon from '@mui/icons-material/TextSnippet';
 import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
@@ -22,17 +24,47 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
 import { formatNumber } from '../i18n/format';
 
-function SpecRow({ label, value }: { label: string; value: string | number }) {
+// One of the three key facts on the hero — a small caps label above a
+// prominent value. No icon: keeps the tiles readable even at 360px width
+// where a leading avatar would squeeze the value.
+function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <Stack direction="row" justifyContent="space-between" sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider' }}>
-      <Typography color="text.secondary">{label}</Typography>
-      <Typography sx={{ fontWeight: 500 }}>{value}</Typography>
-    </Stack>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}
+      >
+        {label}
+      </Typography>
+      <Typography sx={{ fontWeight: 600, mt: 0.25 }} noWrap>{value}</Typography>
+    </Box>
+  );
+}
+
+// Secondary identity facts (VIN, plate) sit under a divider so they read as
+// reference detail rather than headline stats. Monospace for VIN/plate makes
+// character-by-character scanning easier.
+function MetaField({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
+      <Typography
+        variant="body2"
+        sx={{
+          fontWeight: 500,
+          fontFamily: monospace ? '"SFMono-Regular", ui-monospace, Menlo, monospace' : undefined,
+          wordBreak: 'break-all',
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
   );
 }
 
 function VehicleDetail({ car }: { car: Car }) {
-  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import']);
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
@@ -42,6 +74,11 @@ function VehicleDetail({ car }: { car: Car }) {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   const title = car.nickname || `${car.make} ${car.model}`;
+  const hasNickname = Boolean(car.nickname);
+  const mileageDisplay = `${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`;
+  const fuelDisplay = t(`car:fuelType_${car.fuelType}`);
+  const hasSecondary = Boolean(car.vin || car.licensePlate);
+
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
 
   // Native share of a plain-text car summary; clipboard fallback where Web Share is
@@ -50,7 +87,7 @@ function VehicleDetail({ car }: { car: Car }) {
     const summary = [
       title,
       `${car.make} ${car.model}${car.year ? ` (${car.year})` : ''}`,
-      `${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`,
+      mileageDisplay,
     ].join('\n');
     try {
       if (navigator.share) await navigator.share({ title, text: summary });
@@ -63,15 +100,31 @@ function VehicleDetail({ car }: { car: Car }) {
   return (
     <AppShell>
       <PageHeader title={title} onBack={() => navigate('/')} />
-      <Container sx={{ py: 3 }}>
-        <Card>
-          <CardContent>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-              <Typography variant="h6">{car.make} {car.model}</Typography>
-              <Stack direction="row" alignItems="center" spacing={0.5}>
-                <Chip label={t(`car:fuelType_${car.fuelType}`)} color="primary" variant="outlined" />
-                {/* Car actions live on the card, not the app header. */}
-                <IconButton size="small" aria-label={t('vehicle:carActions')} onClick={(e) => setMenuAnchor(e.currentTarget)}>
+      {/* maxWidth=md keeps the reading measure tight on desktop; py=3 xs / py=4 sm+
+          gives the hero room to breathe. */}
+      <Container maxWidth="md" sx={{ py: { xs: 3, sm: 4 } }}>
+        <Stack spacing={{ xs: 2.5, sm: 3 }}>
+          {/* Hero — identity + headline stats. Everything else on the page is
+              in service of this card. */}
+          <Card>
+            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+              <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                    {title}
+                  </Typography>
+                  {hasNickname ? (
+                    <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                      {car.make} {car.model}
+                    </Typography>
+                  ) : null}
+                </Box>
+                <IconButton
+                  size="small"
+                  aria-label={t('vehicle:carActions')}
+                  onClick={(e) => setMenuAnchor(e.currentTarget)}
+                  sx={{ mt: -0.5, mr: -0.5 }}
+                >
                   <MoreVertIcon />
                 </IconButton>
                 <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
@@ -89,21 +142,92 @@ function VehicleDetail({ car }: { car: Car }) {
                   </MenuItem>
                 </Menu>
               </Stack>
-            </Stack>
-            <SpecRow label={t('car:year')} value={car.year} />
-            <SpecRow label={t('car:mileage')} value={`${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`} />
-            {car.nickname ? <SpecRow label={t('car:nickname')} value={car.nickname} /> : null}
-            {car.vin ? <SpecRow label={t('car:vin')} value={car.vin} /> : null}
-            {car.licensePlate ? <SpecRow label={t('car:licensePlate')} value={car.licensePlate} /> : null}
-          </CardContent>
-        </Card>
-        <PhotoGallery carId={car.id} />
-        <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mb: 1 }}>
-          <Button variant="outlined" onClick={() => setScanOpen(true)}>{t('import:scanInvoice')}</Button>
-          <Button variant="outlined" onClick={() => setImportOpen(true)}>{t('import:trigger')}</Button>
+
+              {/* Three headline stats. CSS grid keeps them evenly sized on
+                  every width and still readable at 360px. */}
+              <Box
+                sx={{
+                  mt: { xs: 2.5, sm: 3 },
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                  gap: { xs: 2, sm: 3 },
+                }}
+              >
+                <StatTile label={t('car:mileage')} value={mileageDisplay} />
+                <StatTile label={t('car:year')} value={String(car.year)} />
+                <StatTile label={t('car:fuelType')} value={fuelDisplay} />
+              </Box>
+
+              {hasSecondary ? (
+                <Box
+                  sx={{
+                    mt: { xs: 2.5, sm: 3 },
+                    pt: { xs: 2, sm: 2.5 },
+                    borderTop: 1,
+                    borderColor: 'divider',
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                    gap: { xs: 1.5, sm: 3 },
+                  }}
+                >
+                  {car.vin ? <MetaField label={t('car:vin')} value={car.vin} monospace /> : null}
+                  {car.licensePlate ? <MetaField label={t('car:licensePlate')} value={car.licensePlate} monospace /> : null}
+                </Box>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {/* Add-to-history — the two AI-powered ingestion paths grouped under a
+              single labeled section, with Scan invoice as the flagship primary
+              action. Manual entry lives inside the Service history section
+              below via ServiceTimeline's own "Add service" button. */}
+          <Card>
+            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+              <Stack spacing={0.5} sx={{ mb: { xs: 1.75, sm: 2 } }}>
+                <Typography variant="h6">{t('vehicle:addSectionTitle')}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t('vehicle:addSectionHelp')}
+                </Typography>
+              </Stack>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1}
+                sx={{ '& > .MuiButton-root': { flex: { sm: '0 1 auto' } } }}
+              >
+                <Button
+                  variant="contained"
+                  startIcon={<DocumentScannerIcon />}
+                  onClick={() => setScanOpen(true)}
+                >
+                  {t('import:scanInvoice')}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<TextSnippetIcon />}
+                  onClick={() => setImportOpen(true)}
+                >
+                  {t('import:trigger')}
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+
+          {/* Photos — the component owns its own header + "Add photo" action.
+              A wrapper Box neutralises the component's built-in top margin so
+              the outer Stack fully controls section spacing. */}
+          <Box sx={{ '& > *': { mt: 0 } }}>
+            <PhotoGallery carId={car.id} />
+          </Box>
+
+          {/* Service history — the primary content of the page (per project
+              docs, "the timeline is the primary screen"). Sits last so the
+              hero context frames every entry the reader scrolls through. */}
+          <Box sx={{ '& > *': { mt: 0 } }}>
+            <ServiceTimeline carId={car.id} />
+          </Box>
+
+          {del.isError ? <Alert severity="error">{t('vehicle:deleteFailed')}</Alert> : null}
         </Stack>
-        <ServiceTimeline carId={car.id} />
-        {del.isError ? <Alert severity="error" sx={{ mt: 2 }}>{t('vehicle:deleteFailed')}</Alert> : null}
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />
       <ConfirmDialog
