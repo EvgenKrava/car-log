@@ -42,7 +42,10 @@ const EXTRACT_TOOL = {
               },
             },
           },
-          required: ['date', 'mileage', 'cost', 'category'],
+          // Pasted notes are often partial: only the category is required. Omitted
+          // date/mileage/cost get safe defaults in CandidateEventSchema (today / 0 / 0),
+          // which the user sees and edits in the review dialog before committing.
+          required: ['category'],
         },
       },
     },
@@ -55,7 +58,8 @@ function prompt(text: string, ctx: ExtractionContext): string {
   return [
     `You extract vehicle maintenance events from free-form text for a ${year ?? ''} ${make} ${model}.`.trim(),
     'Return ONLY structured data via the record_events tool. Do not invent events that are not in the text.',
-    'Use category "other" when unsure. Use 0 for unknown mileage/cost. Estimate the date as YYYY-MM-DD.',
+    'Use category "other" when unsure. The notes may be partial: OMIT any field the text does not state',
+    '(date, mileage, cost) rather than guessing a value. When a date IS stated, format it YYYY-MM-DD.',
     '',
     'TEXT:',
     text,

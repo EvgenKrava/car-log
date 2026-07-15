@@ -18,6 +18,17 @@ describe('CandidateEventSchema', () => {
     const parsed = CandidateEventSchema.parse({ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' });
     expect(parsed).toMatchObject({ category: 'oil_change', currency: 'UAH', works: [] });
   });
+  it('accepts a partial candidate (category only) with safe defaults', () => {
+    const parsed = CandidateEventSchema.parse({ category: 'repair' });
+    expect(parsed.mileage).toBe(0);
+    expect(parsed.cost).toBe(0);
+    expect(parsed.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // The defaulted output is committable via the create route (which requires these fields).
+    expect(parsed).toMatchObject({ category: 'repair', currency: 'UAH', works: [] });
+  });
+  it('still rejects a candidate with no category', () => {
+    expect(CandidateEventSchema.safeParse({ date: '2024-01-15' }).success).toBe(false);
+  });
 });
 
 describe('ExtractEventsResponseSchema', () => {
