@@ -74,5 +74,16 @@ export async function handleImportJobRoute(
     return ok(200, toApiJob(job));
   }
 
+  // DELETE dismisses a finished job so it never re-surfaces on reopen. The web app calls this
+  // once every extracted candidate has been committed to the timeline (or the user explicitly
+  // discards), turning "reopen bulk import" into a clean slate instead of re-adopting the same
+  // completed job via latestForCar. Idempotent: deleting a missing/already-gone job is a no-op.
+  if (jobId && path === `/import/jobs/${jobId}` && method === 'DELETE') {
+    const carId = queryParams.carId;
+    if (!carId) return ok(400, { error: 'ValidationError', message: 'carId query param required' });
+    await deps.jobs.remove(ownerId, carId, jobId);
+    return ok(204, {});
+  }
+
   return null;
 }

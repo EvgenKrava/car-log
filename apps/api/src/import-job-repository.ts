@@ -1,4 +1,4 @@
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, DeleteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import type { ImportJob } from '@carlog/contracts';
 
 // The stored record carries the input source (inline text or S3 key) and the owner;
@@ -10,6 +10,7 @@ export interface ImportJobRepository {
   get(ownerId: string, carId: string, jobId: string): Promise<ImportJobRecord | null>;
   latestForCar(ownerId: string, carId: string): Promise<ImportJobRecord | null>;
   update(job: ImportJobRecord): Promise<void>;
+  remove(ownerId: string, carId: string, jobId: string): Promise<void>;
 }
 
 export const importJobSk = (carId: string, jobId: string): string => `CAR#${carId}#IMPORT#${jobId}`;
@@ -51,5 +52,10 @@ export class DynamoImportJobRepository implements ImportJobRepository {
   }
   async update(job: ImportJobRecord): Promise<void> {
     await this.client.send(new PutCommand({ TableName: this.tableName, Item: toRow(job) }));
+  }
+  async remove(ownerId: string, carId: string, jobId: string): Promise<void> {
+    await this.client.send(new DeleteCommand({
+      TableName: this.tableName, Key: { PK: pk(ownerId), SK: importJobSk(carId, jobId) },
+    }));
   }
 }

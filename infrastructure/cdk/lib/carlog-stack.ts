@@ -176,7 +176,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/jobs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
-    httpApi.addRoutes({ path: '/import/jobs/{jobId}', methods: [HttpMethod.GET], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/jobs/{jobId}', methods: [HttpMethod.GET, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/import/scan/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/scan', methods: [HttpMethod.POST], integration, authorizer });
 

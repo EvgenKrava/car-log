@@ -282,6 +282,22 @@ describe('route', () => {
       expect(job.ownerId).toBeUndefined();
     });
 
+    it('deletes a job (204) so it no longer surfaces as latest', async () => {
+      const carId = await makeCar('u1');
+      const created = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, text: 'oil change' } });
+      const { jobId } = JSON.parse(created.body);
+      const del = await route(deps, { ...base, method: 'DELETE', path: `/import/jobs/${jobId}`, ownerId: 'u1', pathParams: { jobId }, queryParams: { carId } });
+      expect(del.statusCode).toBe(204);
+      const latest = await route(deps, { ...base, method: 'GET', path: '/import/jobs', ownerId: 'u1', queryParams: { carId } });
+      expect(latest.statusCode).toBe(404);
+    });
+
+    it('delete is idempotent (204 for a missing job)', async () => {
+      const carId = await makeCar('u1');
+      const del = await route(deps, { ...base, method: 'DELETE', path: '/import/jobs/nope', ownerId: 'u1', pathParams: { jobId: 'nope' }, queryParams: { carId } });
+      expect(del.statusCode).toBe(204);
+    });
+
     it('returns the latest job for a car and 404 when none', async () => {
       const carId = await makeCar('u1');
       const none = await route(deps, { ...base, method: 'GET', path: '/import/jobs', ownerId: 'u1', queryParams: { carId } });

@@ -23,4 +23,7 @@ export class InMemoryImportJobRepository implements ImportJobRepository {
   async update(job: ImportJobRecord): Promise<void> {
     this.rows.set(this.key(job.ownerId, job.carId, job.id), structuredClone(job));
   }
+  async remove(ownerId: string, carId: string, jobId: string): Promise<void> {
+    this.rows.delete(this.key(ownerId, carId, jobId));
+  }
 }
