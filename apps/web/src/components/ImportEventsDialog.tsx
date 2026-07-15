@@ -26,6 +26,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasSeededReview = useRef(false);
   const processedLatestJobId = useRef<string | null>(null);
+  const prevCarId = useRef(carId);
 
   const job = useImportJob(carId, jobId ?? undefined);
   const latestJob = useLatestImportJob(carId, open && !jobId);
@@ -50,6 +51,14 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
     hasSeededReview.current = true;
     setPhase('review');
   };
+
+  // Guard: reset local state if carId changes while dialog holds job state
+  useEffect(() => {
+    if (prevCarId.current !== carId) {
+      prevCarId.current = carId;
+      reset();
+    }
+  }, [carId]);
 
   // Resume logic: when dialog opens with no local job, check for latest job
   useEffect(() => {
@@ -271,7 +280,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
           </>
         ) : (
           <>
-            <Button onClick={close}>{t('import:cancel')}</Button>
+            <Button onClick={hideDialog}>{t('import:cancel')}</Button>
             <Button variant="contained" onClick={() => void onCommit()} disabled={drafts.length === 0 || committing}>
               {committing ? t('import:adding') : t('import:addAll', { count: drafts.length })}
             </Button>
