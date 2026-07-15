@@ -103,4 +103,39 @@ export class BedrockLlmProvider implements LlmProvider {
     const toolUse = res.content.find((c: { type: string }) => c.type === 'tool_use');
     return toolUse && 'input' in toolUse ? toolUse.input : null;
   }
+
+  async extractEventsFromDocument(base64: string, mediaType: string, ctx: ExtractionContext): Promise<unknown> {
+    // Vision: images use an image block; PDFs use a document block (per the claude-api
+    // skill's base64 content-block shapes). Same record_events tool + parse as the text path.
+    // media_type is validated to SCAN_DOC_CONTENT_TYPES upstream; the SDK's image block
+    // types it as a narrow union, so assert it here (runtime value is one of ours).
+    const docBlock = mediaType === 'application/pdf'
+      ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
+      : { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp', data: base64 } };
+    const { make, model, year } = ctx.car;
+    const promptText = [
+      `Read this vehicle maintenance invoice/receipt for a ${year ?? ''} ${make} ${model}.`.trim(),
+      'It may list MULTIPLE distinct services (e.g. an oil change AND a repair) — return ONE event per',
+      'service via the record_events tool. Use category "other" when unsure. OMIT any field the document',
+      'does not state (do not guess date/mileage/cost). When a date IS stated, format it YYYY-MM-DD.',
+    ].join('\n');
+    let res;
+    try {
+      res = await this.client.messages.create({
+        model: MODEL,
+        max_tokens: 16000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'low' },
+        tools: [EXTRACT_TOOL],
+        tool_choice: { type: 'tool', name: 'record_events' },
+        messages: [{ role: 'user', content: [docBlock, { type: 'text', text: promptText }] }],
+      });
+    } catch (err) {
+      const e = err as Error;
+      console.error('Bedrock vision call failed', e.name, e.message);
+      throw new LlmUnavailableError();
+    }
+    const toolUse = res.content.find((c: { type: string }) => c.type === 'tool_use');
+    return toolUse && 'input' in toolUse ? toolUse.input : null;
+  }
 }

@@ -9,4 +9,8 @@ export class InMemoryLlmProvider implements LlmProvider {
     if (this.throwErr) throw this.throwErr;
     return this.output;
   }
+  async extractEventsFromDocument(): Promise<unknown> {
+    if (this.throwErr) throw this.throwErr;
+    return this.output;
+  }
 }

@@ -72,10 +72,13 @@ describe('runImportJob', () => {
     // consecutive shapeless returns. We alternate per extraction attempt: chunk 1 succeeds
     // on first try, chunk 2 fails twice (shapeless + shapeless retry) → skipped.
     let call = 0;
-    const alternating = { extractEvents: async () => {
-      const result = call++ % 3 === 0 ? { events: [valid] } : 'garbage';
-      return result;
-    } };
+    const alternating = {
+      extractEvents: async () => {
+        const result = call++ % 3 === 0 ? { events: [valid] } : 'garbage';
+        return result;
+      },
+      extractEventsFromDocument: async () => ({ events: [] }),
+    };
     const line = 'x'.padEnd(9000, 'y');
     const text = `${line}\n${line}`; // 2 chunks
     const job = makeJob({ carId, text });
@@ -112,7 +115,10 @@ describe('runImportJob', () => {
     await jobs.create(job);
     let calls = 0;
     const budget = () => (calls === 0 ? 300_000 : 30_000); // after first chunk, <60s left
-    const counting = { extractEvents: async () => { calls++; return { events: [valid] }; } };
+    const counting = {
+      extractEvents: async () => { calls++; return { events: [valid] }; },
+      extractEventsFromDocument: async () => ({ events: [] }),
+    };
     await runImportJob(deps(null, { llm: counting, remainingMs: budget }), { jobType: 'import', ownerId: OWNER, carId, jobId: job.id });
     const done = await jobs.get(OWNER, carId, job.id);
     expect(done?.status).toBe('failed');
