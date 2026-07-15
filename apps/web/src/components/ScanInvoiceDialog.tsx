@@ -50,7 +50,8 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     // IMPORTANT: HEIC is explicitly excluded — Claude vision cannot read it
     // Client-side supported types: image/jpeg, image/png, image/webp, application/pdf
     const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!supportedTypes.includes(selected.type)) {
+    const nameLower = selected.name.toLowerCase();
+    if (!supportedTypes.includes(selected.type) || nameLower.endsWith('.heic') || nameLower.endsWith('.heif')) {
       setError(t('import:scanBadType'));
       setFile(null);
       return;
@@ -120,6 +121,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
         const created = await createEvent.mutateAsync(pending[i]!);
 
         // Try to attach the scan; if it fails, collect the warning but continue
+        // The same s3Key is reused as the source for each event's proof copy (not deleted between events; lifecycle rule purges it after a day)
         try {
           await confirmProofFromScan(
             token,
@@ -141,12 +143,14 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
       }
     }
 
+    // All events committed; if any attach failed, show warning and require manual close
+    setCommitting(false);
     if (attachFailed) {
       setAttachWarning(true);
+      setDrafts([]);
+    } else {
+      close();
     }
-
-    // All events committed (with or without successful attaches)
-    close();
   };
 
   return (
