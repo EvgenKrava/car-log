@@ -114,9 +114,9 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
     }
   }, [phase, job.data, t]);
 
-  const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
+  // Validate and stage a picked/dropped file. Shared by the file <input> (click) and the
+  // dropzone's drag-and-drop handler so both paths behave identically.
+  const handleFile = (selected: File) => {
     // The importer reads the file as UTF-8 text, so accept any text-like file
     // (.txt/.md/.csv/.log and any text/* MIME), not just .txt. Binary docs (PDF/images)
     // go through "Scan invoice" instead.
@@ -136,6 +136,19 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
     }
     setFile(selected);
     setError(null);
+  };
+
+  const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) handleFile(selected);
+  };
+
+  const [dragOver, setDragOver] = useState(false);
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) handleFile(dropped);
   };
 
   const clearFile = () => {
@@ -236,12 +249,30 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
                 onChange={onFileSelect}
                 style={{ display: 'none' }}
               />
-              <Button variant="outlined" onClick={() => fileInputRef.current?.click()}>
-                {t('import:uploadTxt')}
-              </Button>
+              {/* Tappable + droppable target — drag-and-drop and click funnel through the
+                  same handleFile validation. */}
+              <Box
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={onDrop}
+                sx={{
+                  border: '1px dashed', borderColor: (dragOver || file) ? 'primary.main' : 'divider', borderRadius: 3,
+                  p: 2.5, textAlign: 'center', cursor: 'pointer',
+                  bgcolor: dragOver ? 'action.selected' : 'action.hover',
+                  transition: 'border-color 120ms, background-color 120ms', '&:hover': { borderColor: 'primary.main' },
+                }}
+              >
+                <Typography sx={{ fontWeight: 600 }}>
+                  {file ? file.name : t('import:uploadTxt')}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                  {t('import:uploadHint')}
+                </Typography>
+              </Box>
               {file ? (
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
-                  <Typography variant="body2">{file.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">{file.name}</Typography>
                   <IconButton size="small" onClick={clearFile}>
                     <CloseIcon fontSize="small" />
                   </IconButton>

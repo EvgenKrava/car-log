@@ -101,7 +101,8 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
                 '& .MuiDialogActions-root': {
                   order: 1,
                   borderBottom: `1px solid ${c.border}`,
-                  justifyContent: 'space-between',
+                  // Keep the actions grouped on the right (MUI's default), not spread apart.
+                  justifyContent: 'flex-end',
                 },
                 '& .MuiDialogContent-root': { order: 2 },
               },

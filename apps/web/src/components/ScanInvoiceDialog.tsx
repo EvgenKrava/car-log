@@ -50,10 +50,9 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
   // Swipe-down closes the sheet, but not mid-scan (matches the backdrop being locked then).
   const sheet = useBottomSheetDismiss(phase === 'scanning' ? undefined : close);
 
-  const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-
+  // Validate and stage a picked/dropped file. Shared by the file <input> (click) and the
+  // dropzone's drag-and-drop handler so both paths behave identically.
+  const handleFile = (selected: File) => {
     // Accept any image (incl. HEIC/HEIF — converted to JPEG on scan) or a PDF. The raw
     // file isn't size-checked here: large photos are downscaled by prepareScanFile before
     // upload, so only the PREPARED file's size matters (checked in onScan).
@@ -74,6 +73,19 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
 
     setFile(selected);
     setError(null);
+  };
+
+  const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) handleFile(selected);
+  };
+
+  const [dragOver, setDragOver] = useState(false);
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) handleFile(dropped);
   };
 
   const onScan = async () => {
@@ -195,13 +207,18 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
               onChange={onFileSelect}
               style={{ display: 'none' }}
             />
-            {/* Tappable dropzone-style CTA — one big target that reads as "put a document here". */}
+            {/* Tappable + droppable target — one big zone that reads as "put a document here".
+                Drag-and-drop and click-to-pick funnel through the same handleFile validation. */}
             <Box
               onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
               sx={{
-                border: '1px dashed', borderColor: file ? 'primary.main' : 'divider', borderRadius: 3,
-                p: 3, textAlign: 'center', cursor: 'pointer', bgcolor: 'action.hover',
-                transition: 'border-color 120ms', '&:hover': { borderColor: 'primary.main' },
+                border: '1px dashed', borderColor: (dragOver || file) ? 'primary.main' : 'divider', borderRadius: 3,
+                p: 3, textAlign: 'center', cursor: 'pointer',
+                bgcolor: dragOver ? 'action.selected' : 'action.hover',
+                transition: 'border-color 120ms, background-color 120ms', '&:hover': { borderColor: 'primary.main' },
               }}
             >
               <DocumentScannerIcon color={file ? 'primary' : 'action'} sx={{ fontSize: 40, mb: 1 }} />
