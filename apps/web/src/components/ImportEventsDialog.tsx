@@ -25,6 +25,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasSeededReview = useRef(false);
+  const processedLatestJobId = useRef<string | null>(null);
 
   const job = useImportJob(carId, jobId ?? undefined);
   const latestJob = useLatestImportJob(carId, open && !jobId);
@@ -39,14 +40,24 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
     setCommitting(false);
     setShowResumeBanner(false);
     hasSeededReview.current = false;
+    processedLatestJobId.current = null;
   };
+  const hideDialog = () => { onClose(); };
   const close = () => { reset(); onClose(); };
+
+  const seedReview = (events: CandidateEvent[]) => {
+    setDrafts(events);
+    hasSeededReview.current = true;
+    setPhase('review');
+  };
 
   // Resume logic: when dialog opens with no local job, check for latest job
   useEffect(() => {
     if (!open || jobId) return;
     if (!latestJob.data) return;
+    if (processedLatestJobId.current === latestJob.data.id) return;
     const j = latestJob.data;
+    processedLatestJobId.current = j.id;
     if (j.status === 'pending' || j.status === 'running') {
       setJobId(j.id);
       setPhase('progress');
@@ -55,10 +66,10 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
     } else if (j.status === 'completed') {
       setJobId(j.id);
       if (j.events.length > 0 && !hasSeededReview.current) {
-        setDrafts(j.events);
-        hasSeededReview.current = true;
+        seedReview(j.events);
+      } else {
+        setPhase('review');
       }
-      setPhase('review');
       setShowResumeBanner(true);
       setError(null);
     } else if (j.status === 'failed') {
@@ -74,10 +85,10 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
     const j = job.data;
     if (j.status === 'completed') {
       if (j.events.length > 0 && !hasSeededReview.current) {
-        setDrafts(j.events);
-        hasSeededReview.current = true;
+        seedReview(j.events);
+      } else {
+        setPhase('review');
       }
-      setPhase('review');
     } else if (j.status === 'failed') {
       const msg = j.error ? t(`import:jobFailed_${j.error}`, t('import:errorFailed')) : t('import:errorFailed');
       setError(msg);
@@ -164,7 +175,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   };
 
   return (
-    <Dialog open={open} onClose={close} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={(phase === 'progress' || phase === 'review') ? hideDialog : close} maxWidth="sm" fullWidth>
       <DialogTitle>{t('import:title')}</DialogTitle>
       <DialogContent>
         {showResumeBanner && phase !== 'input' ? (
@@ -252,11 +263,11 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
         ) : phase === 'progress' ? (
           <>
             {job.data?.status === 'failed' && job.data.events.length > 0 ? (
-              <Button variant="contained" onClick={() => { setPhase('review'); if (job.data) { setDrafts(job.data.events); } hasSeededReview.current = true; }}>
+              <Button variant="contained" onClick={() => { if (job.data) seedReview(job.data.events); }}>
                 {t('import:addAll', { count: job.data.events.length })}
               </Button>
             ) : null}
-            <Button onClick={close}>{t('import:hide')}</Button>
+            <Button onClick={hideDialog}>{t('import:hide')}</Button>
           </>
         ) : (
           <>
