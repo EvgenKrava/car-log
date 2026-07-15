@@ -8,6 +8,7 @@ import { DynamoCarRepository } from './dynamo-car-repository';
 import { DynamoPhotoRepository } from './dynamo-photo-repository';
 import { DynamoEventRepository } from './dynamo-event-repository';
 import { DynamoProofRepository } from './dynamo-proof-repository';
+import { DynamoImportJobRepository } from './import-job-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { route, type ApiEvent, type RouteDeps } from './router';
@@ -24,6 +25,9 @@ const deps: RouteDeps = {
   events: new DynamoEventRepository(tableName, client),
   proofs: new DynamoProofRepository(tableName, client),
   llm: new BedrockLlmProvider(),
+  importJobs: new DynamoImportJobRepository(tableName, client),
+  enqueueImport: async () => { throw new Error('not wired until Task 6'); },
+  newId: () => crypto.randomUUID(),
 };
 
 export async function handler(
@@ -34,6 +38,7 @@ export async function handler(
     path: event.requestContext.http.path,
     ownerId: event.requestContext.authorizer?.jwt?.claims?.sub as string | undefined ?? null,
     pathParams: event.pathParameters ? (event.pathParameters as Record<string, string>) : {},
+    queryParams: event.queryStringParameters ? (event.queryStringParameters as Record<string, string>) : {},
     body: event.body ? JSON.parse(event.body) : null,
   };
   const result = await route(deps, apiEvent);
