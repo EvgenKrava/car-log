@@ -9,7 +9,10 @@ import { CreateEventSchema } from './event';
 // replaced by the user's input, so what reaches the create route is a valid CreateEvent.
 export const CandidateEventSchema = CreateEventSchema.extend({
   date: CreateEventSchema.shape.date.or(z.literal('')).default(''),
-  mileage: CreateEventSchema.shape.mileage.default(0),
+  // mileage is OPTIONAL for a candidate: when the source doesn't state an odometer reading
+  // it stays undefined (shown blank in review — never fabricated as 0). At commit the UI
+  // coerces an unfilled mileage to 0, since the create route requires a number.
+  mileage: CreateEventSchema.shape.mileage.optional(),
   cost: CreateEventSchema.shape.cost.default(0),
 });
 export type CandidateEvent = z.infer<typeof CandidateEventSchema>;

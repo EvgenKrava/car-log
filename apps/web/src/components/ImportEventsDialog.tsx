@@ -7,6 +7,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
+import { WorksSummary } from './ui/WorksSummary';
 import { EVENT_CATEGORIES, IMPORT_INLINE_MAX, IMPORT_FILE_MAX, type CandidateEvent, type ImportJob } from '@carlog/contracts';
 import { useCreateImportJob, useImportJob, useLatestImportJob, useCreateEvent } from '../queries';
 
@@ -150,6 +151,11 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
 
   const onStartNew = () => {
     reset();
+    // reset() clears processedLatestJobId, which would let the resume effect immediately
+    // re-adopt the SAME latest job and bounce the user straight back — defeating "start
+    // new". Pin the current latest job's id as already-processed so resume skips it and
+    // the fresh input phase sticks.
+    if (latestJob.data) processedLatestJobId.current = latestJob.data.id;
   };
 
   const patch = (i: number, p: Partial<CandidateEvent>) =>
@@ -159,20 +165,25 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   const onCommit = async () => {
     setCommitting(true);
     setError(null);
-    // Commit against a snapshot and drop each draft only after it succeeds, so a retry
-    // after a mid-loop failure re-sends only the events that were NOT yet created (no
-    // duplicates). `create` invalidates the timeline query per success.
+    // Commit against a snapshot; drop each candidate from the visible list the moment it's
+    // created so the user watches the list shrink and a retry never re-creates a committed
+    // one. On a mid-loop failure the created prefix is already gone and the failed+remaining
+    // candidates stay for retry.
     const pending = drafts;
     for (let i = 0; i < pending.length; i += 1) {
+      const candidate = pending[i]!;
       try {
-        await create.mutateAsync(pending[i]!);
+        // Coerce an unfilled (undefined) mileage to 0 only at commit — the create route
+        // requires a number, but we never fabricated 0 during review.
+        await create.mutateAsync({ ...candidate, mileage: candidate.mileage ?? 0 });
+        setDrafts((prev) => prev.filter((d) => d !== candidate));
       } catch {
-        setDrafts(pending.slice(i)); // keep the failed one + the rest for retry
         setError(t('import:errorFailed'));
         setCommitting(false);
         return;
       }
     }
+    setCommitting(false);
     close();
   };
 
@@ -247,7 +258,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
                       onChange={(e) => patch(i, { date: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth
                       required error={!d.date} helperText={!d.date ? t('import:dateRequired') : undefined} />
                     <NumberField label={t('event:mileage')} size="small" value={d.mileage}
-                      onChange={(v) => patch(i, { mileage: v ?? 0 })} fullWidth />
+                      onChange={(v) => patch(i, { mileage: v })} fullWidth />
                   </Stack>
                   <Stack direction="row" spacing={1.5}>
                     <NumberField label={t('event:cost')} size="small" value={d.cost}
@@ -255,6 +266,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
                     <TextField label={t('event:title')} size="small" value={d.title ?? ''}
                       onChange={(e) => patch(i, { title: e.target.value })} fullWidth />
                   </Stack>
+                  <WorksSummary works={d.works} />
                 </Stack>
               </Box>
             ))}

@@ -24,7 +24,7 @@ const EXTRACT_TOOL = {
           type: 'object',
           properties: {
             date: { type: 'string', description: 'YYYY-MM-DD. OMIT entirely if the document states no date and it cannot be estimated from mileage — never use today.' },
-            mileage: { type: 'integer', description: 'odometer in km; omit if unknown' },
+            mileage: { type: 'integer', description: 'odometer reading in km. OMIT entirely if the source does not state it — do not put 0.' },
             cost: { type: 'number', description: 'total cost, 0 if unknown' },
             currency: { type: 'string', description: 'ISO-ish code, default UAH' },
             category: { type: 'string', enum: ['oil_change', 'tires', 'brakes', 'inspection', 'repair', 'other'] },
