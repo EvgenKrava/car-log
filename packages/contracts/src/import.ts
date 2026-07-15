@@ -59,3 +59,36 @@ export const ImportTxtPresignRequestSchema = z.object({
   size: z.number().int().min(1).max(IMPORT_FILE_MAX),
 });
 export type ImportTxtPresignRequest = z.infer<typeof ImportTxtPresignRequestSchema>;
+
+export const SCAN_DOC_CONTENT_TYPES = [
+  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
+] as const;
+export const ScanDocContentTypeSchema = z.enum(SCAN_DOC_CONTENT_TYPES);
+export type ScanDocContentType = z.infer<typeof ScanDocContentTypeSchema>;
+export const MAX_SCAN_SIZE = 10_485_760;
+
+export const ScanPresignRequestSchema = z.object({
+  contentType: ScanDocContentTypeSchema,
+  size: z.number().int().min(1).max(MAX_SCAN_SIZE),
+});
+export type ScanPresignRequest = z.infer<typeof ScanPresignRequestSchema>;
+
+export const ScanPresignResponseSchema = z.object({
+  key: z.string().min(1), uploadUrl: z.string().url(),
+});
+
+export const ExtractFromScanRequestSchema = z.object({
+  carId: z.string().uuid(),
+  s3Key: z.string().min(1),
+  contentType: ScanDocContentTypeSchema,
+});
+export type ExtractFromScanRequest = z.infer<typeof ExtractFromScanRequestSchema>;
+
+export const FromScanProofSchema = z.object({
+  s3Key: z.string().min(1),
+  contentType: ScanDocContentTypeSchema,
+  // The client holds the picked File, so it sends the byte size — the Proof row requires
+  // size >= 1 and the server-side CopyObject doesn't re-measure it.
+  size: z.number().int().min(1).max(MAX_SCAN_SIZE),
+});
+export type FromScanProof = z.infer<typeof FromScanProofSchema>;

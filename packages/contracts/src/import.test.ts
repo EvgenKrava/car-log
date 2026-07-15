@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExtractEventsRequestSchema, ExtractEventsResponseSchema, CandidateEventSchema, CreateImportJobRequestSchema, ImportJobSchema, ImportJobStatusSchema, IMPORT_INLINE_MAX } from './import';
+import { ExtractEventsRequestSchema, ExtractEventsResponseSchema, CandidateEventSchema, CreateImportJobRequestSchema, ImportJobSchema, ImportJobStatusSchema, IMPORT_INLINE_MAX, ScanPresignRequestSchema, ExtractFromScanRequestSchema, FromScanProofSchema, MAX_SCAN_SIZE } from './import';
 
 describe('ExtractEventsRequestSchema', () => {
   it('accepts non-empty text under 10k chars', () => {
@@ -75,5 +75,27 @@ describe('ImportJobSchema', () => {
   });
   it('rejects an unknown status', () => {
     expect(ImportJobStatusSchema.safeParse('paused').success).toBe(false);
+  });
+});
+
+describe('scan schemas', () => {
+  const carId = '3f1e9d5a-6b2c-4e8f-9a1b-2c3d4e5f6a7b';
+  it('accepts a jpeg presign under the cap', () => {
+    expect(ScanPresignRequestSchema.safeParse({ contentType: 'image/jpeg', size: 1000 }).success).toBe(true);
+  });
+  it('accepts a pdf', () => {
+    expect(ScanPresignRequestSchema.safeParse({ contentType: 'application/pdf', size: 1000 }).success).toBe(true);
+  });
+  it('rejects an unsupported content type', () => {
+    expect(ScanPresignRequestSchema.safeParse({ contentType: 'image/gif', size: 1000 }).success).toBe(false);
+  });
+  it('rejects over the size cap', () => {
+    expect(ScanPresignRequestSchema.safeParse({ contentType: 'image/png', size: MAX_SCAN_SIZE + 1 }).success).toBe(false);
+  });
+  it('validates an extract-from-scan request', () => {
+    expect(ExtractFromScanRequestSchema.safeParse({ carId, s3Key: 'scans/u/x.jpg', contentType: 'image/jpeg' }).success).toBe(true);
+  });
+  it('validates a from-scan proof request', () => {
+    expect(FromScanProofSchema.safeParse({ s3Key: 'scans/u/x.jpg', contentType: 'image/jpeg', size: 5000 }).success).toBe(true);
   });
 });
