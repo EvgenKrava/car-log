@@ -160,7 +160,7 @@ export function useExtractFromScan(carId: string) {
     mutationFn: async ({ file }: { file: File }) => {
       const { key, uploadUrl } = await presignScan(token, file.type, file.size);
       await uploadToS3(uploadUrl, file);
-      const events = await extractFromScan(token, carId, key, file.type);
+      const { events } = await extractFromScan(token, carId, key, file.type);
       return { events, s3Key: key, contentType: file.type, size: file.size };
     },
   });
