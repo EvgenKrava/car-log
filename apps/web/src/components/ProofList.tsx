@@ -67,7 +67,7 @@ export function ProofList({ carId, eventId }: { carId: string; eventId: string }
           ))}
         </Stack>
       )}
-      <Dialog open={Boolean(lightbox)} onClose={() => setLightbox(null)} maxWidth="md">
+      <Dialog open={Boolean(lightbox)} onClose={() => setLightbox(null)} maxWidth="md" PaperProps={{ className: 'carlog-no-sheet' }}>
         {lightbox ? <img src={lightbox} alt="proof" style={{ width: '100%', display: 'block' }} /> : null}
       </Dialog>
       <ConfirmDialog open={Boolean(toDelete)} title={t('event:proofDeleteTitle')} message={t('event:proofDeleteConfirm')}

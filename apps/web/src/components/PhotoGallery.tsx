@@ -111,7 +111,7 @@ export function PhotoGallery({ carId }: { carId: string }) {
         </Box>
       )}
 
-      <Dialog open={lightboxIndex !== null} onClose={() => setLightboxIndex(null)} maxWidth="md">
+      <Dialog open={lightboxIndex !== null} onClose={() => setLightboxIndex(null)} maxWidth="md" PaperProps={{ className: 'carlog-no-sheet' }}>
         {current ? (
           <Box
             sx={{ position: 'relative', bgcolor: 'black' }}
