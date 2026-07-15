@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExtractEventsRequestSchema, ExtractEventsResponseSchema, CandidateEventSchema } from './import';
+import { ExtractEventsRequestSchema, ExtractEventsResponseSchema, CandidateEventSchema, CreateImportJobRequestSchema, ImportJobSchema, ImportJobStatusSchema, IMPORT_INLINE_MAX } from './import';
 
 describe('ExtractEventsRequestSchema', () => {
   it('accepts non-empty text under 10k chars', () => {
@@ -39,5 +39,41 @@ describe('ExtractEventsResponseSchema', () => {
   it('rejects more than 50 events', () => {
     const one = { date: '2024-01-15', mileage: 1, cost: 1, category: 'other' };
     expect(ExtractEventsResponseSchema.safeParse({ events: Array.from({ length: 51 }, () => one) }).success).toBe(false);
+  });
+});
+
+describe('CreateImportJobRequestSchema', () => {
+  const carId = '3f1e9d5a-6b2c-4e8f-9a1b-2c3d4e5f6a7b';
+  it('accepts inline text', () => {
+    expect(CreateImportJobRequestSchema.safeParse({ carId, text: 'oil change' }).success).toBe(true);
+  });
+  it('accepts an s3Key', () => {
+    expect(CreateImportJobRequestSchema.safeParse({ carId, s3Key: 'imports/u/x.txt' }).success).toBe(true);
+  });
+  it('rejects both text and s3Key', () => {
+    expect(CreateImportJobRequestSchema.safeParse({ carId, text: 'x', s3Key: 'k' }).success).toBe(false);
+  });
+  it('rejects neither', () => {
+    expect(CreateImportJobRequestSchema.safeParse({ carId }).success).toBe(false);
+  });
+  it('rejects text over the inline cap', () => {
+    expect(CreateImportJobRequestSchema.safeParse({ carId, text: 'a'.repeat(IMPORT_INLINE_MAX + 1) }).success).toBe(false);
+  });
+});
+
+describe('ImportJobSchema', () => {
+  it('parses a fresh job with defaults', () => {
+    const job = ImportJobSchema.parse({
+      id: '3f1e9d5a-6b2c-4e8f-9a1b-2c3d4e5f6a7b',
+      carId: '3f1e9d5a-6b2c-4e8f-9a1b-2c3d4e5f6a7c',
+      status: 'pending',
+      progress: { done: 0, total: 0, found: 0 },
+      createdAt: '2026-07-15T10:00:00.000Z',
+    });
+    expect(job.events).toEqual([]);
+    expect(job.skippedChunks).toBe(0);
+  });
+  it('rejects an unknown status', () => {
+    expect(ImportJobStatusSchema.safeParse('paused').success).toBe(false);
   });
 });
