@@ -8,3 +8,4 @@ export * from './event-repository';
 export * from './proof-repository';
 export * from './llm-provider';
 export { extractEvents, ExtractionFailedError } from './extract-events';
+export { chunkText, mergeCandidates } from './chunk-text';
