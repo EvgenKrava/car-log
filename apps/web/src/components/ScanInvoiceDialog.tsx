@@ -7,6 +7,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
+import { WorksSummary } from './ui/WorksSummary';
 import { prepareScanFile } from '../lib/prepare-scan';
 import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
@@ -135,42 +136,38 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     setError(null);
     setAttachWarning(false);
 
-    // Committed-prefix retry: snapshot the drafts and drop each only after successful creation
+    // Snapshot the drafts; drop each from the visible list the moment its event is created
+    // so the list shrinks as it commits and a retry never re-creates a committed one.
     const pending = drafts;
     let attachFailed = false;
 
     for (let i = 0; i < pending.length; i += 1) {
+      const candidate = pending[i]!;
       try {
-        const created = await createEvent.mutateAsync(pending[i]!);
+        // Coerce an unfilled (undefined) mileage to 0 only at commit (create route needs a number).
+        const created = await createEvent.mutateAsync({ ...candidate, mileage: candidate.mileage ?? 0 });
+        setDrafts((prev) => prev.filter((d) => d !== candidate));
 
-        // Try to attach the scan; if it fails, collect the warning but continue
-        // The same s3Key is reused as the source for each event's proof copy (not deleted between events; lifecycle rule purges it after a day)
+        // Attach the scanned document to the new event; a failure is non-fatal — collect
+        // the warning and continue. The same s3Key is reused as the copy source for every
+        // event's proof (not deleted between events; the lifecycle rule purges it after a day).
         try {
-          await confirmProofFromScan(
-            token,
-            carId,
-            created.id,
-            scanData.s3Key,
-            scanData.contentType,
-            scanData.size
-          );
+          await confirmProofFromScan(token, carId, created.id, scanData.s3Key, scanData.contentType, scanData.size);
         } catch {
           attachFailed = true;
         }
       } catch {
-        // Event creation failed; keep the failed one + remainder for retry
-        setDrafts(pending.slice(i));
+        // Event creation failed; the created prefix is already removed, so the failed one
+        // plus the remainder stay for retry.
         setError(t('import:errorFailed'));
         setCommitting(false);
         return;
       }
     }
 
-    // All events committed; if any attach failed, show warning and require manual close
     setCommitting(false);
     if (attachFailed) {
-      setAttachWarning(true);
-      setDrafts([]);
+      setAttachWarning(true); // keep the dialog open so the warning is seen
     } else {
       close();
     }
@@ -264,7 +261,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
                       label={t('event:mileage')}
                       size="small"
                       value={d.mileage}
-                      onChange={(v) => patch(i, { mileage: v ?? 0 })}
+                      onChange={(v) => patch(i, { mileage: v })}
                       fullWidth
                     />
                   </Stack>
@@ -284,6 +281,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
                       fullWidth
                     />
                   </Stack>
+                  <WorksSummary works={d.works} />
                 </Stack>
               </Box>
             ))}

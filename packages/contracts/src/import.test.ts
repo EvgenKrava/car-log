@@ -18,9 +18,9 @@ describe('CandidateEventSchema', () => {
     const parsed = CandidateEventSchema.parse({ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' });
     expect(parsed).toMatchObject({ category: 'oil_change', currency: 'UAH', works: [] });
   });
-  it('accepts a partial candidate (category only): mileage/cost default to 0, date stays blank', () => {
+  it('accepts a partial candidate (category only): mileage undefined, cost 0, date blank', () => {
     const parsed = CandidateEventSchema.parse({ category: 'repair' });
-    expect(parsed.mileage).toBe(0);
+    expect(parsed.mileage).toBeUndefined();
     expect(parsed.cost).toBe(0);
     // An unknown date is a blank string (never today) — the review dialog requires the user
     // to fill it before commit, so what reaches the create route is a valid date.

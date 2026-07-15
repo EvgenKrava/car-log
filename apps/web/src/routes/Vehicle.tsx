@@ -73,6 +73,7 @@ function VehicleDetail({ car }: { car: Car }) {
   const [importOpen, setImportOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [dialOpen, setDialOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   const title = car.nickname || `${car.make} ${car.model}`;
@@ -208,30 +209,35 @@ function VehicleDetail({ car }: { car: Car }) {
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
 
-      {/* Single entry point for adding history — a SpeedDial that fans out the three
-          ways to record a service: scan a document, bulk-import text, or enter manually. */}
+      {/* Single entry point for adding history — a SpeedDial that fans out the three ways
+          to record a service. Controlled open state so tapping an action (or the backdrop)
+          reliably closes it on mobile; persistent labels make each option self-explanatory.
+          Order: Scan (flagship) closest to the button, then Import, then Manual. */}
       <SpeedDial
         ariaLabel={t('vehicle:addSectionTitle')}
         icon={<SpeedDialIcon />}
+        open={dialOpen}
+        onOpen={() => setDialOpen(true)}
+        onClose={() => setDialOpen(false)}
         sx={{ position: 'fixed', bottom: { xs: 16, sm: 24 }, right: { xs: 16, sm: 24 } }}
       >
         <SpeedDialAction
           icon={<DocumentScannerIcon />}
           tooltipTitle={t('import:scanInvoice')}
           tooltipOpen
-          onClick={() => setScanOpen(true)}
+          onClick={() => { setDialOpen(false); setScanOpen(true); }}
         />
         <SpeedDialAction
           icon={<TextSnippetIcon />}
           tooltipTitle={t('import:trigger')}
           tooltipOpen
-          onClick={() => setImportOpen(true)}
+          onClick={() => { setDialOpen(false); setImportOpen(true); }}
         />
         <SpeedDialAction
           icon={<EditNoteIcon />}
           tooltipTitle={t('event:addService')}
           tooltipOpen
-          onClick={() => setManualOpen(true)}
+          onClick={() => { setDialOpen(false); setManualOpen(true); }}
         />
       </SpeedDial>
     </AppShell>
