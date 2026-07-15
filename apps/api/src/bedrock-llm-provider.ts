@@ -79,7 +79,10 @@ export class BedrockLlmProvider implements LlmProvider {
         model: MODEL,
         max_tokens: 16000,
         thinking: { type: 'adaptive' },
-        output_config: { effort: 'medium' },
+        // 'low' keeps the call inside the 29s Lambda cap (API GW hard-caps at 30s):
+        // longer pasted notes at 'medium' ran past it and timed out. Extraction is a
+        // structured-output task — it doesn't need deep reasoning.
+        output_config: { effort: 'low' },
         tools: [EXTRACT_TOOL],
         tool_choice: { type: 'tool', name: 'record_events' },
         messages: [{ role: 'user', content: prompt(text, ctx) }],
