@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Alert, Button, Card, CardContent, Chip, Container, Stack, Typography } from '@mui/material';
+import {
+  Alert, Button, Card, CardContent, Chip, Container, IconButton, ListItemIcon,
+  ListItemText, Menu, MenuItem, Stack, Typography,
+} from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
@@ -30,6 +36,7 @@ function VehicleDetail({ car }: { car: Car }) {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   const title = car.nickname || `${car.make} ${car.model}`;
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
@@ -41,8 +48,29 @@ function VehicleDetail({ car }: { car: Car }) {
         onBack={() => navigate('/')}
         actions={
           <>
-            <Button variant="contained" onClick={() => setEditOpen(true)}>{t('common:edit')}</Button>
-            <Button color="error" onClick={() => setConfirmOpen(true)}>{t('common:delete')}</Button>
+            {/* Desktop: inline text buttons. Mobile: a single kebab menu — two text
+                buttons don't fit next to the title + language switcher on a phone. */}
+            <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', sm: 'flex' } }}>
+              <Button variant="contained" onClick={() => setEditOpen(true)}>{t('common:edit')}</Button>
+              <Button color="error" onClick={() => setConfirmOpen(true)}>{t('common:delete')}</Button>
+            </Stack>
+            <IconButton
+              aria-label={t('vehicle:carActions')}
+              onClick={(e) => setMenuAnchor(e.currentTarget)}
+              sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+            >
+              <MoreVertIcon />
+            </IconButton>
+            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+              <MenuItem onClick={() => { setMenuAnchor(null); setEditOpen(true); }}>
+                <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t('common:edit')}</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
+                <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+                <ListItemText>{t('common:delete')}</ListItemText>
+              </MenuItem>
+            </Menu>
           </>
         }
       />
