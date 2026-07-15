@@ -1,5 +1,9 @@
 export type ExtractionContext = {
   car: { make: string; model: string; year?: number };
+  // Recent known (date, mileage) points from the car's existing timeline, newest first.
+  // Used to estimate an event's date from a stated odometer reading when the document
+  // gives no date. Empty/undefined when the car has no usable history.
+  history?: { date: string; mileage: number }[];
 };
 
 export interface LlmProvider {

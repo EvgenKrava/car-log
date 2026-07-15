@@ -28,11 +28,12 @@ describe('extractEvents', () => {
     expect(out).toHaveLength(1);
   });
 
-  it('keeps partial items (category only), filling safe defaults', async () => {
+  it('keeps partial items (category only): mileage undefined, cost 0, date blank', async () => {
     const out = await extractEvents('text', providerReturning({ events: [{ category: 'repair' }] }), ctx);
     expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ category: 'repair', mileage: 0, cost: 0 });
-    expect(out[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(out[0]).toMatchObject({ category: 'repair', cost: 0 });
+    expect(out[0]?.mileage).toBeUndefined();
+    expect(out[0]?.date).toBe('');
   });
 
   it('returns [] when the model finds no events (valid empty array)', async () => {
