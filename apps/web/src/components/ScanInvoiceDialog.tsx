@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
-import { EVENT_CATEGORIES, MAX_SCAN_SIZE, type CandidateEvent } from '@carlog/contracts';
+import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
 import { useAuth } from '../auth';
 import { confirmProofFromScan } from '../api-client';
@@ -57,7 +57,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
       return;
     }
 
-    if (selected.size > MAX_SCAN_SIZE) {
+    if (selected.size > maxScanSize(selected.type)) {
       setError(t('import:scanTooLarge'));
       setFile(null);
       return;

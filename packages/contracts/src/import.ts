@@ -60,17 +60,27 @@ export const ImportTxtPresignRequestSchema = z.object({
 });
 export type ImportTxtPresignRequest = z.infer<typeof ImportTxtPresignRequestSchema>;
 
+// HEIC is intentionally excluded: Claude vision cannot decode HEIC image blocks, so a
+// HEIC scan would always fail server-side. PDFs and the three web-decodable image types only.
 export const SCAN_DOC_CONTENT_TYPES = [
-  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
+  'image/jpeg', 'image/png', 'image/webp', 'application/pdf',
 ] as const;
 export const ScanDocContentTypeSchema = z.enum(SCAN_DOC_CONTENT_TYPES);
 export type ScanDocContentType = z.infer<typeof ScanDocContentTypeSchema>;
+// PDFs may be up to 10 MB; images are capped lower because Claude vision rejects images
+// over ~5 MB (base64) — a larger image would upload fine then fail opaquely at the model.
 export const MAX_SCAN_SIZE = 10_485_760;
+export const MAX_SCAN_IMAGE_SIZE = 5_242_880;
+
+// Per-content-type size ceiling for a scan upload.
+export function maxScanSize(contentType: string): number {
+  return contentType === 'application/pdf' ? MAX_SCAN_SIZE : MAX_SCAN_IMAGE_SIZE;
+}
 
 export const ScanPresignRequestSchema = z.object({
   contentType: ScanDocContentTypeSchema,
   size: z.number().int().min(1).max(MAX_SCAN_SIZE),
-});
+}).refine((v) => v.size <= maxScanSize(v.contentType), { message: 'file too large for its type', path: ['size'] });
 export type ScanPresignRequest = z.infer<typeof ScanPresignRequestSchema>;
 
 export const ScanPresignResponseSchema = z.object({
@@ -90,5 +100,5 @@ export const FromScanProofSchema = z.object({
   // The client holds the picked File, so it sends the byte size — the Proof row requires
   // size >= 1 and the server-side CopyObject doesn't re-measure it.
   size: z.number().int().min(1).max(MAX_SCAN_SIZE),
-});
+}).refine((v) => v.size <= maxScanSize(v.contentType), { message: 'file too large for its type', path: ['size'] });
 export type FromScanProof = z.infer<typeof FromScanProofSchema>;

@@ -86,11 +86,17 @@ describe('scan schemas', () => {
   it('accepts a pdf', () => {
     expect(ScanPresignRequestSchema.safeParse({ contentType: 'application/pdf', size: 1000 }).success).toBe(true);
   });
-  it('rejects an unsupported content type', () => {
+  it('rejects an unsupported content type (heic excluded — Claude vision cannot read it)', () => {
     expect(ScanPresignRequestSchema.safeParse({ contentType: 'image/gif', size: 1000 }).success).toBe(false);
+    expect(ScanPresignRequestSchema.safeParse({ contentType: 'image/heic', size: 1000 }).success).toBe(false);
   });
   it('rejects over the size cap', () => {
     expect(ScanPresignRequestSchema.safeParse({ contentType: 'image/png', size: MAX_SCAN_SIZE + 1 }).success).toBe(false);
+  });
+  it('caps images at 5 MB but allows PDFs up to 10 MB', () => {
+    const sixMB = 6_291_456;
+    expect(ScanPresignRequestSchema.safeParse({ contentType: 'image/jpeg', size: sixMB }).success).toBe(false);
+    expect(ScanPresignRequestSchema.safeParse({ contentType: 'application/pdf', size: sixMB }).success).toBe(true);
   });
   it('validates an extract-from-scan request', () => {
     expect(ExtractFromScanRequestSchema.safeParse({ carId, s3Key: 'scans/u/x.jpg', contentType: 'image/jpeg' }).success).toBe(true);
