@@ -7,4 +7,6 @@ export interface LlmProvider {
   // use-case validates it against the contract schema — the provider is NOT
   // responsible for schema conformance.
   extractEvents(text: string, ctx: ExtractionContext): Promise<unknown>;
+  // Vision: read a maintenance document (image or PDF) and return raw structured output.
+  extractEventsFromDocument(base64: string, mediaType: string, ctx: ExtractionContext): Promise<unknown>;
 }

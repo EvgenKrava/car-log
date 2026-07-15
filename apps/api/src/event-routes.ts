@@ -1,4 +1,4 @@
-import { CreateEventSchema, ProofConfirmSchema, ProofPresignRequestSchema, MAX_PROOF_SIZE } from '@carlog/contracts';
+import { CreateEventSchema, ProofConfirmSchema, ProofPresignRequestSchema, MAX_PROOF_SIZE, FromScanProofSchema } from '@carlog/contracts';
 import {
   CarNotFoundError, EventNotFoundError, ProofNotFoundError, createEvent,
   type EventRepository, type ProofRepository, type PhotoStorage, type CarRepository,
@@ -54,6 +54,22 @@ export async function handleEventRoute(
       const proof = {
         id: req.proofId, eventId, carId, ownerId,
         contentType: req.contentType, size: req.size, filename: req.filename,
+        createdAt: new Date().toISOString(),
+      };
+      return ok(201, await deps.proofs.create(proof));
+    }
+    if (path === `${pbase}/from-scan` && method === 'POST') {
+      const req = FromScanProofSchema.parse(body);
+      if (!req.s3Key.startsWith(`scans/${ownerId}/`)) return ok(400, { error: 'ValidationError', message: 'invalid s3Key' });
+      const existing = await deps.proofs.listByEvent(ownerId, carId, eventId);
+      assertProofUnderCap(existing.length);
+      if (!(await deps.storage.exists(req.s3Key))) throw new ProofNotFoundError('scan');
+      const newProofId = crypto.randomUUID();
+      const destKey = proofKey(ownerId, carId, eventId, newProofId);
+      await deps.storage.copyObject(req.s3Key, destKey);
+      const proof = {
+        id: newProofId, eventId, carId, ownerId,
+        contentType: req.contentType, size: req.size, filename: undefined,
         createdAt: new Date().toISOString(),
       };
       return ok(201, await deps.proofs.create(proof));

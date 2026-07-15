@@ -8,11 +8,13 @@ import {
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ShareIcon from '@mui/icons-material/Share';
 import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ImportEventsDialog } from '../components/ImportEventsDialog';
+import { ScanInvoiceDialog } from '../components/ScanInvoiceDialog';
 import { PhotoGallery } from '../components/PhotoGallery';
 import { ServiceTimeline } from '../components/ServiceTimeline';
 import { AppShell } from '../components/ui/AppShell';
@@ -36,10 +38,27 @@ function VehicleDetail({ car }: { car: Car }) {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   const title = car.nickname || `${car.make} ${car.model}`;
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
+
+  // Native share of a plain-text car summary; clipboard fallback where Web Share is
+  // unavailable (most desktop browsers). A public read-only link is a later Phase-4 feature.
+  const onShare = async () => {
+    const summary = [
+      title,
+      `${car.make} ${car.model}${car.year ? ` (${car.year})` : ''}`,
+      `${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`,
+    ].join('\n');
+    try {
+      if (navigator.share) await navigator.share({ title, text: summary });
+      else await navigator.clipboard.writeText(summary);
+    } catch {
+      /* user dismissed the share sheet, or clipboard denied — no-op */
+    }
+  };
 
   return (
     <AppShell>
@@ -60,6 +79,10 @@ function VehicleDetail({ car }: { car: Car }) {
                     <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>{t('common:edit')}</ListItemText>
                   </MenuItem>
+                  <MenuItem onClick={() => { setMenuAnchor(null); void onShare(); }}>
+                    <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>{t('common:share')}</ListItemText>
+                  </MenuItem>
                   <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
                     <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
                     <ListItemText>{t('common:delete')}</ListItemText>
@@ -75,7 +98,8 @@ function VehicleDetail({ car }: { car: Car }) {
           </CardContent>
         </Card>
         <PhotoGallery carId={car.id} />
-        <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+        <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mb: 1 }}>
+          <Button variant="outlined" onClick={() => setScanOpen(true)}>{t('import:scanInvoice')}</Button>
           <Button variant="outlined" onClick={() => setImportOpen(true)}>{t('import:trigger')}</Button>
         </Stack>
         <ServiceTimeline carId={car.id} />
@@ -91,6 +115,7 @@ function VehicleDetail({ car }: { car: Car }) {
         loading={del.isPending}
       />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
+      <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
     </AppShell>
   );
 }

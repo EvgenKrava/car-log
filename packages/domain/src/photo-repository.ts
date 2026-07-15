@@ -12,4 +12,5 @@ export interface PhotoStorage {
   presignGet(key: string): Promise<string>;
   deleteObject(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
+  copyObject(srcKey: string, destKey: string): Promise<void>;
 }

@@ -100,6 +100,7 @@ export class CarLogStack extends Stack {
         { abortIncompleteMultipartUploadAfter: Duration.days(1) },
         // Uploaded import .txt files are transient job inputs — purge after a day.
         { prefix: 'imports/', expiration: Duration.days(1) },
+        { prefix: 'scans/', expiration: Duration.days(1) },
       ],
     });
 
@@ -175,6 +176,8 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/jobs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/jobs/{jobId}', methods: [HttpMethod.GET], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/scan/presign', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/import/scan', methods: [HttpMethod.POST], integration, authorizer });
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.

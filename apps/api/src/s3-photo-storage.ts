@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { PhotoStorage } from '@carlog/domain';
 
@@ -35,5 +35,11 @@ export class S3PhotoStorage implements PhotoStorage {
       }
       throw err;
     }
+  }
+
+  async copyObject(srcKey: string, destKey: string): Promise<void> {
+    await this.client.send(new CopyObjectCommand({
+      Bucket: this.bucket, CopySource: `${this.bucket}/${srcKey}`, Key: destKey,
+    }));
   }
 }

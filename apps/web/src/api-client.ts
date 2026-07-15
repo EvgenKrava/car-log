@@ -132,3 +132,11 @@ export const latestImportJob = async (token: string, carId: string): Promise<Imp
     throw e;
   }
 };
+
+const ScanPresignSchema = z.object({ key: z.string(), uploadUrl: z.string().url() });
+export const presignScan = (token: string, contentType: string, size: number): Promise<z.infer<typeof ScanPresignSchema>> =>
+  request(token, '/import/scan/presign', ScanPresignSchema, { method: 'POST', body: JSON.stringify({ contentType, size }) });
+export const extractFromScan = (token: string, carId: string, s3Key: string, contentType: string): Promise<ExtractEventsResponse> =>
+  request(token, '/import/scan', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, s3Key, contentType }) });
+export const confirmProofFromScan = (token: string, carId: string, eventId: string, s3Key: string, contentType: string, size: number) =>
+  request(token, `/cars/${carId}/events/${eventId}/proofs/from-scan`, ProofSchema, { method: 'POST', body: JSON.stringify({ s3Key, contentType, size }) });

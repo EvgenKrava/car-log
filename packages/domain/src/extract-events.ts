@@ -33,15 +33,28 @@ function validate(raw: unknown): CandidateEvent[] | null {
   return valid;
 }
 
+// Shared: run a provider call, validate, retry ONCE on shapeless output, else throw.
+async function runWithRetry(call: () => Promise<unknown>): Promise<CandidateEvent[]> {
+  const first = validate(await call());
+  if (first !== null) return first;
+  const second = validate(await call());
+  if (second !== null) return second;
+  throw new ExtractionFailedError();
+}
+
 export async function extractEvents(
   text: string,
   provider: LlmProvider,
   ctx: ExtractionContext,
 ): Promise<CandidateEvent[]> {
-  const first = validate(await provider.extractEvents(text, ctx));
-  if (first !== null) return first;
-  // One bounded retry: the first response had no array at all.
-  const second = validate(await provider.extractEvents(text, ctx));
-  if (second !== null) return second;
-  throw new ExtractionFailedError();
+  return runWithRetry(() => provider.extractEvents(text, ctx));
+}
+
+export async function extractEventsFromDocument(
+  base64: string,
+  mediaType: string,
+  provider: LlmProvider,
+  ctx: ExtractionContext,
+): Promise<CandidateEvent[]> {
+  return runWithRetry(() => provider.extractEventsFromDocument(base64, mediaType, ctx));
 }
