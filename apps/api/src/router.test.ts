@@ -19,7 +19,7 @@ const storage: PhotoStorage = {
   copyObject: async () => {},
 };
 let enqueueSpy: ReturnType<typeof vi.fn>;
-let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; newId: () => string };
+let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   photos = new InMemoryPhotoRepository();
@@ -31,6 +31,7 @@ beforeEach(() => {
     llm: new InMemoryLlmProvider({ events: [{ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' }] }),
     importJobs: new InMemoryImportJobRepository(),
     enqueueImport: enqueueSpy,
+    loadScanBase64: async () => 'BASE64DATA',
     newId: () => crypto.randomUUID(),
   };
 });
@@ -323,6 +324,51 @@ describe('route', () => {
       const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, s3Key: 'imports/u1/x.txt' } });
       expect(res.statusCode).toBe(202);
       expect(enqueueSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('scan routes', () => {
+    async function makeCar(ownerId: string): Promise<string> {
+      const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
+      return JSON.parse(res.body).id as string;
+    }
+
+    it('POST /import/scan/presign returns key and uploadUrl under scans/ prefix', async () => {
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/scan/presign', ownerId: 'u1', body: { contentType: 'application/pdf', size: 5000 } });
+      expect(res.statusCode).toBe(200);
+      const { key, uploadUrl } = JSON.parse(res.body);
+      expect(key).toMatch(/^scans\/u1\/.+\.pdf$/);
+      expect(uploadUrl).toContain('https://');
+    });
+
+    it('POST /import/scan returns extracted events for owned car', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/scan', ownerId: 'u1', body: { carId, s3Key: 'scans/u1/test.pdf', contentType: 'application/pdf' } });
+      expect(res.statusCode).toBe(200);
+      const { events } = JSON.parse(res.body);
+      expect(events).toHaveLength(1);
+      expect(events[0].category).toBe('oil_change');
+    });
+
+    it('POST /import/scan 404s for foreign carId', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/scan', ownerId: 'u2', body: { carId, s3Key: 'scans/u2/test.pdf', contentType: 'application/pdf' } });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('POST /import/scan 400s for non-scans/ s3Key prefix (IDOR guard)', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/scan', ownerId: 'u1', body: { carId, s3Key: 'photos/other/x.pdf', contentType: 'application/pdf' } });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toBe('invalid s3Key');
+    });
+
+    it('POST /import/scan 422s when loadScanBase64 returns null', async () => {
+      const carId = await makeCar('u1');
+      deps.loadScanBase64 = async () => null;
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/scan', ownerId: 'u1', body: { carId, s3Key: 'scans/u1/missing.pdf', contentType: 'application/pdf' } });
+      expect(res.statusCode).toBe(422);
+      expect(JSON.parse(res.body).error).toBe('ExtractionFailed');
     });
   });
 });

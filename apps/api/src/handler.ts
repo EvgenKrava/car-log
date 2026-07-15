@@ -5,7 +5,7 @@ import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2, Context,
 } from 'aws-lambda';
-import { IMPORT_FILE_MAX } from '@carlog/contracts';
+import { IMPORT_FILE_MAX, MAX_SCAN_SIZE } from '@carlog/contracts';
 import { DynamoCarRepository } from './dynamo-car-repository';
 import { DynamoPhotoRepository } from './dynamo-photo-repository';
 import { DynamoEventRepository } from './dynamo-event-repository';
@@ -47,6 +47,18 @@ const loadS3Text = async (key: string): Promise<string | null> => {
   }
 };
 
+const loadScanBase64 = async (key: string): Promise<string | null> => {
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: photosBucket, Key: key }));
+    const len = res.ContentLength;
+    if (len === undefined || len > MAX_SCAN_SIZE) return null;
+    const bytes = await res.Body?.transformToByteArray();
+    return bytes ? Buffer.from(bytes).toString('base64') : null;
+  } catch {
+    return null;
+  }
+};
+
 const deps: RouteDeps = {
   cars,
   photos: new DynamoPhotoRepository(tableName, client),
@@ -56,6 +68,7 @@ const deps: RouteDeps = {
   llm,
   importJobs,
   enqueueImport,
+  loadScanBase64,
   newId: () => crypto.randomUUID(),
 };
 

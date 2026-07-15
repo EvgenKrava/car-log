@@ -5,6 +5,7 @@ import { handlePhotoRoute } from './photo-routes';
 import { handleEventRoute } from './event-routes';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
+import { handleScanRoute } from './scan-routes';
 import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 
@@ -22,6 +23,7 @@ export type RouteDeps = {
   events: EventRepository; proofs: ProofRepository; llm: LlmProvider;
   importJobs: ImportJobRepository;
   enqueueImport: (p: ImportWorkPayload) => Promise<void>;
+  loadScanBase64: (key: string) => Promise<string | null>;
   newId: () => string;
 };
 
@@ -33,6 +35,14 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (path === '/import/extract') {
       const result = await handleImportRoute(deps, event, ownerId);
+      if (result) return result;
+    }
+
+    if (path.startsWith('/import/scan')) {
+      const result = await handleScanRoute(
+        { cars: deps.cars, storage: deps.storage, llm: deps.llm, loadScanBase64: deps.loadScanBase64, newId: deps.newId },
+        event, ownerId,
+      );
       if (result) return result;
     }
 
