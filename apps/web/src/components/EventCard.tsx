@@ -57,7 +57,7 @@ export function EventCard({ carId, event }: { carId: string; event: Event }) {
           ))}
         </Stack>
         <ProofList carId={carId} eventId={event.id} />
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+        <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: 'flex-end' }}>
           <Button size="small" variant="contained" onClick={() => setEditOpen(true)}>{t('common:edit')}</Button>
           <Button size="small" color="error" onClick={() => setConfirmOpen(true)}>{t('common:delete')}</Button>
         </Stack>
