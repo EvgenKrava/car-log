@@ -125,4 +125,16 @@ describe('runImportJob', () => {
       runImportJob(deps({ events: [valid] }), { jobType: 'import', ownerId: OWNER, carId, jobId: 'missing' }),
     ).resolves.toBeUndefined();
   });
+
+  it('fails with fileMissing when s3Key points outside owner prefix (IDOR guard)', async () => {
+    const job = makeJob({ carId, s3Key: 'imports/OTHER/x.txt' });
+    await jobs.create(job);
+    const loadSpy = async (): Promise<string | null> => {
+      throw new Error('loadS3Text should not be called for foreign key');
+    };
+    await runImportJob(deps({ events: [valid] }, { loadS3Text: loadSpy }), { jobType: 'import', ownerId: OWNER, carId, jobId: job.id });
+    const done = await jobs.get(OWNER, carId, job.id);
+    expect(done?.status).toBe('failed');
+    expect(done?.error).toBe('fileMissing');
+  });
 });

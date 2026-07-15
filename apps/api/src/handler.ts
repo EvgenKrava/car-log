@@ -39,7 +39,8 @@ const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
 const loadS3Text = async (key: string): Promise<string | null> => {
   try {
     const res = await s3.send(new GetObjectCommand({ Bucket: photosBucket, Key: key }));
-    if ((res.ContentLength ?? 0) > IMPORT_FILE_MAX) return null;
+    const len = res.ContentLength;
+    if (len === undefined || len > IMPORT_FILE_MAX) return null;
     return (await res.Body?.transformToString('utf-8')) ?? null;
   } catch {
     return null;

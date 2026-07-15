@@ -288,5 +288,19 @@ describe('route', () => {
       expect(key).toMatch(/^imports\/u1\/.+\.txt$/);
       expect(uploadUrl).toContain('https://');
     });
+
+    it('rejects a create request with foreign s3Key prefix (IDOR guard)', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, s3Key: 'photos/other/x.txt' } });
+      expect(res.statusCode).toBe(400);
+      expect(enqueueSpy).not.toHaveBeenCalled();
+    });
+
+    it('accepts a create request with valid s3Key prefix', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, s3Key: 'imports/u1/x.txt' } });
+      expect(res.statusCode).toBe(202);
+      expect(enqueueSpy).toHaveBeenCalled();
+    });
   });
 });

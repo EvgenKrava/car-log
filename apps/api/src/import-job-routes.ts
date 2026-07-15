@@ -43,6 +43,9 @@ export async function handleImportJobRoute(
     const req = CreateImportJobRequestSchema.parse(body);
     const car = await deps.cars.getById(ownerId, req.carId);
     if (!car) throw new CarNotFoundError(req.carId);
+    if (req.s3Key && !req.s3Key.startsWith(`imports/${ownerId}/`)) {
+      return ok(400, { error: 'ValidationError', message: 'invalid s3Key' });
+    }
     const job: ImportJobRecord = {
       id: deps.newId(), carId: req.carId, ownerId,
       status: 'pending', progress: { done: 0, total: 0, found: 0 },

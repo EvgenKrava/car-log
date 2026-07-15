@@ -32,7 +32,12 @@ export async function runImportJob(deps: ImportWorkerDeps, payload: ImportWorkPa
   if (!car) return fail('carMissing');
 
   let text: string | null = job.text ?? null;
-  if (!text && job.s3Key) text = await deps.loadS3Text(job.s3Key);
+  if (!text && job.s3Key) {
+    if (!job.s3Key.startsWith(`imports/${payload.ownerId}/`)) {
+      return fail('fileMissing');
+    }
+    text = await deps.loadS3Text(job.s3Key);
+  }
   if (!text || text.trim().length === 0) return fail('fileMissing');
 
   const chunks = chunkText(text, IMPORT_CHUNK_SIZE);
