@@ -4,18 +4,25 @@ import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handlePhotoRoute } from './photo-routes';
 import { handleEventRoute } from './event-routes';
 import { handleImportRoute } from './llm-routes';
+import { handleImportJobRoute } from './import-job-routes';
+import type { ImportJobRepository } from './import-job-repository';
+import type { ImportWorkPayload } from './import-worker';
 
 export type ApiEvent = {
   method: string;
   path: string;
   ownerId: string | null;
   pathParams: Record<string, string>;
+  queryParams: Record<string, string>;
   body: unknown;
 };
 
 export type RouteDeps = {
   cars: CarRepository; photos: PhotoRepository; storage: PhotoStorage;
   events: EventRepository; proofs: ProofRepository; llm: LlmProvider;
+  importJobs: ImportJobRepository;
+  enqueueImport: (p: ImportWorkPayload) => Promise<void>;
+  newId: () => string;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -26,6 +33,14 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (path === '/import/extract') {
       const result = await handleImportRoute(deps, event, ownerId);
+      if (result) return result;
+    }
+
+    if (path.startsWith('/import/')) {
+      const result = await handleImportJobRoute(
+        { cars: deps.cars, jobs: deps.importJobs, storage: deps.storage, enqueueImport: deps.enqueueImport, newId: deps.newId },
+        event, ownerId,
+      );
       if (result) return result;
     }
 

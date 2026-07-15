@@ -20,6 +20,8 @@ import {
   type AttachmentContentType,
   ExtractEventsResponseSchema,
   type ExtractEventsResponse,
+  ImportJobSchema,
+  type ImportJob,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -109,3 +111,24 @@ export async function uploadProof(token: string, carId: string, eventId: string,
 
 export const extractEvents = (token: string, carId: string, text: string): Promise<ExtractEventsResponse> =>
   request(token, '/import/extract', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, text }) });
+
+const ImportPresignSchema = z.object({ key: z.string(), uploadUrl: z.string().url() });
+const CreateJobResponseSchema = z.object({ jobId: z.string().uuid() });
+
+export const presignImportTxt = (token: string, size: number): Promise<z.infer<typeof ImportPresignSchema>> =>
+  request(token, '/import/presign', ImportPresignSchema, { method: 'POST', body: JSON.stringify({ size }) });
+
+export const createImportJob = (token: string, input: { carId: string; text?: string; s3Key?: string }): Promise<{ jobId: string }> =>
+  request(token, '/import/jobs', CreateJobResponseSchema, { method: 'POST', body: JSON.stringify(input) });
+
+export const getImportJob = (token: string, carId: string, jobId: string): Promise<ImportJob> =>
+  request(token, `/import/jobs/${jobId}?carId=${encodeURIComponent(carId)}`, ImportJobSchema);
+
+export const latestImportJob = async (token: string, carId: string): Promise<ImportJob | null> => {
+  try {
+    return await request(token, `/import/jobs?carId=${encodeURIComponent(carId)}`, ImportJobSchema);
+  } catch (e) {
+    if ((e as Error).message.includes('404')) return null;
+    throw e;
+  }
+};

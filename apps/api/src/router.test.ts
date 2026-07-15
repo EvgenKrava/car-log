@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { route } from './router';
 import { InMemoryCarRepository } from './in-memory-car-repository';
 import { InMemoryPhotoRepository } from './in-memory-photo-repository';
 import { InMemoryEventRepository } from './in-memory-event-repository';
 import { InMemoryProofRepository } from './in-memory-proof-repository';
 import { InMemoryLlmProvider } from './in-memory-llm-provider';
+import { InMemoryImportJobRepository } from './in-memory-import-job-repository';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 
@@ -16,19 +17,24 @@ const storage: PhotoStorage = {
   deleteObject: async () => {},
   exists: async () => true,
 };
-let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; llm: InMemoryLlmProvider };
+let enqueueSpy: ReturnType<typeof vi.fn>;
+let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; newId: () => string };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   photos = new InMemoryPhotoRepository();
+  enqueueSpy = vi.fn().mockResolvedValue(undefined);
   deps = {
     cars, photos, storage,
     events: new InMemoryEventRepository(),
     proofs: new InMemoryProofRepository(),
     llm: new InMemoryLlmProvider({ events: [{ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' }] }),
+    importJobs: new InMemoryImportJobRepository(),
+    enqueueImport: enqueueSpy,
+    newId: () => crypto.randomUUID(),
   };
 });
 
-const base = { pathParams: {}, body: null } as const;
+const base = { pathParams: {}, queryParams: {}, body: null } as const;
 const validBody = { make: 'Toyota', model: 'Corolla', year: 2020, mileage: 45000, fuelType: 'petrol' };
 
 describe('route', () => {
@@ -210,6 +216,91 @@ describe('route', () => {
       deps.llm = new InMemoryLlmProvider('not an array or events object');
       const res = await route(deps, { ...base, method: 'POST', path: '/import/extract', ownerId: 'u1', body: { carId, text: 'x' } });
       expect(res.statusCode).toBe(422);
+    });
+  });
+
+  describe('import jobs', () => {
+    async function makeCar(ownerId: string): Promise<string> {
+      const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
+      return JSON.parse(res.body).id as string;
+    }
+
+    it('creates a job (202) and enqueues the worker payload', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, text: 'oil change 2024' } });
+      expect(res.statusCode).toBe(202);
+      const { jobId } = JSON.parse(res.body);
+      expect(jobId).toBeDefined();
+      expect(enqueueSpy).toHaveBeenCalledWith({ jobType: 'import', ownerId: 'u1', carId, jobId });
+    });
+
+    it('404s job creation for a foreign car', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u2', body: { carId, text: 'x' } });
+      expect(res.statusCode).toBe(404);
+      expect(enqueueSpy).not.toHaveBeenCalled();
+    });
+
+    it('400s when both text and s3Key are given', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, text: 'x', s3Key: 'k' } });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('gets a job by id and hides server-side fields', async () => {
+      const carId = await makeCar('u1');
+      const created = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, text: 'oil change' } });
+      const { jobId } = JSON.parse(created.body);
+      const res = await route(deps, { ...base, method: 'GET', path: `/import/jobs/${jobId}`, ownerId: 'u1', pathParams: { jobId }, queryParams: { carId } });
+      expect(res.statusCode).toBe(200);
+      const job = JSON.parse(res.body);
+      expect(job.status).toBe('pending');
+      expect(job.text).toBeUndefined();
+      expect(job.ownerId).toBeUndefined();
+    });
+
+    it('returns the latest job for a car and 404 when none', async () => {
+      const carId = await makeCar('u1');
+      const none = await route(deps, { ...base, method: 'GET', path: '/import/jobs', ownerId: 'u1', queryParams: { carId } });
+      expect(none.statusCode).toBe(404);
+      await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, text: 'first' } });
+      const res = await route(deps, { ...base, method: 'GET', path: '/import/jobs', ownerId: 'u1', queryParams: { carId } });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('reports a stale running job as failed at read', async () => {
+      const carId = await makeCar('u1');
+      const old = new Date(Date.now() - 21 * 60 * 1000).toISOString();
+      await deps.importJobs.create({
+        id: crypto.randomUUID(), carId, ownerId: 'u1', status: 'running',
+        progress: { done: 1, total: 3, found: 2 }, events: [], skippedChunks: 0, createdAt: old,
+      });
+      const res = await route(deps, { ...base, method: 'GET', path: '/import/jobs', ownerId: 'u1', queryParams: { carId } });
+      const job = JSON.parse(res.body);
+      expect(job.status).toBe('failed');
+      expect(job.error).toBe('stale');
+    });
+
+    it('presigns a txt upload under the imports prefix', async () => {
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/presign', ownerId: 'u1', body: { size: 1000 } });
+      expect(res.statusCode).toBe(200);
+      const { key, uploadUrl } = JSON.parse(res.body);
+      expect(key).toMatch(/^imports\/u1\/.+\.txt$/);
+      expect(uploadUrl).toContain('https://');
+    });
+
+    it('rejects a create request with foreign s3Key prefix (IDOR guard)', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, s3Key: 'photos/other/x.txt' } });
+      expect(res.statusCode).toBe(400);
+      expect(enqueueSpy).not.toHaveBeenCalled();
+    });
+
+    it('accepts a create request with valid s3Key prefix', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body: { carId, s3Key: 'imports/u1/x.txt' } });
+      expect(res.statusCode).toBe(202);
+      expect(enqueueSpy).toHaveBeenCalled();
     });
   });
 });
