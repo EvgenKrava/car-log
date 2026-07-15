@@ -18,7 +18,7 @@ export function ServiceTimeline({ carId }: { carId: string }) {
     <Box sx={{ mt: 4 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Typography variant="h6">{t('event:sectionTitle')}</Typography>
-        <Button startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('event:addService')}</Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('event:addService')}</Button>
       </Stack>
       {isLoading ? (
         <StatusView state="loading" />
