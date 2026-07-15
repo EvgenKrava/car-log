@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useAuth } from '../auth';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Container, Fab, Grid } from '@mui/material';
@@ -10,21 +9,18 @@ import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusView } from '../components/ui/StatusView';
+import { UserMenu } from '../components/ui/UserMenu';
 import { VehicleCard } from '../components/ui/VehicleCard';
 
 export function Garage() {
   const { t } = useTranslation(['garage', 'common']);
-  const { signOut } = useAuth();
   const navigate = useNavigate();
   const { data: cars, isLoading, isError } = useCars();
   const [open, setOpen] = useState(false);
 
   return (
     <AppShell>
-      <PageHeader
-        title={t('common:appName')}
-        actions={<Button color="inherit" onClick={() => void signOut()}>{t('common:signOut')}</Button>}
-      />
+      <PageHeader title={t('common:appName')} actions={<UserMenu />} />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
           <StatusView state="loading" />
