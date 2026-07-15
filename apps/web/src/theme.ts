@@ -90,7 +90,20 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
                   zIndex: 1,
                 },
                 // Nudge the title down so it clears the drag handle.
-                '& > .MuiDialogTitle-root': { paddingTop: 20 },
+                '& .MuiDialogTitle-root': { paddingTop: 20 },
+                // On phones the actions bar (Cancel/Save) moves to the TOP — a bottom sheet
+                // can be tall and the buttons would otherwise sit far below the fold. Using
+                // flex `order` gives Title → Actions → Content without restructuring any
+                // dialog. Form-wrapped dialogs (Car/Event) nest these under a <form>, so make
+                // the form a flex column too; the descendant `order` rules then apply in both
+                // the form-wrapped and the direct-child cases.
+                '& > form': { display: 'flex', flexDirection: 'column', minHeight: 0 },
+                '& .MuiDialogActions-root': {
+                  order: 1,
+                  borderBottom: `1px solid ${c.border}`,
+                  justifyContent: 'space-between',
+                },
+                '& .MuiDialogContent-root': { order: 2 },
               },
             },
           }),

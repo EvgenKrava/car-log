@@ -124,6 +124,12 @@ export const createImportJob = (token: string, input: { carId: string; text?: st
 export const getImportJob = (token: string, carId: string, jobId: string): Promise<ImportJob> =>
   request(token, `/import/jobs/${jobId}?carId=${encodeURIComponent(carId)}`, ImportJobSchema);
 
+// Dismiss a finished import job so reopening bulk import starts clean instead of re-adopting
+// the same completed job (and re-seeding already-committed events). Idempotent server-side.
+export const deleteImportJob = (token: string, carId: string, jobId: string): Promise<void> =>
+  request(token, `/import/jobs/${jobId}?carId=${encodeURIComponent(carId)}`, ImportJobSchema, { method: 'DELETE' })
+    .then(() => undefined);
+
 export const latestImportJob = async (token: string, carId: string): Promise<ImportJob | null> => {
   try {
     return await request(token, `/import/jobs?carId=${encodeURIComponent(carId)}`, ImportJobSchema);

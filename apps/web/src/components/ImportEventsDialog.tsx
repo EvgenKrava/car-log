@@ -8,8 +8,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
 import { WorksSummary } from './ui/WorksSummary';
+import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
 import { EVENT_CATEGORIES, IMPORT_INLINE_MAX, IMPORT_FILE_MAX, type CandidateEvent, type ImportJob } from '@carlog/contracts';
-import { useCreateImportJob, useImportJob, useLatestImportJob, useCreateEvent } from '../queries';
+import { useCreateImportJob, useImportJob, useLatestImportJob, useDeleteImportJob, useCreateEvent } from '../queries';
 
 type Phase = 'input' | 'progress' | 'review';
 
@@ -17,6 +18,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   const { t } = useTranslation(['import', 'event', 'common']);
   const create = useCreateEvent(carId);
   const createJob = useCreateImportJob(carId);
+  const deleteJob = useDeleteImportJob(carId);
   const [phase, setPhase] = useState<Phase>('input');
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -47,6 +49,11 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   };
   const hideDialog = () => { onClose(); };
   const close = () => { reset(); onClose(); };
+  // Swipe-down mirrors the backdrop close: hide (keep job state) during progress/review,
+  // full reset from the input phase.
+  const sheet = useBottomSheetDismiss(
+    (phase === 'progress' || phase === 'review') ? hideDialog : close,
+  );
 
   const seedReview = (events: CandidateEvent[]) => {
     setDrafts(events);
@@ -183,6 +190,12 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
         return;
       }
     }
+    // Every candidate is now in the timeline — dismiss the server-side job so reopening bulk
+    // import starts clean instead of re-adopting this completed job and re-seeding the same
+    // (already-added) events. Best-effort: the 24h TTL is the backstop if this delete fails.
+    if (jobId) {
+      try { await deleteJob.mutateAsync(jobId); } catch { /* TTL will reap it */ }
+    }
     setCommitting(false);
     close();
   };
@@ -201,7 +214,7 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   };
 
   return (
-    <Dialog open={open} onClose={(phase === 'progress' || phase === 'review') ? hideDialog : close} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={(phase === 'progress' || phase === 'review') ? hideDialog : close} maxWidth="sm" fullWidth {...sheet}>
       <DialogTitle>{t('import:title')}</DialogTitle>
       <DialogContent>
         {showResumeBanner && phase !== 'input' ? (

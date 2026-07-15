@@ -8,6 +8,7 @@ import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
 import { WorksSummary } from './ui/WorksSummary';
+import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
 import { prepareScanFile } from '../lib/prepare-scan';
 import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
@@ -46,6 +47,8 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     reset();
     onClose();
   };
+  // Swipe-down closes the sheet, but not mid-scan (matches the backdrop being locked then).
+  const sheet = useBottomSheetDismiss(phase === 'scanning' ? undefined : close);
 
   const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -174,7 +177,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
   };
 
   return (
-    <Dialog open={open} onClose={phase === 'scanning' ? undefined : close} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={phase === 'scanning' ? undefined : close} maxWidth="sm" fullWidth {...sheet}>
       <DialogTitle>{t('import:scanInvoice')}</DialogTitle>
       <DialogContent>
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}

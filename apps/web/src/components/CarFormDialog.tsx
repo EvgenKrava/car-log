@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { CreateCarSchema, FuelTypeSchema, type Car, type CreateCarInput } from '@carlog/contracts';
 import { useCreateCar, useUpdateCar } from '../queries';
+import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
 
 const FUEL_TYPES = FuelTypeSchema.options;
 
@@ -32,6 +33,7 @@ type CarFormDialogProps = {
 
 export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) {
   const { t } = useTranslation(['car', 'common']);
+  const sheet = useBottomSheetDismiss(onClose);
   const create = useCreateCar();
   const update = useUpdateCar(car?.id ?? '');
   const isPending = create.isPending || update.isPending;
@@ -68,7 +70,7 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
   );
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" {...sheet}>
       <form onSubmit={onSubmit}>
         <DialogTitle>{mode === 'edit' ? t('car:editTitle') : t('car:addTitle')}</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>

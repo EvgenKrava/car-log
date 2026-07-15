@@ -2,6 +2,7 @@ import {
   Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -17,8 +18,9 @@ export function ConfirmDialog({
   open, title, message, confirmLabel = 'Delete', onConfirm, onClose, loading = false,
 }: ConfirmDialogProps) {
   const { t } = useTranslation(['common']);
+  const sheet = useBottomSheetDismiss(onClose);
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" {...sheet}>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <DialogContentText>{message}</DialogContentText>

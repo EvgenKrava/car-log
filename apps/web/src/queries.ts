@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, uploadToS3, presignScan, extractFromScan } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -151,6 +151,15 @@ export function useLatestImportJob(carId: string, enabled: boolean) {
     queryFn: () => latestImportJob(token, carId),
     enabled: Boolean(token && carId && enabled),
     staleTime: 0,
+  });
+}
+
+export function useDeleteImportJob(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) => deleteImportJob(token, carId, jobId),
+    // Drop the cached latest/keyed job so a reopened dialog can't re-adopt the dismissed job.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'importJobs'] }),
   });
 }
 

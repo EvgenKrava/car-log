@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { CreateEventSchema, EVENT_CATEGORIES, type Event, type CreateEventInput } from '@carlog/contracts';
 import { useCreateEvent, useUpdateEvent } from '../queries';
 import { NumberField } from './ui/NumberField';
+import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
 
 const EMPTY: CreateEventInput = {
   date: new Date().toISOString().slice(0, 10), mileage: 0, cost: 0, currency: 'UAH', category: 'other', works: [],
@@ -32,6 +33,7 @@ export function EventFormDialog({
     resolver: zodResolver(CreateEventSchema), defaultValues: EMPTY,
   });
   const works = useFieldArray({ control, name: 'works' });
+  const sheet = useBottomSheetDismiss(onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -47,7 +49,7 @@ export function EventFormDialog({
   const isError = create.isError || update.isError;
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" {...sheet}>
       <form onSubmit={onSubmit}>
         <DialogTitle>{mode === 'edit' ? t('event:editTitle') : t('event:addTitle')}</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
