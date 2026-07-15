@@ -23,7 +23,7 @@ const EXTRACT_TOOL = {
         items: {
           type: 'object',
           properties: {
-            date: { type: 'string', description: 'YYYY-MM-DD. OMIT entirely if the document states no date and it cannot be estimated from mileage — never use today.' },
+            date: { type: 'string', description: 'YYYY-MM-DD. OMIT entirely only if no date is stated AND it cannot be estimated from mileage or from the surrounding records — never use today.' },
             mileage: { type: 'integer', description: 'odometer reading in km. OMIT entirely if the source does not state it — do not put 0.' },
             cost: { type: 'number', description: 'total cost, 0 if unknown' },
             currency: { type: 'string', description: 'ISO-ish code, default UAH' },
@@ -89,9 +89,15 @@ function instructions(ctx: ExtractionContext, source: string): string {
     '',
     'DATE:',
     '- If the source states a date, use it (YYYY-MM-DD).',
-    '- If NO date is stated but a mileage/odometer reading is, estimate the date by interpolating against',
-    '  the known service points below (assume roughly linear mileage over time); output your best estimate.',
-    '- If neither a date nor a usable mileage signal exists, OMIT the date entirely. NEVER use today\'s date.',
+    '- If NO date is stated, estimate it. Prefer whichever signal is available:',
+    '  (a) the neighbouring records in THIS source — a record sits between the dates of the entries',
+    '      before and after it (the source is usually chronological); place it accordingly, and if only',
+    '      a nearby month/year is known, use a plausible day within it.',
+    '  (b) a mileage/odometer reading interpolated against the known service points below (assume roughly',
+    '      linear mileage over time).',
+    '  Output your best estimate as a full YYYY-MM-DD; approximate is fine.',
+    '- Only if NEITHER neighbouring records NOR a usable mileage signal exists, OMIT the date entirely.',
+    '  NEVER use today\'s date.',
   ];
   if (ctx.history && ctx.history.length > 0) {
     lines.push('', 'Known service points (date @ mileage km), newest first:');

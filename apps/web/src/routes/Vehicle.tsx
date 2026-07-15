@@ -3,15 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Alert, Box, Button, Card, CardContent, Container, IconButton, ListItemIcon,
-  ListItemText, Menu, MenuItem, SpeedDial, SpeedDialAction, SpeedDialIcon, Stack, Typography,
+  ListItemText, Menu, MenuItem, Stack, Typography,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
-import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
-import TextSnippetIcon from '@mui/icons-material/TextSnippet';
-import EditNoteIcon from '@mui/icons-material/EditNote';
 import type { Car } from '@carlog/contracts';
 import { useCar, useDeleteCar } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
@@ -65,7 +62,7 @@ function MetaField({ label, value, monospace }: { label: string; value: string; 
 }
 
 function VehicleDetail({ car }: { car: Car }) {
-  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event']);
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
@@ -73,7 +70,6 @@ function VehicleDetail({ car }: { car: Car }) {
   const [importOpen, setImportOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
-  const [dialOpen, setDialOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   const title = car.nickname || `${car.make} ${car.model}`;
@@ -214,38 +210,6 @@ function VehicleDetail({ car }: { car: Car }) {
       />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
-
-      {/* Single entry point for adding history — a SpeedDial that fans out the three ways
-          to record a service. Controlled open state so tapping an action (or the backdrop)
-          reliably closes it on mobile; persistent labels make each option self-explanatory.
-          Order: Scan (flagship) closest to the button, then Import, then Manual. */}
-      <SpeedDial
-        ariaLabel={t('vehicle:addSectionTitle')}
-        icon={<SpeedDialIcon />}
-        open={dialOpen}
-        onOpen={() => setDialOpen(true)}
-        onClose={() => setDialOpen(false)}
-        sx={{ position: 'fixed', bottom: { xs: 16, sm: 24 }, right: { xs: 16, sm: 24 } }}
-      >
-        <SpeedDialAction
-          icon={<DocumentScannerIcon />}
-          tooltipTitle={t('event:addScan')}
-          tooltipOpen
-          onClick={() => { setDialOpen(false); setScanOpen(true); }}
-        />
-        <SpeedDialAction
-          icon={<TextSnippetIcon />}
-          tooltipTitle={t('event:addBulk')}
-          tooltipOpen
-          onClick={() => { setDialOpen(false); setImportOpen(true); }}
-        />
-        <SpeedDialAction
-          icon={<EditNoteIcon />}
-          tooltipTitle={t('event:addManual')}
-          tooltipOpen
-          onClick={() => { setDialOpen(false); setManualOpen(true); }}
-        />
-      </SpeedDial>
     </AppShell>
   );
 }
