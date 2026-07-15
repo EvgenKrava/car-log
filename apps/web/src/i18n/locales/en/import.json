@@ -16,5 +16,20 @@
   "errorFailed": "We couldn't read events from that text. Try rephrasing or adding detail.",
   "errorUnavailable": "The AI service is busy right now. Please try again in a moment.",
   "added": "Added {{count}} event to the timeline",
-  "added_other": "Added {{count}} events to the timeline"
+  "added_other": "Added {{count}} events to the timeline",
+  "uploadTxt": "Upload .txt file",
+  "notTxt": "Please choose a plain-text .txt file.",
+  "fileTooLargeTxt": "That file is larger than 1 MB.",
+  "startImport": "Start import",
+  "progressChunks": "{{done}}/{{total}} parts · {{found}} events found",
+  "preparing": "Preparing…",
+  "hide": "Hide",
+  "startNew": "Start new import",
+  "resumeBanner": "An import for this car is in progress or recently finished.",
+  "jobFailed_extractionFailed": "We couldn't extract events from that text.",
+  "jobFailed_fileTooLarge": "The file is too large to process.",
+  "jobFailed_fileMissing": "The uploaded file could not be read.",
+  "jobFailed_timeBudgetExceeded": "The file was too large to finish; partial results are shown.",
+  "jobFailed_stale": "The import stalled. Please try again.",
+  "jobFailed_carMissing": "The car for this import no longer exists."
 }

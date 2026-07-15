@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, uploadToS3 } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -115,4 +115,41 @@ export function useDeleteProof(carId: string, eventId: string) {
 export function useExtractEvents(carId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? '';
   return useMutation({ mutationFn: (text: string) => extractEvents(token, carId, text) });
+}
+
+export function useCreateImportJob(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useMutation({
+    mutationFn: async (input: { text?: string; file?: File }) => {
+      if (input.file) {
+        const { key, uploadUrl } = await presignImportTxt(token, input.file.size);
+        await uploadToS3(uploadUrl, input.file);
+        return createImportJob(token, { carId, s3Key: key });
+      }
+      return createImportJob(token, { carId, text: input.text ?? '' });
+    },
+  });
+}
+
+export function useImportJob(carId: string, jobId: string | undefined) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({
+    queryKey: ['cars', carId, 'importJobs', jobId],
+    queryFn: () => getImportJob(token, carId, jobId ?? ''),
+    enabled: Boolean(token && carId && jobId),
+    refetchInterval: (query) => {
+      const s = query.state.data?.status;
+      return s === 'pending' || s === 'running' ? 2500 : false;
+    },
+  });
+}
+
+export function useLatestImportJob(carId: string, enabled: boolean) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({
+    queryKey: ['cars', carId, 'importJobs', 'latest'],
+    queryFn: () => latestImportJob(token, carId),
+    enabled: Boolean(token && carId && enabled),
+    staleTime: 0,
+  });
 }
