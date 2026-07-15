@@ -20,13 +20,28 @@ export function EventCard({ carId, event }: { carId: string; event: Event }) {
   const partsCount = event.works.reduce((n, w) => n + w.parts.length, 0);
 
   return (
-    <Accordion disableGutters sx={{ borderRadius: 2, '&:before': { display: 'none' }, border: 1, borderColor: 'divider', mb: 1 }}>
+    <Accordion
+      disableGutters
+      sx={{
+        borderRadius: 2,
+        border: 1,
+        borderColor: 'divider',
+        mb: 1,
+        '&:before': { display: 'none' },
+        // MUI's default `:first-of-type` / `:last-of-type` selectors override our
+        // borderRadius on the edge cards. Re-assert borderRadius at the same
+        // specificity so every card looks identical.
+        '&:first-of-type': { borderRadius: 2 },
+        '&:last-of-type': { borderRadius: 2 },
+      }}
+    >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', width: '100%' }}>
           <Chip label={t(`event:category_${event.category}`)} size="small" color="primary" variant="outlined" />
           <Typography sx={{ fontWeight: 600 }}>{formatDate(`${event.date}T00:00:00.000Z`, i18n.language)}</Typography>
           <Typography color="text.secondary">
-            {formatNumber(event.mileage, i18n.language)} · {formatNumber(event.cost, i18n.language)} {event.currency}
+            {formatNumber(event.mileage, i18n.language)}
+            {event.cost > 0 ? ` · ${formatNumber(event.cost, i18n.language)} ${event.currency}` : ''}
           </Typography>
         </Stack>
       </AccordionSummary>
