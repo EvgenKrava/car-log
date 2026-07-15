@@ -31,5 +31,12 @@
   "jobFailed_fileMissing": "The uploaded file could not be read.",
   "jobFailed_timeBudgetExceeded": "The file was too large to finish; partial results are shown.",
   "jobFailed_stale": "The import stalled. Please try again.",
-  "jobFailed_carMissing": "The car for this import no longer exists."
+  "jobFailed_carMissing": "The car for this import no longer exists.",
+  "scanInvoice": "Scan invoice",
+  "scanning": "Reading the document…",
+  "scanUnreadable": "Couldn't read that document. Add the event manually.",
+  "enterManually": "Enter manually",
+  "scanBadType": "Choose an image (JPEG/PNG/WebP) or PDF.",
+  "scanTooLarge": "File is larger than 10 MB.",
+  "scanAttachFailed": "Event saved, but attaching the scan failed."
 }

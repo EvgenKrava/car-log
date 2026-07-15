@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, uploadToS3 } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, uploadToS3, presignScan, extractFromScan } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -151,5 +151,17 @@ export function useLatestImportJob(carId: string, enabled: boolean) {
     queryFn: () => latestImportJob(token, carId),
     enabled: Boolean(token && carId && enabled),
     staleTime: 0,
+  });
+}
+
+export function useExtractFromScan(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const { key, uploadUrl } = await presignScan(token, file.type, file.size);
+      await uploadToS3(uploadUrl, file);
+      const events = await extractFromScan(token, carId, key, file.type);
+      return { events, s3Key: key, contentType: file.type, size: file.size };
+    },
   });
 }
