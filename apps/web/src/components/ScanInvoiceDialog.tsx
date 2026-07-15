@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
+import { NumberField } from './ui/NumberField';
 import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
 import { useAuth } from '../auth';
@@ -226,22 +227,20 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
                       InputLabelProps={{ shrink: true }}
                       fullWidth
                     />
-                    <TextField
+                    <NumberField
                       label={t('event:mileage')}
-                      type="number"
                       size="small"
                       value={d.mileage}
-                      onChange={(e) => patch(i, { mileage: Number(e.target.value) })}
+                      onChange={(v) => patch(i, { mileage: v ?? 0 })}
                       fullWidth
                     />
                   </Stack>
                   <Stack direction="row" spacing={1.5}>
-                    <TextField
+                    <NumberField
                       label={t('event:cost')}
-                      type="number"
                       size="small"
                       value={d.cost}
-                      onChange={(e) => patch(i, { cost: Number(e.target.value) })}
+                      onChange={(v) => patch(i, { cost: v ?? 0 })}
                       fullWidth
                     />
                     <TextField

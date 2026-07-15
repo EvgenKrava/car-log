@@ -9,6 +9,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
 import { CreateEventSchema, EVENT_CATEGORIES, type Event, type CreateEventInput } from '@carlog/contracts';
 import { useCreateEvent, useUpdateEvent } from '../queries';
+import { NumberField } from './ui/NumberField';
 
 const EMPTY: CreateEventInput = {
   date: new Date().toISOString().slice(0, 10), mileage: 0, cost: 0, currency: 'UAH', category: 'other', works: [],
@@ -62,13 +63,13 @@ export function EventFormDialog({
               </TextField>
             )} />
             <Controller name="mileage" control={control} render={({ field }) => (
-              <TextField {...field} type="number" label={t('event:mileage')} fullWidth value={field.value ?? 0}
-                onChange={(e) => field.onChange(Number(e.target.value))}
+              <NumberField label={t('event:mileage')} fullWidth value={field.value}
+                onChange={(v) => field.onChange(v ?? 0)} onBlur={field.onBlur} name={field.name}
                 error={Boolean(errors.mileage)} helperText={errors.mileage?.message as string | undefined} />
             )} />
             <Controller name="cost" control={control} render={({ field }) => (
-              <TextField {...field} type="number" label={t('event:cost')} fullWidth value={field.value ?? 0}
-                onChange={(e) => field.onChange(Number(e.target.value))} />
+              <NumberField label={t('event:cost')} fullWidth value={field.value}
+                onChange={(v) => field.onChange(v ?? 0)} onBlur={field.onBlur} name={field.name} />
             )} />
             <Controller name="title" control={control} render={({ field }) => (
               <TextField {...field} label={t('event:title')} fullWidth value={field.value ?? ''} />
@@ -118,8 +119,8 @@ function PartsEditor({ control, workIndex }: { control: import('react-hook-form'
           <Stack direction="row" spacing={1} alignItems="center">
             {text(pi, 'name', t('event:partName'))}
             <Controller name={`works.${workIndex}.parts.${pi}.quantity`} control={control} render={({ field }) => (
-              <TextField {...field} type="number" label={t('event:quantity')} size="small" sx={{ width: 90 }}
-                value={field.value ?? 1} onChange={(e) => field.onChange(Number(e.target.value))} />
+              <NumberField label={t('event:quantity')} size="small" sx={{ width: 90 }} min={1}
+                value={field.value} onChange={(v) => field.onChange(v ?? 1)} onBlur={field.onBlur} name={field.name} />
             )} />
             <IconButton aria-label="remove part" size="small" onClick={() => parts.remove(pi)}><DeleteIcon fontSize="small" /></IconButton>
           </Stack>

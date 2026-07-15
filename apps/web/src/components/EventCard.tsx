@@ -37,7 +37,7 @@ export function EventCard({ carId, event }: { carId: string; event: Event }) {
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', width: '100%' }}>
-          <Chip label={t(`event:category_${event.category}`)} size="small" color="primary" variant="outlined" />
+          <Chip label={t(`event:category_${event.category}`)} size="small" color="primary" variant="outlined" sx={{ minWidth: 96 }} />
           <Typography sx={{ fontWeight: 600 }}>{formatDate(`${event.date}T00:00:00.000Z`, i18n.language)}</Typography>
           <Typography color="text.secondary">
             {formatNumber(event.mileage, i18n.language)}
