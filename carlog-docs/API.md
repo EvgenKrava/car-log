@@ -15,6 +15,14 @@ GET /events/{id}
 PUT /events/{id}
 DELETE /events/{id}
 
+## Reminders
+
+GET /cars/{id}/reminders
+POST /cars/{id}/reminders
+PUT /cars/{id}/reminders/{reminderId}
+DELETE /cars/{id}/reminders/{reminderId}
+POST /cars/{id}/reminders/{reminderId}/complete
+
 ## Attachments
 
 POST /attachments/presign
