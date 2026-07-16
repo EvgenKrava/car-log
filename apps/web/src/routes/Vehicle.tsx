@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert, Box, Button, Card, CardContent, Container, IconButton, ListItemIcon,
-  ListItemText, Menu, MenuItem, Stack, Typography,
+  Alert, Badge, Box, Button, Card, CardContent, Container, IconButton, ListItemIcon,
+  ListItemText, Menu, MenuItem, Stack, Tab, Tabs, Typography,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
+import HistoryIcon from '@mui/icons-material/History';
+import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import type { Car } from '@carlog/contracts';
-import { useCar, useDeleteCar } from '../queries';
+import { useCar, useDeleteCar, useReminders } from '../queries';
+import { reminderStatus, todayISO } from '../lib/reminder-view';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ImportEventsDialog } from '../components/ImportEventsDialog';
@@ -62,6 +66,27 @@ function MetaField({ label, value, monospace }: { label: string; value: string; 
   );
 }
 
+const TAB_KEYS = ['history', 'photos', 'reminders'] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+const isTabKey = (v: string | null): v is TabKey => TAB_KEYS.includes(v as TabKey);
+
+// The Reminders tab label carries a due/overdue count so action items are
+// discoverable even while the user is on another tab.
+function RemindersTabLabel({ car }: { car: Car }) {
+  const { t } = useTranslation(['vehicle']);
+  const { data: reminders } = useReminders(car.id);
+  const today = todayISO();
+  const statuses = (reminders ?? []).map((r) => reminderStatus(r, car.mileage, today));
+  const overdue = statuses.filter((s) => s === 'overdue').length;
+  const due = overdue + statuses.filter((s) => s === 'due_soon').length;
+  return (
+    <Badge badgeContent={due} color={overdue ? 'error' : 'warning'} max={99}
+      sx={{ '& .MuiBadge-badge': { right: -14, top: 2 } }}>
+      {t('vehicle:tabReminders')}
+    </Badge>
+  );
+}
+
 function VehicleDetail({ car }: { car: Car }) {
   const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos']);
   const navigate = useNavigate();
@@ -72,6 +97,13 @@ function VehicleDetail({ car }: { car: Car }) {
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  // Active tab lives in the URL (?tab=photos) so refresh and back/forward keep
+  // the user's place; the default (history) stays out of the URL.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const tab: TabKey = isTabKey(tabParam) ? tabParam : 'history';
+  const setTab = (next: TabKey) =>
+    setSearchParams(next === 'history' ? {} : { tab: next }, { replace: true });
 
   const title = car.nickname || `${car.make} ${car.model}`;
   const hasNickname = Boolean(car.nickname);
@@ -178,31 +210,61 @@ function VehicleDetail({ car }: { car: Car }) {
             </CardContent>
           </Card>
 
-          {/* Photos — the component owns its own header + "Add photo" action.
-              A wrapper Box neutralises the component's built-in top margin so
-              the outer Stack fully controls section spacing. */}
-          <Box sx={{ '& > *': { mt: 0 } }}>
-            <PhotoGallery carId={car.id} />
+          {/* Tab bar — history is the primary tab (per project docs, "the
+              timeline is the primary screen"); photos and reminders each get
+              their own uncluttered surface. Sticky under the app bar so the
+              tabs stay reachable while scrolling a long timeline. */}
+          <Box
+            sx={{
+              position: 'sticky',
+              top: { xs: 56, sm: 64 },
+              zIndex: (theme) => theme.zIndex.appBar - 1,
+              bgcolor: 'background.default',
+              mx: { xs: -2, sm: 0 },
+              px: { xs: 2, sm: 0 },
+              borderBottom: 1,
+              borderColor: 'divider',
+            }}
+          >
+            <Tabs
+              value={tab}
+              onChange={(_, v: TabKey) => setTab(v)}
+              variant="fullWidth"
+              sx={{
+                minHeight: 44,
+                '& .MuiTab-root': { minHeight: 44, textTransform: 'none', fontWeight: 600 },
+              }}
+            >
+              <Tab value="history" icon={<HistoryIcon fontSize="small" />} iconPosition="start" label={t('vehicle:tabHistory')} />
+              <Tab value="photos" icon={<PhotoLibraryIcon fontSize="small" />} iconPosition="start" label={t('vehicle:tabPhotos')} />
+              <Tab value="reminders" icon={<NotificationsIcon fontSize="small" />} iconPosition="start" label={<RemindersTabLabel car={car} />} />
+            </Tabs>
           </Box>
 
-          {/* Reminders — due/overdue maintenance surfaces above the history so
-              action items are visible before the archive. */}
-          <Box sx={{ '& > *': { mt: 0 } }}>
-            <RemindersSection car={car} />
-          </Box>
-
-          {/* Service history — the primary content of the page (per project
-              docs, "the timeline is the primary screen"). Sits last so the
-              hero context frames every entry the reader scrolls through. */}
-          <Box sx={{ '& > *': { mt: 0 } }}>
-            <ServiceTimeline
-              carId={car.id}
-              addOpen={manualOpen}
-              onAddOpenChange={setManualOpen}
-              onScan={() => setScanOpen(true)}
-              onImport={() => setImportOpen(true)}
-            />
-          </Box>
+          {/* Panels. The wrapper Box neutralises each section's built-in top
+              margin so the outer Stack controls spacing. Panels render only
+              when active — TanStack Query caches keep tab switches instant. */}
+          {tab === 'history' ? (
+            <Box sx={{ '& > *': { mt: 0 } }}>
+              <ServiceTimeline
+                carId={car.id}
+                addOpen={manualOpen}
+                onAddOpenChange={setManualOpen}
+                onScan={() => setScanOpen(true)}
+                onImport={() => setImportOpen(true)}
+              />
+            </Box>
+          ) : null}
+          {tab === 'photos' ? (
+            <Box sx={{ '& > *': { mt: 0 } }}>
+              <PhotoGallery carId={car.id} />
+            </Box>
+          ) : null}
+          {tab === 'reminders' ? (
+            <Box sx={{ '& > *': { mt: 0 } }}>
+              <RemindersSection car={car} />
+            </Box>
+          ) : null}
 
           {del.isError ? <Alert severity="error">{t('vehicle:deleteFailed')}</Alert> : null}
         </Stack>

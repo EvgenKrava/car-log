@@ -26,8 +26,10 @@ export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void })
   const { t, i18n } = useTranslation(['vehicle', 'car']);
   const title = car.nickname || `${car.make} ${car.model}`;
   return (
-    <Card sx={{ transition: 'box-shadow .15s, transform .15s', '&:hover': { transform: 'translateY(-2px)' } }}>
-      <CardActionArea onClick={onClick} sx={{ p: 0.5 }}>
+    // height: 100% — grid items stretch, so every card in a row matches the
+    // tallest one regardless of which optional fields a car has.
+    <Card sx={{ height: '100%', transition: 'box-shadow .15s, transform .15s', '&:hover': { transform: 'translateY(-2px)' } }}>
+      <CardActionArea onClick={onClick} sx={{ p: 0.5, height: '100%', alignItems: 'stretch' }}>
         <CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
             <Typography variant="h6" noWrap>{title}</Typography>
@@ -40,11 +42,12 @@ export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void })
             {car.year}
             {car.mileage > 0 ? ` · ${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}` : ''}
           </Typography>
-          {car.nickname ? (
-            <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>
-              {car.make} {car.model}
-            </Typography>
-          ) : null}
+          {/* Always rendered so every card has the same line count; nicknamed
+              cars show make/model here, others reserve the space invisibly. */}
+          <Typography variant="body2" color="text.secondary" noWrap
+            sx={{ mt: 0.5, visibility: car.nickname ? 'visible' : 'hidden' }}>
+            {car.nickname ? `${car.make} ${car.model}` : ' '}
+          </Typography>
         </CardContent>
       </CardActionArea>
     </Card>
