@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireAuth } from './auth';
 import { buildTheme } from './theme';
+import { ThemeModeProvider, useThemeMode } from './lib/theme-mode';
 import { Garage } from './routes/Garage';
 import { Profile } from './routes/Profile';
 import { Vehicle } from './routes/Vehicle';
@@ -25,8 +26,11 @@ const queryClient = new QueryClient();
 
 function Root() {
   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+  // User preference (Profile → Settings) wins; "system" follows the OS.
+  const { mode } = useThemeMode();
+  const resolved = mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode;
   return (
-    <ThemeProvider theme={buildTheme(prefersDark ? 'dark' : 'light')}>
+    <ThemeProvider theme={buildTheme(resolved)}>
       <CssBaseline />
       <AuthProvider>
         <QueryClientProvider client={queryClient}>
@@ -50,4 +54,10 @@ function Root() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<StrictMode><Root /></StrictMode>);
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <ThemeModeProvider>
+      <Root />
+    </ThemeModeProvider>
+  </StrictMode>,
+);
