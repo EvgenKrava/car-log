@@ -87,13 +87,20 @@ export function useEvents(carId: string) {
   const token = accessToken ?? '';
   return useQuery({ queryKey: ['cars', carId, 'events'], queryFn: () => getEvents(token, carId), enabled: Boolean(token && carId) });
 }
+// Event create/update may bump car.mileage server-side — refresh the car queries too,
+// so the vehicle hero, reminder dueness, and garage badge don't go stale.
+function invalidateEventsAndCar(qc: ReturnType<typeof useQueryClient>, carId: string) {
+  void qc.invalidateQueries({ queryKey: ['cars', carId, 'events'] });
+  void qc.invalidateQueries({ queryKey: ['cars', carId] });
+  void qc.invalidateQueries({ queryKey: ['cars'] });
+}
 export function useCreateEvent(carId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
-  return useMutation({ mutationFn: (input: CreateEventInput) => createEvent(token, carId, input), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events'] }) });
+  return useMutation({ mutationFn: (input: CreateEventInput) => createEvent(token, carId, input), onSuccess: () => invalidateEventsAndCar(qc, carId) });
 }
 export function useUpdateEvent(carId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
-  return useMutation({ mutationFn: ({ eventId, input }: { eventId: string; input: CreateEventInput }) => updateEvent(token, carId, eventId, input), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events'] }) });
+  return useMutation({ mutationFn: ({ eventId, input }: { eventId: string; input: CreateEventInput }) => updateEvent(token, carId, eventId, input), onSuccess: () => invalidateEventsAndCar(qc, carId) });
 }
 export function useDeleteEvent(carId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
