@@ -12,8 +12,14 @@ import ShareIcon from '@mui/icons-material/Share';
 import HistoryIcon from '@mui/icons-material/History';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import type { Car } from '@carlog/contracts';
-import { useCar, useDeleteCar, useReminders } from '../queries';
+import SpeedIcon from '@mui/icons-material/Speed';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
+import EvStationIcon from '@mui/icons-material/EvStation';
+import type { Car, Event } from '@carlog/contracts';
+import { useCar, useDeleteCar, useEvents, useReminders } from '../queries';
 import { reminderStatus, todayISO } from '../lib/reminder-view';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -27,43 +33,121 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
 import { formatNumber } from '../i18n/format';
 
-// One of the three key facts on the hero — a small caps label above a
-// prominent value. No icon: keeps the tiles readable even at 360px width
-// where a leading avatar would squeeze the value.
-function StatTile({ label, value }: { label: string; value: string }) {
+// One of the three key facts on the hero — an icon beside a small caps label
+// and a prominent value. Icons sit in a tinted square so the row reads as a
+// dashboard, not a table; minWidth 0 + noWrap keeps 360px widths safe.
+function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}
+    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+      <Box
+        sx={{
+          width: 36,
+          height: 36,
+          borderRadius: 2,
+          display: 'grid',
+          placeItems: 'center',
+          flexShrink: 0,
+          color: 'primary.main',
+          bgcolor: (theme) =>
+            theme.palette.mode === 'dark' ? 'rgba(91,91,214,0.16)' : 'rgba(91,91,214,0.08)',
+        }}
       >
-        {label}
-      </Typography>
-      <Typography sx={{ fontWeight: 600, mt: 0.25 }} noWrap>{value}</Typography>
-    </Box>
+        {icon}
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, lineHeight: 1.4 }}
+        >
+          {label}
+        </Typography>
+        <Typography sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap>{value}</Typography>
+      </Box>
+    </Stack>
   );
 }
 
-// Secondary identity facts (VIN, plate) sit under a divider so they read as
-// reference detail rather than headline stats. Monospace for VIN/plate makes
-// character-by-character scanning easier.
-function MetaField({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
+// EU-style plate chip: monospace, bordered, with the accent band on the left.
+// A real visual anchor for the car's identity instead of a plain text row.
+function PlateChip({ plate }: { plate: string }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
+    <Stack
+      direction="row"
+      component="span"
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'stretch',
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 1,
+        overflow: 'hidden',
+        height: 26,
+      }}
+    >
+      <Box sx={{ width: 8, bgcolor: 'primary.main' }} />
+      <Typography
+        component="span"
+        sx={{
+          px: 1,
+          fontFamily: '"SFMono-Regular", ui-monospace, Menlo, monospace',
+          fontWeight: 700,
+          fontSize: 13,
+          letterSpacing: '0.08em',
+          display: 'inline-flex',
+          alignItems: 'center',
+          textTransform: 'uppercase',
+        }}
+      >
+        {plate}
+      </Typography>
+    </Stack>
+  );
+}
+
+// VIN as quiet reference detail: label chip + monospace value.
+function VinRow({ vin, label }: { vin: string; label: string }) {
+  return (
+    <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: '0.06em' }}>
+        {label}
+      </Typography>
       <Typography
         variant="body2"
         sx={{
+          fontFamily: '"SFMono-Regular", ui-monospace, Menlo, monospace',
           fontWeight: 500,
-          fontFamily: monospace ? '"SFMono-Regular", ui-monospace, Menlo, monospace' : undefined,
+          letterSpacing: '0.04em',
           wordBreak: 'break-all',
+          color: 'text.secondary',
         }}
       >
-        {value}
+        {vin}
       </Typography>
-    </Box>
+    </Stack>
   );
+}
+
+const FUEL_ICONS: Record<Car['fuelType'], React.ReactNode> = {
+  petrol: <LocalGasStationIcon sx={{ fontSize: 16 }} />,
+  diesel: <LocalGasStationIcon sx={{ fontSize: 16 }} />,
+  lpg: <LocalGasStationIcon sx={{ fontSize: 16 }} />,
+  electric: <EvStationIcon sx={{ fontSize: 16 }} />,
+  hybrid: <EvStationIcon sx={{ fontSize: 16 }} />,
+  other: <LocalGasStationIcon sx={{ fontSize: 16 }} />,
+};
+
+// Total spent across events, grouped by currency; shows the dominant currency's
+// sum (multi-currency histories are rare — the tooltip-free short form wins).
+function totalSpent(events: Event[] | undefined, lang: string): string | null {
+  if (!events?.length) return null;
+  const byCurrency = new Map<string, number>();
+  for (const e of events) {
+    if (e.cost > 0) byCurrency.set(e.currency, (byCurrency.get(e.currency) ?? 0) + e.cost);
+  }
+  if (!byCurrency.size) return null;
+  const [currency, sum] = [...byCurrency.entries()].sort((a, b) => b[1] - a[1])[0]!;
+  return `${formatNumber(Math.round(sum), lang)} ${currency}`;
 }
 
 const TAB_KEYS = ['history', 'photos', 'reminders'] as const;
@@ -108,9 +192,12 @@ function VehicleDetail({ car }: { car: Car }) {
   const title = car.nickname || `${car.make} ${car.model}`;
   const hasNickname = Boolean(car.nickname);
   // A 0 mileage means "not recorded" (e.g. imported history without odometer data) — show a dash.
-  const mileageDisplay = car.mileage > 0 ? `${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}` : '—';
+  const mileageDisplay = car.mileage > 0 ? `${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}` : t('vehicle:statNotRecorded');
   const fuelDisplay = t(`car:fuelType_${car.fuelType}`);
-  const hasSecondary = Boolean(car.vin || car.licensePlate);
+  // Events power the derived hero stats (record count, total spent). The same
+  // query feeds the History tab, so this costs nothing extra.
+  const { data: events } = useEvents(car.id);
+  const spent = totalSpent(events, i18n.language);
 
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
 
@@ -137,74 +224,118 @@ function VehicleDetail({ car }: { car: Car }) {
           gives the hero room to breathe. */}
       <Container maxWidth="md" sx={{ py: { xs: 3, sm: 4 } }}>
         <Stack spacing={{ xs: 2.5, sm: 3 }}>
-          {/* Hero — identity + headline stats. Everything else on the page is
-              in service of this card. */}
-          <Card>
-            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-              <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-                    {title}
-                  </Typography>
-                  {hasNickname ? (
-                    <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-                      {car.make} {car.model}
-                    </Typography>
-                  ) : null}
-                </Box>
-                <IconButton
-                  size="small"
-                  aria-label={t('vehicle:carActions')}
-                  onClick={(e) => setMenuAnchor(e.currentTarget)}
-                  sx={{ mt: -0.5, mr: -0.5 }}
-                >
-                  <MoreVertIcon />
-                </IconButton>
-                <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
-                  <MenuItem onClick={() => { setMenuAnchor(null); setEditOpen(true); }}>
-                    <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>{t('common:edit')}</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => { setMenuAnchor(null); void onShare(); }}>
-                    <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>{t('common:share')}</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
-                    <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
-                    <ListItemText>{t('common:delete')}</ListItemText>
-                  </MenuItem>
-                </Menu>
-              </Stack>
+          {/* Hero — identity + a small derived dashboard. A soft accent wash
+              across the top ties the card to the brand without shouting. */}
+          <Card sx={{ overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: (theme) =>
+                  theme.palette.mode === 'dark'
+                    ? 'linear-gradient(135deg, rgba(91,91,214,0.20) 0%, rgba(91,91,214,0.05) 55%, transparent 100%)'
+                    : 'linear-gradient(135deg, rgba(91,91,214,0.10) 0%, rgba(91,91,214,0.03) 55%, transparent 100%)',
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2.5, sm: 3 }, pb: { xs: 2, sm: 2.5 } }}>
+                <Stack direction="row" alignItems="flex-start" spacing={{ xs: 1.5, sm: 2 }}>
+                  {/* Identity avatar — hidden on the narrowest phones where the
+                      title needs every pixel. */}
+                  <Box
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 3,
+                      display: { xs: 'none', sm: 'grid' },
+                      placeItems: 'center',
+                      flexShrink: 0,
+                      color: 'primary.main',
+                      bgcolor: (theme) =>
+                        theme.palette.mode === 'dark' ? 'rgba(91,91,214,0.18)' : 'rgba(91,91,214,0.10)',
+                    }}
+                  >
+                    <DirectionsCarFilledIcon sx={{ fontSize: 30 }} />
+                  </Box>
 
-              {/* Three headline stats. CSS grid keeps them evenly sized on
-                  every width and still readable at 360px. */}
+                  <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                    <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                      {title}
+                    </Typography>
+                    {/* Identity line: make/model (when nicknamed) · year · fuel.
+                        Keeping these inline frees the stat row below for facts
+                        the user actually tracks. */}
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.75, flexWrap: 'wrap', rowGap: 0.75 }}>
+                      <Typography color="text.secondary" variant="body2" sx={{ fontWeight: 500 }}>
+                        {hasNickname ? `${car.make} ${car.model} · ` : ''}{car.year}
+                      </Typography>
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: 'text.secondary' }}>
+                        {FUEL_ICONS[car.fuelType]}
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{fuelDisplay}</Typography>
+                      </Stack>
+                      {car.licensePlate ? <PlateChip plate={car.licensePlate} /> : null}
+                    </Stack>
+                  </Box>
+
+                  <IconButton
+                    size="small"
+                    aria-label={t('vehicle:carActions')}
+                    onClick={(e) => setMenuAnchor(e.currentTarget)}
+                    sx={{ mt: -0.5, mr: -0.5 }}
+                  >
+                    <MoreVertIcon />
+                  </IconButton>
+                  <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+                    <MenuItem onClick={() => { setMenuAnchor(null); setEditOpen(true); }}>
+                      <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>{t('common:edit')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem onClick={() => { setMenuAnchor(null); void onShare(); }}>
+                      <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>{t('common:share')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
+                      <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+                      <ListItemText>{t('common:delete')}</ListItemText>
+                    </MenuItem>
+                  </Menu>
+                </Stack>
+              </CardContent>
+            </Box>
+
+            {/* Derived dashboard: odometer, record count, total spent — the
+                numbers this app exists to keep. Divided row instead of open
+                grid so the tiles read as one instrument cluster. */}
+            <CardContent sx={{ p: { xs: 2.5, sm: 3 }, pt: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2.5, sm: 3 } } }}>
               <Box
                 sx={{
-                  mt: { xs: 2.5, sm: 3 },
                   display: 'grid',
                   gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                  gap: { xs: 2, sm: 3 },
+                  gap: { xs: 1.5, sm: 2 },
+                  '& > :not(:first-of-type)': {
+                    borderLeft: 1,
+                    borderColor: 'divider',
+                    pl: { xs: 1.5, sm: 2 },
+                  },
                 }}
               >
-                <StatTile label={t('car:mileage')} value={mileageDisplay} />
-                <StatTile label={t('car:year')} value={String(car.year)} />
-                <StatTile label={t('car:fuelType')} value={fuelDisplay} />
+                <StatTile
+                  icon={<SpeedIcon sx={{ fontSize: 20 }} />}
+                  label={t('vehicle:statOdometer')}
+                  value={mileageDisplay}
+                />
+                <StatTile
+                  icon={<ReceiptLongIcon sx={{ fontSize: 20 }} />}
+                  label={t('vehicle:statRecords')}
+                  value={events ? String(events.length) : t('vehicle:statNotRecorded')}
+                />
+                <StatTile
+                  icon={<PaymentsIcon sx={{ fontSize: 20 }} />}
+                  label={t('vehicle:statSpent')}
+                  value={spent ?? t('vehicle:statNotRecorded')}
+                />
               </Box>
 
-              {hasSecondary ? (
-                <Box
-                  sx={{
-                    mt: { xs: 2.5, sm: 3 },
-                    pt: { xs: 2, sm: 2.5 },
-                    borderTop: 1,
-                    borderColor: 'divider',
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
-                    gap: { xs: 1.5, sm: 3 },
-                  }}
-                >
-                  {car.vin ? <MetaField label={t('car:vin')} value={car.vin} monospace /> : null}
-                  {car.licensePlate ? <MetaField label={t('car:licensePlate')} value={car.licensePlate} monospace /> : null}
+              {car.vin ? (
+                <Box sx={{ mt: { xs: 2, sm: 2.5 }, pt: { xs: 1.5, sm: 2 }, borderTop: 1, borderColor: 'divider' }}>
+                  <VinRow vin={car.vin} label={t('car:vin')} />
                 </Box>
               ) : null}
             </CardContent>
