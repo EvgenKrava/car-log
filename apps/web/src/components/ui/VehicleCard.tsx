@@ -37,7 +37,8 @@ export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void })
             </Stack>
           </Stack>
           <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-            {car.year} · {formatNumber(car.mileage, i18n.language)} {t('vehicle:mileageUnit')}
+            {car.year}
+            {car.mileage > 0 ? ` · ${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}` : ''}
           </Typography>
           {car.nickname ? (
             <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>

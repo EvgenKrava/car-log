@@ -75,7 +75,8 @@ function VehicleDetail({ car }: { car: Car }) {
 
   const title = car.nickname || `${car.make} ${car.model}`;
   const hasNickname = Boolean(car.nickname);
-  const mileageDisplay = `${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}`;
+  // A 0 mileage means "not recorded" (e.g. imported history without odometer data) — show a dash.
+  const mileageDisplay = car.mileage > 0 ? `${formatNumber(car.mileage, i18n.language)} ${t('vehicle:mileageUnit')}` : '—';
   const fuelDisplay = t(`car:fuelType_${car.fuelType}`);
   const hasSecondary = Boolean(car.vin || car.licensePlate);
 
@@ -87,8 +88,8 @@ function VehicleDetail({ car }: { car: Car }) {
     const summary = [
       title,
       `${car.make} ${car.model}${car.year ? ` (${car.year})` : ''}`,
-      mileageDisplay,
-    ].join('\n');
+      car.mileage > 0 ? mileageDisplay : null,
+    ].filter(Boolean).join('\n');
     try {
       if (navigator.share) await navigator.share({ title, text: summary });
       else await navigator.clipboard.writeText(summary);

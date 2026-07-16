@@ -39,10 +39,16 @@ export function EventCard({ carId, event }: { carId: string; event: Event }) {
         <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', width: '100%' }}>
           <Chip label={t(`event:category_${event.category}`)} size="small" color="primary" variant="outlined" sx={{ minWidth: 96 }} />
           <Typography sx={{ fontWeight: 600 }}>{formatDate(`${event.date}T00:00:00.000Z`, i18n.language)}</Typography>
-          <Typography color="text.secondary">
-            {formatNumber(event.mileage, i18n.language)}
-            {event.cost > 0 ? ` · ${formatNumber(event.cost, i18n.language)} ${event.currency}` : ''}
-          </Typography>
+          {/* Imported/scanned events without a known odometer reading are stored as 0 —
+              hide the meaningless "0" instead of rendering it. */}
+          {event.mileage > 0 || event.cost > 0 ? (
+            <Typography color="text.secondary">
+              {[
+                event.mileage > 0 ? formatNumber(event.mileage, i18n.language) : null,
+                event.cost > 0 ? `${formatNumber(event.cost, i18n.language)} ${event.currency}` : null,
+              ].filter(Boolean).join(' · ')}
+            </Typography>
+          ) : null}
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
