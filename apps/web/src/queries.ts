@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
-import type { CreateCarInput, CreateEventInput } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan } from './api-client';
+import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput } from '@carlog/contracts';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -171,6 +171,35 @@ export function useExtractFromScan(carId: string) {
       await uploadToS3(uploadUrl, file);
       const { events } = await extractFromScan(token, carId, key, file.type);
       return { events, s3Key: key, contentType: file.type, size: file.size };
+    },
+  });
+}
+
+export function useReminders(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({ queryKey: ['cars', carId, 'reminders'], queryFn: () => getReminders(token, carId), enabled: Boolean(token && carId) });
+}
+export function useCreateReminder(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: (input: CreateReminderInput) => createReminder(token, carId, input), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] }) });
+}
+export function useUpdateReminder(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: ({ reminderId, input }: { reminderId: string; input: CreateReminderInput }) => updateReminder(token, carId, reminderId, input), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] }) });
+}
+export function useDeleteReminder(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({ mutationFn: (reminderId: string) => deleteReminder(token, carId, reminderId), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] }) });
+}
+export function useCompleteReminder(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reminderId, input }: { reminderId: string; input: CompleteReminderInput }) => completeReminder(token, carId, reminderId, input),
+    // Completion may bump car.mileage server-side — refresh the car too.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] });
+      void qc.invalidateQueries({ queryKey: ['cars', carId] });
+      void qc.invalidateQueries({ queryKey: ['cars'] });
     },
   });
 }
