@@ -471,4 +471,31 @@ describe('route', () => {
       expect(res.statusCode).toBe(404);
     });
   });
+
+  describe('car mileage auto-bump from events', () => {
+    const carBody = { make: 'Toyota', model: 'Corolla', year: 2020, mileage: 50000, fuelType: 'petrol' };
+    const eventBody = { date: '2026-07-01', mileage: 55000, cost: 100, category: 'oil_change' };
+
+    it('POST event with higher mileage bumps the car', async () => {
+      const carId = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: carBody })).body).id;
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: eventBody });
+      const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(car.mileage).toBe(55000);
+    });
+
+    it('POST event with lower mileage (backdated) leaves the car unchanged', async () => {
+      const carId = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: carBody })).body).id;
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: { ...eventBody, mileage: 30000 } });
+      const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(car.mileage).toBe(50000);
+    });
+
+    it('PUT event with higher mileage bumps the car', async () => {
+      const carId = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: carBody })).body).id;
+      const ev = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: eventBody })).body);
+      await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/events/${ev.id}`, ownerId: 'u1', pathParams: { id: carId, eventId: ev.id }, body: { ...eventBody, mileage: 60000 } });
+      const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(car.mileage).toBe(60000);
+    });
+  });
 });
