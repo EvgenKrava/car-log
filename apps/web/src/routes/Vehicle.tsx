@@ -268,7 +268,10 @@ function VehicleDetail({ car }: { car: Car }) {
                       </Typography>
                       <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: 'text.secondary' }}>
                         {FUEL_ICONS[car.fuelType]}
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{fuelDisplay}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {fuelDisplay}
+                          {car.engineVolume ? ` ${formatNumber(car.engineVolume, i18n.language)}L` : ''}
+                        </Typography>
                       </Stack>
                       {car.licensePlate ? <PlateChip plate={car.licensePlate} /> : null}
                     </Stack>

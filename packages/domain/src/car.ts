@@ -17,7 +17,8 @@ export function bumpCarMileage(car: Car, mileage: number): CreateCarInput | null
   if (mileage <= car.mileage) return null;
   return {
     make: car.make, model: car.model, year: car.year, mileage,
-    fuelType: car.fuelType, nickname: car.nickname, vin: car.vin, licensePlate: car.licensePlate,
+    fuelType: car.fuelType, engineVolume: car.engineVolume,
+    nickname: car.nickname, vin: car.vin, licensePlate: car.licensePlate,
   };
 }
 

@@ -25,6 +25,18 @@ describe('CreateCarSchema', () => {
     expect(parsed.vin).toBeUndefined();
     expect(parsed.nickname).toBeUndefined();
   });
+
+  it('accepts an engine volume in liters', () => {
+    expect(CreateCarSchema.parse({ ...valid, engineVolume: 2 }).engineVolume).toBe(2);
+    expect(CreateCarSchema.parse({ ...valid, engineVolume: 1.6 }).engineVolume).toBe(1.6);
+    expect(CreateCarSchema.parse(valid).engineVolume).toBeUndefined();
+  });
+
+  it('rejects out-of-range engine volume', () => {
+    expect(() => CreateCarSchema.parse({ ...valid, engineVolume: 0 })).toThrow();
+    expect(() => CreateCarSchema.parse({ ...valid, engineVolume: -1.6 })).toThrow();
+    expect(() => CreateCarSchema.parse({ ...valid, engineVolume: 30 })).toThrow();
+  });
 });
 
 describe('CarSchema', () => {

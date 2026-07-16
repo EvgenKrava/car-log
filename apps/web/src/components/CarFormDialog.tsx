@@ -19,6 +19,7 @@ const toFormValues = (car: Car): CreateCarInput => ({
   year: car.year,
   mileage: car.mileage,
   fuelType: car.fuelType,
+  engineVolume: car.engineVolume,
   nickname: car.nickname,
   vin: car.vin,
   licensePlate: car.licensePlate,
@@ -82,6 +83,15 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
             {text('model', t('car:model'))}
             {text('year', t('car:year'), 'number')}
             {text('mileage', t('car:mileage'), 'number')}
+            {/* Optional decimal (liters): empty must become undefined, not 0 —
+                the schema rejects 0 and EVs simply leave it blank. */}
+            <Controller name="engineVolume" control={control} render={({ field }) => (
+              <TextField {...field} label={t('car:engineVolume')} type="number" fullWidth
+                value={field.value ?? ''}
+                onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                inputProps={{ step: 0.1, min: 0.1, inputMode: 'decimal' }}
+                error={Boolean(errors.engineVolume)} helperText={errors.engineVolume?.message} />
+            )} />
             {text('nickname', t('car:nickname'))}
             {text('vin', t('car:vin'))}
             {text('licensePlate', t('car:licensePlate'))}

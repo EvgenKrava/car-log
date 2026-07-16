@@ -16,6 +16,8 @@ export const CreateCarSchema = z.object({
   year: z.number().int().min(1900).max(2027),
   mileage: z.number().int().min(0),
   fuelType: FuelTypeSchema,
+  // Displacement in liters (e.g. 1.6, 2.0). 20L ceiling covers trucks; EVs leave it unset.
+  engineVolume: z.number().positive().max(20).optional(),
   nickname: emptyToUndefined(z.string().max(60)),
   vin: emptyToUndefined(z.string().regex(/^[A-HJ-NPR-Z0-9]{11,17}$/i, 'invalid VIN')),
   licensePlate: emptyToUndefined(z.string().max(15)),
