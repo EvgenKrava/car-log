@@ -1,7 +1,26 @@
 import { Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { useTranslation } from 'react-i18next';
 import type { Car } from '@carlog/contracts';
 import { formatNumber } from '../../i18n/format';
+import { useReminders } from '../../queries';
+import { reminderStatus, todayISO } from '../../lib/reminder-view';
+
+function DueBadge({ car }: { car: Car }) {
+  const { data: reminders } = useReminders(car.id);
+  const { t } = useTranslation(['reminders']);
+  if (!reminders?.length) return null;
+  const today = todayISO();
+  const statuses = reminders.map((r) => reminderStatus(r, car.mileage, today));
+  const overdue = statuses.filter((s) => s === 'overdue').length;
+  const dueSoon = statuses.filter((s) => s === 'due_soon').length;
+  if (!overdue && !dueSoon) return null;
+  return (
+    <Chip size="small" color={overdue ? 'error' : 'warning'} icon={<NotificationsActiveIcon />}
+      label={overdue + dueSoon}
+      aria-label={t(overdue ? 'reminders:badgeOverdue' : 'reminders:badgeDueSoon')} />
+  );
+}
 
 export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void }) {
   const { t, i18n } = useTranslation(['vehicle', 'car']);
@@ -12,7 +31,10 @@ export function VehicleCard({ car, onClick }: { car: Car; onClick: () => void })
         <CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
             <Typography variant="h6" noWrap>{title}</Typography>
-            <Chip label={t(`car:fuelType_${car.fuelType}`)} size="small" color="primary" variant="outlined" />
+            <Stack direction="row" spacing={0.5}>
+              <DueBadge car={car} />
+              <Chip label={t(`car:fuelType_${car.fuelType}`)} size="small" color="primary" variant="outlined" />
+            </Stack>
           </Stack>
           <Typography color="text.secondary" sx={{ mt: 0.5 }}>
             {car.year} · {formatNumber(car.mileage, i18n.language)} {t('vehicle:mileageUnit')}

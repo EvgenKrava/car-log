@@ -10,6 +10,17 @@ export function createCar(ownerId: string, input: CreateCarInput, deps: CreateCa
   return { ...data, id, ownerId, createdAt: timestamp, updatedAt: timestamp };
 }
 
+// Events (and reminder completions) carry odometer readings; the car's mileage
+// field must never lag behind them. Returns the update input when a bump is
+// needed, null when the reading isn't newer.
+export function bumpCarMileage(car: Car, mileage: number): CreateCarInput | null {
+  if (mileage <= car.mileage) return null;
+  return {
+    make: car.make, model: car.model, year: car.year, mileage,
+    fuelType: car.fuelType, nickname: car.nickname, vin: car.vin, licensePlate: car.licensePlate,
+  };
+}
+
 export class CarNotFoundError extends Error {
   constructor(id: string) {
     super(`Car ${id} not found`);

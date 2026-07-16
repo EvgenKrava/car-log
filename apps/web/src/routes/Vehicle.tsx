@@ -16,6 +16,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ImportEventsDialog } from '../components/ImportEventsDialog';
 import { ScanInvoiceDialog } from '../components/ScanInvoiceDialog';
 import { PhotoGallery } from '../components/PhotoGallery';
+import { RemindersSection } from '../components/RemindersSection';
 import { ServiceTimeline } from '../components/ServiceTimeline';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -181,6 +182,12 @@ function VehicleDetail({ car }: { car: Car }) {
               the outer Stack fully controls section spacing. */}
           <Box sx={{ '& > *': { mt: 0 } }}>
             <PhotoGallery carId={car.id} />
+          </Box>
+
+          {/* Reminders — due/overdue maintenance surfaces above the history so
+              action items are visible before the archive. */}
+          <Box sx={{ '& > *': { mt: 0 } }}>
+            <RemindersSection car={car} />
           </Box>
 
           {/* Service history — the primary content of the page (per project

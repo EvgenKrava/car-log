@@ -6,6 +6,7 @@ import { InMemoryEventRepository } from './in-memory-event-repository';
 import { InMemoryProofRepository } from './in-memory-proof-repository';
 import { InMemoryLlmProvider } from './in-memory-llm-provider';
 import { InMemoryImportJobRepository } from './in-memory-import-job-repository';
+import { InMemoryReminderRepository } from './in-memory-reminder-repository';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 
@@ -19,7 +20,7 @@ const storage: PhotoStorage = {
   copyObject: async () => {},
 };
 let enqueueSpy: ReturnType<typeof vi.fn>;
-let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string };
+let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   photos = new InMemoryPhotoRepository();
@@ -28,6 +29,7 @@ beforeEach(() => {
     cars, photos, storage,
     events: new InMemoryEventRepository(),
     proofs: new InMemoryProofRepository(),
+    reminders: new InMemoryReminderRepository(),
     llm: new InMemoryLlmProvider({ events: [{ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' }] }),
     importJobs: new InMemoryImportJobRepository(),
     enqueueImport: enqueueSpy,
@@ -385,6 +387,115 @@ describe('route', () => {
       const res = await route(deps, { ...base, method: 'POST', path: '/import/scan', ownerId: 'u1', body: { carId, s3Key: 'scans/u1/missing.pdf', contentType: 'application/pdf' } });
       expect(res.statusCode).toBe(422);
       expect(JSON.parse(res.body).error).toBe('ExtractionFailed');
+    });
+  });
+
+  describe('reminder routes', () => {
+    const carBody = { make: 'Toyota', model: 'Corolla', year: 2020, mileage: 50000, fuelType: 'petrol' };
+    const reminderBody = { title: 'Oil change', category: 'oil_change', dueDate: '2099-01-01', repeatMonths: 6 };
+
+    async function makeCar(ownerId = 'u1'): Promise<string> {
+      const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: carBody });
+      return JSON.parse(res.body).id as string;
+    }
+
+    it('POST creates a reminder scoped to the owner and car', async () => {
+      const carId = await makeCar();
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: reminderBody });
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.body)).toMatchObject({ title: 'Oil change', carId, ownerId: 'u1' });
+    });
+
+    it('GET lists only that car reminders', async () => {
+      const carId = await makeCar();
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: reminderBody });
+      const res = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId } });
+      expect(JSON.parse(res.body)).toHaveLength(1);
+    });
+
+    it('404s for another owner', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/reminders`, ownerId: 'u2', pathParams: { id: carId } });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('400s when neither dueDate nor dueMileage is set', async () => {
+      const carId = await makeCar();
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: { title: 'x', category: 'other' } });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('409s at the 20-reminder cap', async () => {
+      const carId = await makeCar();
+      for (let i = 0; i < 20; i++) {
+        await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: reminderBody });
+      }
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: reminderBody });
+      expect(res.statusCode).toBe(409);
+    });
+
+    it('PUT updates and DELETE removes', async () => {
+      const carId = await makeCar();
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: reminderBody })).body);
+      const put = await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/reminders/${created.id}`, ownerId: 'u1', pathParams: { id: carId, reminderId: created.id }, body: { ...reminderBody, title: 'Renamed' } });
+      expect(JSON.parse(put.body).title).toBe('Renamed');
+      const del = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/reminders/${created.id}`, ownerId: 'u1', pathParams: { id: carId, reminderId: created.id } });
+      expect(del.statusCode).toBe(204);
+      const list = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId } });
+      expect(JSON.parse(list.body)).toHaveLength(0);
+    });
+
+    it('complete on a repeating reminder returns the next occurrence and bumps car mileage', async () => {
+      const carId = await makeCar();
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: reminderBody })).body);
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders/${created.id}/complete`, ownerId: 'u1', pathParams: { id: carId, reminderId: created.id }, body: { date: '2026-07-16', mileage: 60000 } });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toMatchObject({ id: created.id, dueDate: '2027-01-16' });
+      const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(car.mileage).toBe(60000);
+    });
+
+    it('complete on a one-shot reminder deletes it and returns 204', async () => {
+      const carId = await makeCar();
+      const oneShot = { title: 'Inspection', category: 'inspection', dueDate: '2099-01-01' };
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId }, body: oneShot })).body);
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders/${created.id}/complete`, ownerId: 'u1', pathParams: { id: carId, reminderId: created.id }, body: { date: '2026-07-16', mileage: 0 } });
+      expect(res.statusCode).toBe(204);
+      const list = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/reminders`, ownerId: 'u1', pathParams: { id: carId } });
+      expect(JSON.parse(list.body)).toHaveLength(0);
+    });
+
+    it('complete 404s on a missing reminder', async () => {
+      const carId = await makeCar();
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/reminders/00000000-0000-4000-8000-000000000000/complete`, ownerId: 'u1', pathParams: { id: carId, reminderId: '00000000-0000-4000-8000-000000000000' }, body: { date: '2026-07-16', mileage: 0 } });
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
+  describe('car mileage auto-bump from events', () => {
+    const carBody = { make: 'Toyota', model: 'Corolla', year: 2020, mileage: 50000, fuelType: 'petrol' };
+    const eventBody = { date: '2026-07-01', mileage: 55000, cost: 100, category: 'oil_change' };
+
+    it('POST event with higher mileage bumps the car', async () => {
+      const carId = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: carBody })).body).id;
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: eventBody });
+      const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(car.mileage).toBe(55000);
+    });
+
+    it('POST event with lower mileage (backdated) leaves the car unchanged', async () => {
+      const carId = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: carBody })).body).id;
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: { ...eventBody, mileage: 30000 } });
+      const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(car.mileage).toBe(50000);
+    });
+
+    it('PUT event with higher mileage bumps the car', async () => {
+      const carId = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: carBody })).body).id;
+      const ev = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: eventBody })).body);
+      await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/events/${ev.id}`, ownerId: 'u1', pathParams: { id: carId, eventId: ev.id }, body: { ...eventBody, mileage: 60000 } });
+      const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
+      expect(car.mileage).toBe(60000);
     });
   });
 });

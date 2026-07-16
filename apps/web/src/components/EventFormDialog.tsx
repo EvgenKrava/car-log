@@ -61,8 +61,8 @@ const toForm = (e: Event): CreateEventInput => ({
 });
 
 export function EventFormDialog({
-  open, onClose, carId, mode, event,
-}: { open: boolean; onClose: () => void; carId: string; mode: 'create' | 'edit'; event?: Event }) {
+  open, onClose, carId, mode, event, initial,
+}: { open: boolean; onClose: () => void; carId: string; mode: 'create' | 'edit'; event?: Event; initial?: Partial<CreateEventInput> }) {
   const { t } = useTranslation(['event', 'common']);
   const create = useCreateEvent(carId);
   const update = useUpdateEvent(carId);
@@ -77,8 +77,8 @@ export function EventFormDialog({
 
   useEffect(() => {
     if (!open) return;
-    reset(mode === 'edit' && event ? toForm(event) : EMPTY);
-  }, [open, mode, event, reset]);
+    reset(mode === 'edit' && event ? toForm(event) : { ...EMPTY, ...initial });
+  }, [open, mode, event, initial, reset]);
 
   const onSubmit = handleSubmit(async (data) => {
     if (mode === 'edit' && event) await update.mutateAsync({ eventId: event.id, input: data });

@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { CarNotFoundError, CapExceededError, PhotoNotFoundError, EventNotFoundError, ProofNotFoundError, ExtractionFailedError } from '@carlog/domain';
+import { CarNotFoundError, CapExceededError, PhotoNotFoundError, EventNotFoundError, ProofNotFoundError, ReminderNotFoundError, ExtractionFailedError } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 
 
@@ -32,7 +32,7 @@ export async function withErrorHandling(fn: () => Promise<ApiResult>): Promise<A
     if (err instanceof PhotoNotFoundError) {
       return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'NotFound', message: err.message }) };
     }
-    if (err instanceof EventNotFoundError || err instanceof ProofNotFoundError) {
+    if (err instanceof EventNotFoundError || err instanceof ProofNotFoundError || err instanceof ReminderNotFoundError) {
       return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'NotFound', message: err.message }) };
     }
     if (err instanceof ExtractionFailedError) {

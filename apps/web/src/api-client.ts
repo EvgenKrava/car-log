@@ -22,6 +22,10 @@ import {
   type ExtractEventsResponse,
   ImportJobSchema,
   type ImportJob,
+  ReminderSchema,
+  type Reminder,
+  type CreateReminderInput,
+  type CompleteReminderInput,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -146,3 +150,18 @@ export const extractFromScan = (token: string, carId: string, s3Key: string, con
   request(token, '/import/scan', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, s3Key, contentType }) });
 export const confirmProofFromScan = (token: string, carId: string, eventId: string, s3Key: string, contentType: string, size: number) =>
   request(token, `/cars/${carId}/events/${eventId}/proofs/from-scan`, ProofSchema, { method: 'POST', body: JSON.stringify({ s3Key, contentType, size }) });
+
+const ReminderListSchema = z.array(ReminderSchema);
+const reminderBase = (carId: string) => `/cars/${carId}/reminders`;
+
+export const getReminders = (token: string, carId: string): Promise<Reminder[]> =>
+  request(token, reminderBase(carId), ReminderListSchema);
+export const createReminder = (token: string, carId: string, input: CreateReminderInput): Promise<Reminder> =>
+  request(token, reminderBase(carId), ReminderSchema, { method: 'POST', body: JSON.stringify(input) });
+export const updateReminder = (token: string, carId: string, reminderId: string, input: CreateReminderInput): Promise<Reminder> =>
+  request(token, `${reminderBase(carId)}/${reminderId}`, ReminderSchema, { method: 'PUT', body: JSON.stringify(input) });
+export const deleteReminder = (token: string, carId: string, reminderId: string): Promise<void> =>
+  request(token, `${reminderBase(carId)}/${reminderId}`, ReminderSchema, { method: 'DELETE' }).then(() => undefined);
+// 200 → the rescheduled next occurrence; 204 (one-shot, deleted) → undefined.
+export const completeReminder = (token: string, carId: string, reminderId: string, input: CompleteReminderInput): Promise<Reminder | undefined> =>
+  request(token, `${reminderBase(carId)}/${reminderId}/complete`, ReminderSchema, { method: 'POST', body: JSON.stringify(input) });

@@ -1,6 +1,6 @@
-import { CreateEventSchema, ProofConfirmSchema, ProofPresignRequestSchema, MAX_PROOF_SIZE, FromScanProofSchema } from '@carlog/contracts';
+import { CreateEventSchema, ProofConfirmSchema, ProofPresignRequestSchema, MAX_PROOF_SIZE, FromScanProofSchema, type Car } from '@carlog/contracts';
 import {
-  CarNotFoundError, EventNotFoundError, ProofNotFoundError, createEvent,
+  CarNotFoundError, EventNotFoundError, ProofNotFoundError, createEvent, bumpCarMileage,
   type EventRepository, type ProofRepository, type PhotoStorage, type CarRepository,
 } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
@@ -11,9 +11,10 @@ export type EventDeps = {
   cars: CarRepository; events: EventRepository; proofs: ProofRepository; storage: PhotoStorage;
 };
 
-async function requireCar(deps: EventDeps, ownerId: string, carId: string) {
+async function requireCar(deps: EventDeps, ownerId: string, carId: string): Promise<Car> {
   const car = await deps.cars.getById(ownerId, carId);
   if (!car) throw new CarNotFoundError(carId);
+  return car;
 }
 
 async function requireEvent(deps: EventDeps, ownerId: string, carId: string, eventId: string) {
@@ -97,9 +98,13 @@ export async function handleEventRoute(
     return ok(200, await deps.events.listByCar(ownerId, carId));
   }
   if (path === base && method === 'POST') {
-    await requireCar(deps, ownerId, carId);
+    const car = await requireCar(deps, ownerId, carId);
     const ev = createEvent(ownerId, carId, CreateEventSchema.parse(body));
-    return ok(201, await deps.events.create(ev));
+    const created = await deps.events.create(ev);
+    // Odometer readings on events keep the car's mileage current (spec: mileage auto-update).
+    const bumped = bumpCarMileage(car, ev.mileage);
+    if (bumped) await deps.cars.update(ownerId, carId, bumped);
+    return ok(201, created);
   }
   if (eventId && path === `${base}/${eventId}` && method === 'GET') {
     await requireCar(deps, ownerId, carId);
@@ -108,9 +113,13 @@ export async function handleEventRoute(
     return ok(200, ev);
   }
   if (eventId && path === `${base}/${eventId}` && method === 'PUT') {
-    await requireCar(deps, ownerId, carId);
+    const car = await requireCar(deps, ownerId, carId);
     await requireEvent(deps, ownerId, carId, eventId);
-    return ok(200, await deps.events.update(ownerId, carId, eventId, CreateEventSchema.parse(body)));
+    const input = CreateEventSchema.parse(body);
+    const updated = await deps.events.update(ownerId, carId, eventId, input);
+    const bumped = bumpCarMileage(car, input.mileage);
+    if (bumped) await deps.cars.update(ownerId, carId, bumped);
+    return ok(200, updated);
   }
   if (eventId && path === `${base}/${eventId}` && method === 'DELETE') {
     await requireCar(deps, ownerId, carId);
