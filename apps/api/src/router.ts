@@ -1,8 +1,9 @@
 import { CreateCarSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, type CarRepository, type PhotoRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider } from '@carlog/domain';
+import { CarNotFoundError, createCar, type CarRepository, type PhotoRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handlePhotoRoute } from './photo-routes';
 import { handleEventRoute } from './event-routes';
+import { handleReminderRoute } from './reminder-routes';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
 import { handleScanRoute } from './scan-routes';
@@ -20,7 +21,7 @@ export type ApiEvent = {
 
 export type RouteDeps = {
   cars: CarRepository; photos: PhotoRepository; storage: PhotoStorage;
-  events: EventRepository; proofs: ProofRepository; llm: LlmProvider;
+  events: EventRepository; proofs: ProofRepository; reminders: ReminderRepository; llm: LlmProvider;
   importJobs: ImportJobRepository;
   enqueueImport: (p: ImportWorkPayload) => Promise<void>;
   loadScanBase64: (key: string) => Promise<string | null>;
@@ -62,6 +63,11 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (id && path.startsWith(`/cars/${id}/events`)) {
       const result = await handleEventRoute(deps, event, ownerId, id);
+      if (result) return result;
+    }
+
+    if (id && path.startsWith(`/cars/${id}/reminders`)) {
+      const result = await handleReminderRoute({ cars: deps.cars, reminders: deps.reminders }, event, ownerId, id);
       if (result) return result;
     }
 

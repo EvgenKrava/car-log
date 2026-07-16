@@ -10,6 +10,7 @@ import { DynamoCarRepository } from './dynamo-car-repository';
 import { DynamoPhotoRepository } from './dynamo-photo-repository';
 import { DynamoEventRepository } from './dynamo-event-repository';
 import { DynamoProofRepository } from './dynamo-proof-repository';
+import { DynamoReminderRepository } from './dynamo-reminder-repository';
 import { DynamoImportJobRepository } from './import-job-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
@@ -66,6 +67,7 @@ const deps: RouteDeps = {
   storage: new S3PhotoStorage(photosBucket, s3),
   events,
   proofs: new DynamoProofRepository(tableName, client),
+  reminders: new DynamoReminderRepository(tableName, client),
   llm,
   importJobs,
   enqueueImport,
