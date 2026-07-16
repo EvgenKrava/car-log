@@ -29,7 +29,7 @@ export function CompleteReminderDialog({
     setDate(todayISO());
     setMileage(carMileage);
     complete.reset();
-  }, [open, carMileage, complete]);
+  }, [open, carMileage]);
 
   const onConfirm = async () => {
     const input = { date, mileage: mileage ?? 0 };
