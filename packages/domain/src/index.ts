@@ -9,3 +9,5 @@ export * from './proof-repository';
 export * from './llm-provider';
 export { extractEvents, extractEventsFromDocument, ExtractionFailedError } from './extract-events';
 export { chunkText, mergeCandidates } from './chunk-text';
+export * from './reminder';
+export * from './reminder-repository';
