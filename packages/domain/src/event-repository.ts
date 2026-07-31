@@ -6,4 +6,5 @@ export interface EventRepository {
   getById(ownerId: string, carId: string, eventId: string): Promise<Event | null>;
   update(ownerId: string, carId: string, eventId: string, input: CreateEventInput): Promise<Event>;
   delete(ownerId: string, carId: string, eventId: string): Promise<void>;
+  recentAcrossOwners(limit: number): Promise<Event[]>;
 }

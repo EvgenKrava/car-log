@@ -32,4 +32,9 @@ export class InMemoryEventRepository implements EventRepository {
   async delete(ownerId: string, carId: string, eventId: string): Promise<void> {
     this.rows.delete(this.k(ownerId, eventSk(carId, eventId)));
   }
+  async recentAcrossOwners(limit: number): Promise<Event[]> {
+    return [...this.rows.values()]
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .slice(0, limit);
+  }
 }
