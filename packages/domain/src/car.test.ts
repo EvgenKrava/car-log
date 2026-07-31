@@ -23,7 +23,7 @@ describe('bumpCarMileage', () => {
     id: '33333333-3333-4333-8333-333333333333', ownerId: 'u1',
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     make: 'Toyota', model: 'Corolla', year: 2020, mileage: 50000, fuelType: 'petrol' as const,
-    nickname: undefined, vin: undefined, licensePlate: undefined,
+    nickname: undefined, vin: undefined, licensePlate: undefined, shared: false,
   };
   it('returns update input when the new mileage is higher', () => {
     expect(bumpCarMileage(car, 51000)).toMatchObject({ make: 'Toyota', mileage: 51000 });

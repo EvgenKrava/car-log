@@ -7,7 +7,7 @@ export function createCar(ownerId: string, input: CreateCarInput, deps: CreateCa
   const data = CreateCarSchema.parse(input);
   const id = (deps.newId ?? defaultNewId)();
   const timestamp = (deps.now ?? nowIso)();
-  return { ...data, id, ownerId, createdAt: timestamp, updatedAt: timestamp };
+  return { ...data, id, ownerId, createdAt: timestamp, updatedAt: timestamp, shared: false };
 }
 
 // Events (and reminder completions) carry odometer readings; the car's mileage

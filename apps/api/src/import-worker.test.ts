@@ -33,7 +33,7 @@ describe('runImportJob', () => {
     const car = await cars.create({
       id: '9f1e9d5a-6b2c-4e8f-9a1b-2c3d4e5f6a7b', ownerId: OWNER,
       make: 'Toyota', model: 'Corolla', year: 2020, mileage: 45000, fuelType: 'petrol',
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), shared: false,
     });
     carId = car.id;
   });

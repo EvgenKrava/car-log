@@ -3,6 +3,7 @@ import { CarNotFoundError, type CarRepository } from '@carlog/domain';
 
 export class InMemoryCarRepository implements CarRepository {
   private cars = new Map<string, Car>();
+  private sharedIndex = new Map<string, string>();
   private key(ownerId: string, id: string) { return `${ownerId}#${id}`; }
 
   async create(car: Car): Promise<Car> {
@@ -24,11 +25,23 @@ export class InMemoryCarRepository implements CarRepository {
       ownerId: existing.ownerId,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
+      shared: existing.shared,
     };
     this.cars.set(this.key(ownerId, id), updated);
     return updated;
   }
   async delete(ownerId: string, id: string): Promise<void> {
     if (!this.cars.delete(this.key(ownerId, id))) throw new CarNotFoundError(id);
+  }
+  async setShared(ownerId: string, id: string, shared: boolean): Promise<Car> {
+    const car = await this.getById(ownerId, id);
+    if (!car) throw new CarNotFoundError(id);
+    const updated: Car = { ...car, shared };
+    this.cars.set(this.key(ownerId, id), updated);
+    if (shared) this.sharedIndex.set(id, ownerId); else this.sharedIndex.delete(id);
+    return updated;
+  }
+  async findSharedOwnerId(carId: string): Promise<string | null> {
+    return this.sharedIndex.get(carId) ?? null;
   }
 }

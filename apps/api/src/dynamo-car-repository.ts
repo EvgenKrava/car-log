@@ -6,6 +6,8 @@ import { CarNotFoundError, type CarRepository } from '@carlog/domain';
 
 const pk = (ownerId: string) => `USER#${ownerId}`;
 const sk = (id: string) => `CAR#${id}`;
+const sharePk = (carId: string) => `SHARE#${carId}`;
+const SHARE_SK = 'SHARE';
 
 type Row = Car & { PK: string; SK: string };
 const toRow = (car: Car): Row => ({ ...car, PK: pk(car.ownerId), SK: sk(car.id) });
@@ -55,6 +57,7 @@ export class DynamoCarRepository implements CarRepository {
       ownerId: existing.ownerId,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
+      shared: existing.shared,
     };
     await this.client.send(new PutCommand({ TableName: this.tableName, Item: toRow(updated) }));
     return updated;
@@ -64,5 +67,27 @@ export class DynamoCarRepository implements CarRepository {
     const existing = await this.getById(ownerId, id);
     if (!existing) throw new CarNotFoundError(id);
     await this.client.send(new DeleteCommand({ TableName: this.tableName, Key: { PK: pk(ownerId), SK: sk(id) } }));
+  }
+
+  async setShared(ownerId: string, id: string, shared: boolean): Promise<Car> {
+    const car = await this.getById(ownerId, id);
+    if (!car) throw new CarNotFoundError(id);
+    const updated: Car = { ...car, shared };
+    await this.client.send(new PutCommand({ TableName: this.tableName, Item: toRow(updated) }));
+    if (shared) {
+      await this.client.send(new PutCommand({
+        TableName: this.tableName, Item: { PK: sharePk(id), SK: SHARE_SK, ownerId, carId: id },
+      }));
+    } else {
+      await this.client.send(new DeleteCommand({ TableName: this.tableName, Key: { PK: sharePk(id), SK: SHARE_SK } }));
+    }
+    return updated;
+  }
+
+  async findSharedOwnerId(carId: string): Promise<string | null> {
+    const res = await this.client.send(new GetCommand({
+      TableName: this.tableName, Key: { PK: sharePk(carId), SK: SHARE_SK },
+    }));
+    return (res.Item?.ownerId as string | undefined) ?? null;
   }
 }
