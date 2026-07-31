@@ -6,3 +6,4 @@ export * from './import';
 export * from './reminder';
 export * from './admin';
 export * from './metrics';
+export * from './share';

@@ -28,6 +28,7 @@ export const CarSchema = CreateCarSchema.extend({
   ownerId: z.string().min(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  shared: z.boolean().default(false),
 });
 
 export type FuelType = z.infer<typeof FuelTypeSchema>;
