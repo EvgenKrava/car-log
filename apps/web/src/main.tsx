@@ -15,6 +15,7 @@ import { ThemeModeProvider, useThemeMode } from './lib/theme-mode';
 import { Garage } from './routes/Garage';
 import { Profile } from './routes/Profile';
 import { Vehicle } from './routes/Vehicle';
+import { PublicVehicle } from './routes/PublicVehicle';
 import { Login } from './routes/auth/Login';
 import { SignUp } from './routes/auth/SignUp';
 import { ConfirmSignUp } from './routes/auth/ConfirmSignUp';
@@ -45,6 +46,7 @@ function Root() {
               <Route path="/forgot" element={<ForgotPassword />} />
               <Route path="/reset" element={<ResetPassword />} />
               <Route path="/callback" element={<Callback />} />
+              <Route path="/s/:carId" element={<PublicVehicle />} />
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
