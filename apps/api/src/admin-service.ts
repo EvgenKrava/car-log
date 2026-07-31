@@ -7,7 +7,7 @@ export class SelfLockoutError extends Error {}
 
 export type AdminActor = { sub: string; isAdmin: boolean };
 
-function requireAdmin(actor: AdminActor): void {
+export function requireAdmin(actor: AdminActor): void {
   if (!actor.isAdmin) throw new ForbiddenError('Admin role required');
 }
 
