@@ -185,9 +185,6 @@ export class CarLogStack extends Stack {
     const integration = new HttpLambdaIntegration('CarsIntegration', fn);
     httpApi.addRoutes({ path: '/cars', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
-    httpApi.addRoutes({ path: '/cars/{id}/photos', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
-    httpApi.addRoutes({ path: '/cars/{id}/photos/presign', methods: [HttpMethod.POST], integration, authorizer });
-    httpApi.addRoutes({ path: '/cars/{id}/photos/{photoId}', methods: [HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events/{eventId}/proofs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
@@ -197,6 +194,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/reminders', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/reminders/{reminderId}', methods: [HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/reminders/{reminderId}/complete', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/jobs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });

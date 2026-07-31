@@ -3,12 +3,6 @@ import {
   CarSchema,
   type Car,
   type CreateCarInput,
-  PhotoWithUrlSchema,
-  PhotoSchema,
-  PresignResponseSchema,
-  type PhotoWithUrl,
-  type PresignResponse,
-  type PhotoContentType,
   EventSchema,
   type Event,
   type CreateEventInput,
@@ -33,10 +27,11 @@ import {
   type MetricsResponse,
   PublicCarSchema,
   type PublicCar,
+  ChatResponseSchema,
+  type ChatMessage,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
-const PhotoListSchema = z.array(PhotoWithUrlSchema);
 const EventListSchema = z.array(EventSchema);
 const ProofListSchema = z.array(ProofWithUrlSchema);
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -80,28 +75,9 @@ export async function getPublicCar(carId: string): Promise<PublicCar> {
   return PublicCarSchema.parse(await res.json());
 }
 
-export const presignPhoto = (token: string, carId: string, input: { contentType: PhotoContentType; size: number }): Promise<PresignResponse> =>
-  request(token, `/cars/${carId}/photos/presign`, PresignResponseSchema, { method: 'POST', body: JSON.stringify(input) });
-
 export async function uploadToS3(uploadUrl: string, file: File): Promise<void> {
   const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
   if (!res.ok) throw new Error(`S3 upload ${res.status}`);
-}
-
-export const confirmPhoto = (token: string, carId: string, input: { photoId: string; contentType: PhotoContentType; size: number }) =>
-  request(token, `/cars/${carId}/photos`, PhotoSchema, { method: 'POST', body: JSON.stringify(input) });
-
-export const listPhotos = (token: string, carId: string): Promise<PhotoWithUrl[]> =>
-  request(token, `/cars/${carId}/photos`, PhotoListSchema);
-
-export const deletePhoto = (token: string, carId: string, photoId: string): Promise<void> =>
-  request(token, `/cars/${carId}/photos/${photoId}`, PhotoSchema, { method: 'DELETE' }).then(() => undefined);
-
-export async function uploadPhoto(token: string, carId: string, file: File): Promise<void> {
-  const input = { contentType: file.type as PhotoContentType, size: file.size };
-  const { uploadUrl, photoId } = await presignPhoto(token, carId, input);
-  await uploadToS3(uploadUrl, file);
-  await confirmPhoto(token, carId, { ...input, photoId });
 }
 
 export const getEvents = (token: string, carId: string): Promise<Event[]> =>
@@ -167,6 +143,9 @@ export const extractFromScan = (token: string, carId: string, s3Key: string, con
   request(token, '/import/scan', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, s3Key, contentType }) });
 export const confirmProofFromScan = (token: string, carId: string, eventId: string, s3Key: string, contentType: string, size: number) =>
   request(token, `/cars/${carId}/events/${eventId}/proofs/from-scan`, ProofSchema, { method: 'POST', body: JSON.stringify({ s3Key, contentType, size }) });
+
+export const chatWithCar = (token: string, carId: string, messages: ChatMessage[]): Promise<{ reply: string }> =>
+  request(token, `/cars/${carId}/chat`, ChatResponseSchema, { method: 'POST', body: JSON.stringify({ messages }) });
 
 const ReminderListSchema = z.array(ReminderSchema);
 const reminderBase = (carId: string) => `/cars/${carId}/reminders`;

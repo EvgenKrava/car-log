@@ -1,13 +1,13 @@
 export * from './car';
 export * from './car-repository';
 export { newId, nowIso } from './id';
-export * from './photo';
-export * from './photo-repository';
+export * from './storage';
 export * from './event';
 export * from './event-repository';
 export * from './proof-repository';
 export * from './llm-provider';
 export { extractEvents, extractEventsFromDocument, ExtractionFailedError } from './extract-events';
+export { chatAboutCar, buildCarChatContext } from './chat-about-car';
 export { chunkText, mergeCandidates } from './chunk-text';
 export * from './reminder';
 export * from './reminder-repository';

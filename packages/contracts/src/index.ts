@@ -1,5 +1,4 @@
 export * from './car';
-export * from './photo';
 export * from './event';
 export * from './proof';
 export * from './import';
@@ -7,3 +6,4 @@ export * from './reminder';
 export * from './admin';
 export * from './metrics';
 export * from './share';
+export * from './chat';

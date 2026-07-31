@@ -1,5 +1,6 @@
 import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
-import type { LlmProvider, ExtractionContext } from '@carlog/domain';
+import type { ChatMessage } from '@carlog/contracts';
+import type { LlmProvider, ExtractionContext, CarChatContext } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 
 // Bare on-demand foundation-model id. The Bedrock-enabled account (677276119483) that
@@ -110,6 +111,65 @@ function prompt(text: string, ctx: ExtractionContext): string {
   return [instructions(ctx, 'free-form text'), '', 'TEXT:', text].join('\n');
 }
 
+// Extensibility seam for the chat feature. Register a { definition, handler } here to
+// give the chat model a tool (web search, deeper history lookups, ...). v1 ships none, so
+// chat() is a single model call. When the first tool is added: pass these definitions to
+// `create` and wrap the call in the standard `stop_reason === 'tool_use'` loop (see
+// extractEvents for the request shape) — nothing outside this method changes.
+type ChatTool = {
+  definition: { name: string; description: string; input_schema: Record<string, unknown> };
+  handler: (input: unknown) => Promise<string>;
+};
+const CHAT_TOOLS: ChatTool[] = [];
+
+// Serialize the car's grounding data into a system prompt. The instructions keep the
+// model honest: answer only from these records, and admit gaps rather than invent.
+function chatSystem(ctx: CarChatContext): string {
+  const c = ctx.car;
+  const lines = [
+    'You are CarLog, an assistant for ONE specific vehicle. Answer the owner using ONLY the',
+    'car data provided below. If the data does not contain the answer, say so plainly — never',
+    'invent service records, dates, prices, mileage, or specifications. Be concise and practical;',
+    'reply in plain text (no markdown tables). Keep every amount in the currency it is stored in.',
+    '',
+    'CAR:',
+    `- ${[c.year, c.make, c.model].filter(Boolean).join(' ')}${c.nickname ? ` ("${c.nickname}")` : ''}`,
+    `- Fuel: ${c.fuelType}${c.engineVolume ? `, ${c.engineVolume}L` : ''}`,
+    `- Odometer: ${c.mileage > 0 ? `${c.mileage} km` : 'not recorded'}`,
+  ];
+  if (c.vin) lines.push(`- VIN: ${c.vin}`);
+  if (c.licensePlate) lines.push(`- Plate: ${c.licensePlate}`);
+
+  lines.push('', `SERVICE HISTORY (${ctx.events.length} records, newest first):`);
+  if (ctx.events.length === 0) lines.push('- (no records yet)');
+  for (const e of ctx.events) {
+    const head = [
+      e.date,
+      e.category,
+      e.mileage > 0 ? `${e.mileage} km` : null,
+      e.cost > 0 ? `${e.cost} ${e.currency}` : null,
+    ].filter(Boolean).join(' · ');
+    lines.push(`- ${head}${e.title ? ` — ${e.title}` : ''}`);
+    if (e.notes) lines.push(`    note: ${e.notes}`);
+    for (const w of e.works) {
+      const parts = w.parts
+        .map((p) => `${p.name}${p.brand ? ` (${p.brand})` : ''}×${p.quantity}`)
+        .join(', ');
+      lines.push(`    • ${w.description}${parts ? ` — ${parts}` : ''}`);
+    }
+  }
+
+  lines.push('', `REMINDERS (${ctx.reminders.length}):`);
+  if (ctx.reminders.length === 0) lines.push('- (none)');
+  for (const r of ctx.reminders) {
+    const due = [r.dueDate ? `by ${r.dueDate}` : null, r.dueMileage ? `at ${r.dueMileage} km` : null]
+      .filter(Boolean).join(' / ');
+    lines.push(`- ${r.title} (${r.category})${due ? ` — due ${due}` : ''}${r.notes ? ` — ${r.notes}` : ''}`);
+  }
+
+  return lines.join('\n');
+}
+
 export class BedrockLlmProvider implements LlmProvider {
   // Auth via AWS_BEARER_TOKEN_BEDROCK env (a bearer token ISSUED BY the Bedrock-enabled
   // account — the token is self-identifying, so this reaches that account's Bedrock with
@@ -175,5 +235,35 @@ export class BedrockLlmProvider implements LlmProvider {
     }
     const toolUse = res.content.find((c: { type: string }) => c.type === 'tool_use');
     return toolUse && 'input' in toolUse ? toolUse.input : null;
+  }
+
+  async chat(messages: ChatMessage[], context: CarChatContext): Promise<string> {
+    // v1 ships no tools. If one is ever registered without wiring the tool-use loop,
+    // fail loudly rather than silently ignoring it.
+    if (CHAT_TOOLS.length > 0) {
+      throw new Error('chat tools registered but the tool-use loop is not wired');
+    }
+    let res;
+    try {
+      res = await this.client.messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        thinking: { type: 'adaptive' },
+        // Chat is a single conversational reply, not deep reasoning — 'low' keeps it well
+        // inside the ~29s Lambda / 30s API Gateway cap.
+        output_config: { effort: 'low' },
+        system: chatSystem(context),
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      });
+    } catch (err) {
+      const e = err as Error;
+      console.error('Bedrock chat failed', e.name, e.message);
+      throw new LlmUnavailableError();
+    }
+    const text = res.content
+      .map((c) => ('text' in c ? c.text : ''))
+      .join('')
+      .trim();
+    return text || 'Sorry — I could not produce an answer from this car\'s records.';
   }
 }

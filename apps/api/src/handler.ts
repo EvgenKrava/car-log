@@ -9,7 +9,6 @@ import type {
 } from 'aws-lambda';
 import { IMPORT_FILE_MAX, MAX_SCAN_SIZE } from '@carlog/contracts';
 import { DynamoCarRepository } from './dynamo-car-repository';
-import { DynamoPhotoRepository } from './dynamo-photo-repository';
 import { DynamoEventRepository } from './dynamo-event-repository';
 import { DynamoProofRepository } from './dynamo-proof-repository';
 import { DynamoReminderRepository } from './dynamo-reminder-repository';
@@ -73,7 +72,6 @@ const loadScanBase64 = async (key: string): Promise<string | null> => {
 
 const deps: RouteDeps = {
   cars,
-  photos: new DynamoPhotoRepository(tableName, client),
   storage: new S3PhotoStorage(photosBucket, s3),
   events,
   proofs: new DynamoProofRepository(tableName, client),

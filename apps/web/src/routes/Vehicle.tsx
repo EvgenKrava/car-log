@@ -13,8 +13,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
 import PublicIcon from '@mui/icons-material/Public';
 import HistoryIcon from '@mui/icons-material/History';
-import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
-import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import SpeedIcon from '@mui/icons-material/Speed';
@@ -32,7 +32,7 @@ import { ShareCarDialog } from '../components/ShareCarDialog';
 import { AddRecordSheet } from '../components/AddRecordSheet';
 import { ImportEventsDialog } from '../components/ImportEventsDialog';
 import { ScanInvoiceDialog } from '../components/ScanInvoiceDialog';
-import { PhotoGallery, type PhotoGalleryHandle } from '../components/PhotoGallery';
+import { ChatPanel } from '../components/ChatPanel';
 import { RemindersSection, type RemindersSectionHandle } from '../components/RemindersSection';
 import { ServiceTimeline } from '../components/ServiceTimeline';
 import { SpendSparkline } from '../components/SpendSparkline';
@@ -167,7 +167,7 @@ function totalSpent(events: Event[] | undefined, lang: string): { text: string; 
   return { text: `${formatNumber(Math.round(sum), lang)} ${currency}`, multi: entries.length > 1 };
 }
 
-const TAB_KEYS = ['history', 'photos', 'reminders'] as const;
+const TAB_KEYS = ['history', 'chat', 'reminders'] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 const isTabKey = (v: string | null): v is TabKey => TAB_KEYS.includes(v as TabKey);
 
@@ -205,7 +205,7 @@ function RemindersBadgeIcon({ car, active }: { car: Car; active: boolean }) {
 }
 
 function VehicleDetail({ car }: { car: Car }) {
-  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event', 'reminders', 'share']);
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'event', 'reminders', 'share', 'chat']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
@@ -215,12 +215,11 @@ function VehicleDetail({ car }: { car: Car }) {
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  // The universal FAB's add-options sheet (history tab). Photos/reminders trigger
-  // their section's add action directly via these imperative handles.
+  // The universal FAB's add-options sheet (history tab). Reminders triggers its
+  // section's add action directly via this imperative handle.
   const [addSheetOpen, setAddSheetOpen] = useState(false);
-  const photosRef = useRef<PhotoGalleryHandle>(null);
   const remindersRef = useRef<RemindersSectionHandle>(null);
-  // Active tab lives in the URL (?tab=photos) so refresh and back/forward keep
+  // Active tab lives in the URL (?tab=reminders) so refresh and back/forward keep
   // the user's place; the default (history) stays out of the URL.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -228,13 +227,12 @@ function VehicleDetail({ car }: { car: Car }) {
   const setTab = (next: TabKey) =>
     setSearchParams(next === 'history' ? {} : { tab: next }, { replace: true });
 
-  // The add action depends on the active tab: history → options sheet, photos →
-  // file picker, reminders → new reminder. Shared by the desktop FAB and the
-  // mobile bottom bar's "+" item.
+  // The add action depends on the active tab: history → options sheet,
+  // reminders → new reminder. Shared by the desktop FAB and the mobile bottom
+  // bar's "+" item.
   const triggerAdd = () => {
-    if (tab === 'history') setAddSheetOpen(true);
-    else if (tab === 'photos') photosRef.current?.openPicker();
-    else remindersRef.current?.openAdd();
+    if (tab === 'reminders') remindersRef.current?.openAdd();
+    else setAddSheetOpen(true);
   };
 
   const title = car.nickname || `${car.make} ${car.model}`;
@@ -405,9 +403,9 @@ function VehicleDetail({ car }: { car: Car }) {
           </Card>
 
           {/* Tab bar — history is the primary tab (per project docs, "the
-              timeline is the primary screen"); photos and reminders each get
-              their own uncluttered surface. Sticky under the app bar so the
-              tabs stay reachable while scrolling a long timeline. */}
+              timeline is the primary screen"); reminders gets its own
+              uncluttered surface. Sticky under the app bar so the tabs stay
+              reachable while scrolling a long timeline. */}
           <Box
             sx={{
               // Desktop: sticky top tab bar. On mobile the tabs live in a fixed
@@ -433,7 +431,7 @@ function VehicleDetail({ car }: { car: Car }) {
               }}
             >
               <Tab value="history" icon={<HistoryIcon fontSize="small" />} iconPosition="start" label={t('vehicle:tabHistory')} />
-              <Tab value="photos" icon={<PhotoLibraryIcon fontSize="small" />} iconPosition="start" label={t('vehicle:tabPhotos')} />
+              <Tab value="chat" icon={<SmartToyIcon fontSize="small" />} iconPosition="start" label={t('vehicle:tabChat')} />
               <Tab value="reminders" icon={<NotificationsIcon fontSize="small" />} iconPosition="start" label={<RemindersTabLabel car={car} />} />
             </Tabs>
           </Box>
@@ -452,9 +450,9 @@ function VehicleDetail({ car }: { car: Car }) {
               />
             </Box>
           ) : null}
-          {tab === 'photos' ? (
+          {tab === 'chat' ? (
             <Box sx={{ '& > *': { mt: 0 } }}>
-              <PhotoGallery ref={photosRef} carId={car.id} />
+              <ChatPanel carId={car.id} />
             </Box>
           ) : null}
           {tab === 'reminders' ? (
@@ -480,12 +478,13 @@ function VehicleDetail({ car }: { car: Car }) {
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
       {/* Add affordance. Desktop (no bottom bar) → a FAB; mobile → the "+" lives in
           the bottom bar as a labeled item (below). Per-tab action: history → options
-          sheet, photos → file picker, reminders → new reminder. */}
+          sheet, reminders → new reminder. */}
       <Fab
         color="primary"
-        aria-label={tab === 'photos' ? t('photos:add') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+        aria-label={tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
         onClick={triggerAdd}
-        sx={{ display: { xs: 'none', sm: 'flex' }, position: 'fixed', right: 24, bottom: 24 }}
+        // No "add" on the Chat tab — it has its own composer/send.
+        sx={{ display: { xs: 'none', sm: tab === 'chat' ? 'none' : 'flex' }, position: 'fixed', right: 24, bottom: 24 }}
       >
         <AddIcon />
       </Fab>
@@ -497,7 +496,7 @@ function VehicleDetail({ car }: { car: Car }) {
         onManual={() => setManualOpen(true)}
       />
 
-      {/* Mobile bottom nav — a floating frosted capsule of 3 tabs, plus a SEPARATE
+      {/* Mobile bottom nav — a floating frosted capsule of the tabs, plus a SEPARATE
           circular add button beside it. Desktop uses the top Tabs + the FAB above. */}
       <Box
         sx={{
@@ -557,9 +556,9 @@ function VehicleDetail({ car }: { car: Car }) {
           >
             <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
             <BottomNavigationAction
-              value="photos"
-              label={t('vehicle:tabPhotos')}
-              icon={tab === 'photos' ? <PhotoLibraryIcon /> : <PhotoLibraryOutlinedIcon />}
+              value="chat"
+              label={t('vehicle:tabChat')}
+              icon={tab === 'chat' ? <SmartToyIcon /> : <SmartToyOutlinedIcon />}
             />
             <BottomNavigationAction
               value="reminders"
@@ -568,32 +567,35 @@ function VehicleDetail({ car }: { car: Car }) {
             />
           </BottomNavigation>
         </Paper>
-        <Box
-          component="button"
-          type="button"
-          onClick={triggerAdd}
-          aria-label={tab === 'photos' ? t('photos:add') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
-          sx={{
-            flexShrink: 0,
-            width: 62,
-            p: 0,
-            border: 1,
-            borderColor: 'divider',
-            borderRadius: '50%',
-            cursor: 'pointer',
-            display: 'grid',
-            placeItems: 'center',
-            color: 'primary.main',
-            boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
-            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
-            backdropFilter: 'saturate(180%) blur(20px)',
-            WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-            transition: 'transform .1s ease',
-            '&:active': { transform: 'scale(0.94)' },
-          }}
-        >
-          <AddIcon />
-        </Box>
+        {/* No "add" on the Chat tab — the chat has its own composer/send. */}
+        {tab !== 'chat' ? (
+          <Box
+            component="button"
+            type="button"
+            onClick={triggerAdd}
+            aria-label={tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+            sx={{
+              flexShrink: 0,
+              width: 62,
+              p: 0,
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              color: 'primary.main',
+              boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
+              backdropFilter: 'saturate(180%) blur(20px)',
+              WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+              transition: 'transform .1s ease',
+              '&:active': { transform: 'scale(0.94)' },
+            }}
+          >
+            <AddIcon />
+          </Box>
+        ) : null}
       </Box>
     </AppShell>
   );

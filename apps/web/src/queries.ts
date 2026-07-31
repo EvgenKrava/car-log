@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
-import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event, ChatMessage } from '@carlog/contracts';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, chatWithCar, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -74,35 +74,6 @@ export function usePublicCar(carId: string) {
   });
 }
 
-export function usePhotos(carId: string) {
-  const { accessToken } = useAuth();
-  const token = accessToken ?? '';
-  return useQuery({
-    queryKey: ['cars', carId, 'photos'],
-    queryFn: () => listPhotos(token, carId),
-    enabled: Boolean(token && carId),
-  });
-}
-
-export function useUploadPhoto(carId: string) {
-  const { accessToken } = useAuth();
-  const token = accessToken ?? '';
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (file: File) => uploadPhoto(token, carId, file),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'photos'] }),
-  });
-}
-
-export function useDeletePhoto(carId: string) {
-  const { accessToken } = useAuth();
-  const token = accessToken ?? '';
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (photoId: string) => deletePhoto(token, carId, photoId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'photos'] }),
-  });
-}
 
 export function useEvents(carId: string) {
   const { accessToken } = useAuth();
@@ -276,5 +247,15 @@ export function useDeleteUser() {
   return useMutation({
     mutationFn: ({ username }: { username: string }) => deleteUser(token, username),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+}
+
+// Per-car AI chat. Stateless request — the caller owns the conversation state and passes
+// the full message history each turn; nothing is cached.
+export function useChatWithCar(carId: string) {
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
+  return useMutation({
+    mutationFn: (messages: ChatMessage[]) => chatWithCar(token, carId, messages),
   });
 }

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { route } from './router';
 import { InMemoryCarRepository } from './in-memory-car-repository';
-import { InMemoryPhotoRepository } from './in-memory-photo-repository';
 import { InMemoryEventRepository } from './in-memory-event-repository';
 import { InMemoryProofRepository } from './in-memory-proof-repository';
 import { InMemoryLlmProvider } from './in-memory-llm-provider';
@@ -13,7 +12,6 @@ import type { CognitoUserAdmin } from './cognito-user-admin';
 import type { MetricsPort } from './cloudwatch-metrics';
 
 let cars: InMemoryCarRepository;
-let photos: InMemoryPhotoRepository;
 const storage: PhotoStorage = {
   presignPut: async () => 'https://s3.example/put',
   presignGet: async () => 'https://s3.example/get',
@@ -36,13 +34,12 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
-  photos = new InMemoryPhotoRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
   deps = {
-    cars, photos, storage,
+    cars, storage,
     events: new InMemoryEventRepository(),
     proofs: new InMemoryProofRepository(),
     reminders: new InMemoryReminderRepository(),
@@ -103,57 +100,6 @@ describe('route', () => {
     const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
     return JSON.parse(res.body).id as string;
   }
-
-  describe('photo routes', () => {
-    const img = { contentType: 'image/jpeg', size: 2048 };
-
-    it('presign returns an upload url for the owner\'s car', async () => {
-      const carId = await makeCar('u1');
-      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos/presign`, ownerId: 'u1', pathParams: { id: carId }, body: img });
-      expect(res.statusCode).toBe(200);
-      const b = JSON.parse(res.body);
-      expect(b.uploadUrl).toBe('https://s3.example/put');
-      expect(b.photoId).toBeDefined();
-    });
-
-    it('presign 404s for a car the caller does not own', async () => {
-      const carId = await makeCar('u1');
-      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos/presign`, ownerId: 'u2', pathParams: { id: carId }, body: img });
-      expect(res.statusCode).toBe(404);
-    });
-
-    it('confirm creates metadata, list returns it with a url', async () => {
-      const carId = await makeCar('u1');
-      const photoId = crypto.randomUUID();
-      const created = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: { ...img, photoId } });
-      expect(created.statusCode).toBe(201);
-      const list = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId } });
-      expect(list.statusCode).toBe(200);
-      const arr = JSON.parse(list.body);
-      expect(arr).toHaveLength(1);
-      expect(arr[0].url).toBe('https://s3.example/get');
-    });
-
-    it('presign 409s when the per-car cap is reached', async () => {
-      const carId = await makeCar('u1');
-      for (let i = 0; i < 20; i++) {
-        const photoId = crypto.randomUUID();
-        await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: { ...img, photoId } });
-      }
-      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos/presign`, ownerId: 'u1', pathParams: { id: carId }, body: img });
-      expect(res.statusCode).toBe(409);
-    });
-
-    it('delete removes a photo (404 when missing)', async () => {
-      const carId = await makeCar('u1');
-      const photoId = crypto.randomUUID();
-      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/photos`, ownerId: 'u1', pathParams: { id: carId }, body: { ...img, photoId } })).body);
-      const del = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/photos/${created.id}`, ownerId: 'u1', pathParams: { id: carId, photoId: created.id } });
-      expect(del.statusCode).toBe(204);
-      const missing = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/photos/${created.id}`, ownerId: 'u1', pathParams: { id: carId, photoId: created.id } });
-      expect(missing.statusCode).toBe(404);
-    });
-  });
 
   describe('sharing routes', () => {
     it('PUT /cars/{id}/sharing sets shared and returns the updated car', async () => {
@@ -543,6 +489,36 @@ describe('route', () => {
       await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/events/${ev.id}`, ownerId: 'u1', pathParams: { id: carId, eventId: ev.id }, body: { ...eventBody, mileage: 60000 } });
       const car = JSON.parse((await route(deps, { ...base, method: 'GET', path: `/cars/${carId}`, ownerId: 'u1', pathParams: { id: carId } })).body);
       expect(car.mileage).toBe(60000);
+    });
+  });
+
+  describe('chat routes', () => {
+    it('POST /cars/{id}/chat returns a reply for the owner', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, {
+        ...base, method: 'POST', path: `/cars/${carId}/chat`, ownerId: 'u1', pathParams: { id: carId },
+        body: { messages: [{ role: 'user', content: 'When is my next service?' }] },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).reply).toBe('stub chat reply');
+    });
+
+    it('404s for a car the caller does not own', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, {
+        ...base, method: 'POST', path: `/cars/${carId}/chat`, ownerId: 'u2', pathParams: { id: carId },
+        body: { messages: [{ role: 'user', content: 'hi' }] },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('400s when the last message is not from the user', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, {
+        ...base, method: 'POST', path: `/cars/${carId}/chat`, ownerId: 'u1', pathParams: { id: carId },
+        body: { messages: [{ role: 'assistant', content: 'hello' }] },
+      });
+      expect(res.statusCode).toBe(400);
     });
   });
 });

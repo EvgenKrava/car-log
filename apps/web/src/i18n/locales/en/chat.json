@@ -1,0 +1,11 @@
+{
+  "empty": "Ask anything about this car — its service history, costs, or what's due next.",
+  "suggestionSpend": "How much have I spent on brakes?",
+  "suggestionDue": "When is my next service likely due?",
+  "suggestionSummary": "Summarize this car's history for a buyer",
+  "placeholder": "Ask about this car…",
+  "send": "Send",
+  "thinking": "Thinking…",
+  "error": "Couldn't get a reply. Please try again.",
+  "disclaimer": "AI can make mistakes — verify important details."
+}
