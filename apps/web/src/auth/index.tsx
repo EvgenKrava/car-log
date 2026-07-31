@@ -18,6 +18,8 @@ type AuthValue = {
   status: Status;
   email?: string;
   accessToken?: string;
+  isAdmin: boolean;
+  groups: string[];
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
@@ -34,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
   const [email, setEmail] = useState<string | undefined>();
   const [accessToken, setAccessToken] = useState<string | undefined>();
+  const [groups, setGroups] = useState<string[]>([]);
 
   // Proactive-refresh timer. Cognito access tokens expire (~1h); we re-run refresh()
   // shortly before expiry so the cached token never goes stale. fetchAuthSession()
@@ -61,14 +64,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const user = await getCurrentUser();
         setEmail(user.signInDetails?.loginId ?? user.username);
         setAccessToken(token);
+        const raw = session.tokens?.accessToken?.payload?.['cognito:groups'];
+        setGroups(Array.isArray(raw) ? raw.map(String) : []);
         setStatus('authenticated');
         scheduleRefresh(token);
       } else {
         clearRefreshTimer();
+        setGroups([]);
         setStatus('unauthenticated');
       }
     } catch {
       clearRefreshTimer();
+      setGroups([]);
       setStatus('unauthenticated');
     }
   }, [scheduleRefresh, clearRefreshTimer]);
@@ -107,15 +114,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const value = useMemo<AuthValue>(() => ({
-    status, email, accessToken, refresh,
+    status, email, accessToken, groups, isAdmin: groups.includes('admin'), refresh,
     signIn: async (e, p) => { await awsSignIn({ username: e, password: p }); await refresh(); },
     signUp: async (e, p) => { await awsSignUp({ username: e, password: p, options: { userAttributes: { email: e } } }); },
     confirmSignUp: async (e, c) => { await awsConfirmSignUp({ username: e, confirmationCode: c }); },
     resendCode: async (e) => { await resendSignUpCode({ username: e }); },
     forgotPassword: async (e) => { await resetPassword({ username: e }); },
     confirmForgotPassword: async (e, c, p) => { await confirmResetPassword({ username: e, confirmationCode: c, newPassword: p }); },
-    signOut: async () => { clearRefreshTimer(); await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); },
-  }), [status, email, accessToken, refresh, clearRefreshTimer]);
+    signOut: async () => { clearRefreshTimer(); await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); setGroups([]); },
+  }), [status, email, accessToken, groups, refresh, clearRefreshTimer]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
