@@ -11,6 +11,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
+import PublicIcon from '@mui/icons-material/Public';
 import HistoryIcon from '@mui/icons-material/History';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
@@ -27,6 +28,7 @@ import { useCar, useDeleteCar, useEvents, useReminders } from '../queries';
 import { reminderStatus, todayISO } from '../lib/reminder-view';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ShareCarDialog } from '../components/ShareCarDialog';
 import { AddRecordSheet } from '../components/AddRecordSheet';
 import { ImportEventsDialog } from '../components/ImportEventsDialog';
 import { ScanInvoiceDialog } from '../components/ScanInvoiceDialog';
@@ -203,11 +205,12 @@ function RemindersBadgeIcon({ car, active }: { car: Car; active: boolean }) {
 }
 
 function VehicleDetail({ car }: { car: Car }) {
-  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event', 'reminders']);
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event', 'reminders', 'share']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
@@ -339,6 +342,10 @@ function VehicleDetail({ car }: { car: Car }) {
                       <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
                       <ListItemText>{t('common:share')}</ListItemText>
                     </MenuItem>
+                    <MenuItem onClick={() => { setMenuAnchor(null); setShareOpen(true); }}>
+                      <ListItemIcon><PublicIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>{t('share:menu')}</ListItemText>
+                    </MenuItem>
                     <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
                       <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
                       <ListItemText>{t('common:delete')}</ListItemText>
@@ -468,6 +475,7 @@ function VehicleDetail({ car }: { car: Car }) {
         onClose={() => setConfirmOpen(false)}
         loading={del.isPending}
       />
+      <ShareCarDialog open={shareOpen} onClose={() => setShareOpen(false)} car={car} />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
       {/* Add affordance. Desktop (no bottom bar) → a FAB; mobile → the "+" lives in
