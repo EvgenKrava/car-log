@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 import {
@@ -8,6 +8,7 @@ import {
 } from 'aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
 import { configureAmplify } from './amplify';
+import { refreshDelayMs } from './token-refresh';
 
 configureAmplify();
 
@@ -34,6 +35,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState<string | undefined>();
   const [accessToken, setAccessToken] = useState<string | undefined>();
 
+  // Proactive-refresh timer. Cognito access tokens expire (~1h); we re-run refresh()
+  // shortly before expiry so the cached token never goes stale. fetchAuthSession()
+  // transparently mints a fresh token from the refresh token when the current one is near expiry.
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshRef = useRef<() => void>(() => {});
+
+  const clearRefreshTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const scheduleRefresh = useCallback((token: string) => {
+    clearRefreshTimer();
+    timerRef.current = setTimeout(() => { refreshRef.current(); }, refreshDelayMs(token));
+  }, [clearRefreshTimer]);
+
   const refresh = useCallback(async () => {
     try {
       const session = await fetchAuthSession();
@@ -43,15 +62,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEmail(user.signInDetails?.loginId ?? user.username);
         setAccessToken(token);
         setStatus('authenticated');
+        scheduleRefresh(token);
       } else {
+        clearRefreshTimer();
         setStatus('unauthenticated');
       }
     } catch {
+      clearRefreshTimer();
       setStatus('unauthenticated');
     }
-  }, []);
+  }, [scheduleRefresh, clearRefreshTimer]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  // Keep the ref pointing at the latest refresh so the scheduled timer never fires a stale closure.
+  refreshRef.current = () => { void refresh(); };
+
+  useEffect(() => {
+    void refresh();
+    return () => clearRefreshTimer();
+  }, [refresh, clearRefreshTimer]);
 
   // Federated sign-ins complete outside the normal signIn() call path, so listen on
   // the Amplify Hub and refresh session state whenever auth changes anywhere.
@@ -64,6 +92,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => stop();
   }, [refresh]);
 
+  // Re-validate promptly when the tab regains focus/visibility (e.g. a laptop waking from sleep),
+  // where a scheduled timer may have been throttled or skipped while backgrounded.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refresh]);
+
   const value = useMemo<AuthValue>(() => ({
     status, email, accessToken, refresh,
     signIn: async (e, p) => { await awsSignIn({ username: e, password: p }); await refresh(); },
@@ -72,8 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resendCode: async (e) => { await resendSignUpCode({ username: e }); },
     forgotPassword: async (e) => { await resetPassword({ username: e }); },
     confirmForgotPassword: async (e, c, p) => { await confirmResetPassword({ username: e, confirmationCode: c, newPassword: p }); },
-    signOut: async () => { await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); },
-  }), [status, email, accessToken, refresh]);
+    signOut: async () => { clearRefreshTimer(); await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); },
+  }), [status, email, accessToken, refresh, clearRefreshTimer]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
