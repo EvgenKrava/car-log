@@ -14,6 +14,7 @@ export type ApiEvent = {
   method: string;
   path: string;
   ownerId: string | null;
+  groups: string[];
   pathParams: Record<string, string>;
   queryParams: Record<string, string>;
   body: unknown;

@@ -38,7 +38,7 @@ beforeEach(() => {
   };
 });
 
-const base = { pathParams: {}, queryParams: {}, body: null } as const;
+const base = { groups: [] as string[], pathParams: {}, queryParams: {}, body: null };
 const validBody = { make: 'Toyota', model: 'Corolla', year: 2020, mileage: 45000, fuelType: 'petrol' };
 
 describe('route', () => {

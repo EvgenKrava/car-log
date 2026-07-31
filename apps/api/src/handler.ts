@@ -16,6 +16,7 @@ import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { runImportJob, type ImportWorkPayload } from './import-worker';
 import { route, type ApiEvent, type RouteDeps } from './router';
+import { parseGroups } from './admin-guard';
 
 const tableName = process.env.TABLE_NAME ?? '';
 const photosBucket = process.env.PHOTOS_BUCKET ?? '';
@@ -95,6 +96,7 @@ export async function handler(
     method: event.requestContext.http.method,
     path: event.requestContext.http.path,
     ownerId: event.requestContext.authorizer?.jwt?.claims?.sub as string | undefined ?? null,
+    groups: parseGroups(event.requestContext.authorizer?.jwt?.claims?.['cognito:groups']),
     pathParams: event.pathParameters ? (event.pathParameters as Record<string, string>) : {},
     queryParams: event.queryStringParameters ? (event.queryStringParameters as Record<string, string>) : {},
     body: event.body ? JSON.parse(event.body) : null,
