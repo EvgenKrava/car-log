@@ -31,8 +31,9 @@ export async function setAdmin(port: CognitoUserAdmin, actor: AdminActor, userna
   else await port.removeFromGroup(username, ADMIN_GROUP);
 }
 
-export async function setEnabled(port: CognitoUserAdmin, actor: AdminActor, username: string, enabled: boolean): Promise<void> {
+export async function setEnabled(port: CognitoUserAdmin, actor: AdminActor, username: string, targetSub: string, enabled: boolean): Promise<void> {
   requireAdmin(actor);
+  if (!enabled && targetSub === actor.sub) throw new SelfLockoutError('You cannot disable yourself');
   await port.setEnabled(username, enabled);
 }
 

@@ -24,17 +24,21 @@ export async function handleAdminRoute(port: CognitoUserAdmin, event: ApiEvent):
       return ok(204, null);
     }
     if (username && path === `/admin/users/${username}/admin` && method === 'DELETE') {
-      const targetSub = (await port.getSub(username)) ?? '';
+      const targetSub = (await port.getSub(username)) ?? null;
+      if (targetSub === null) return ok(404, { error: 'User not found' });
       await setAdmin(port, actor, username, targetSub, false);
       return ok(204, null);
     }
     if (username && path === `/admin/users/${username}/enabled` && method === 'PUT') {
       const { enabled } = SetEnabledSchema.parse(body);
-      await setEnabled(port, actor, username, enabled);
+      const targetSub = (await port.getSub(username)) ?? null;
+      if (targetSub === null) return ok(404, { error: 'User not found' });
+      await setEnabled(port, actor, username, targetSub, enabled);
       return ok(204, null);
     }
     if (username && path === `/admin/users/${username}` && method === 'DELETE') {
-      const targetSub = (await port.getSub(username)) ?? '';
+      const targetSub = (await port.getSub(username)) ?? null;
+      if (targetSub === null) return ok(404, { error: 'User not found' });
       await deleteUser(port, actor, username, targetSub);
       return ok(204, null);
     }

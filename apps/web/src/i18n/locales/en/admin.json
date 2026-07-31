@@ -10,5 +10,6 @@
   "enable": "Enable",
   "disable": "Disable",
   "deleteTitle": "Delete user",
-  "deleteConfirm": "Delete {{email}}? This permanently removes the account and can't be undone."
+  "deleteConfirm": "Delete {{email}}? This permanently removes the account and can't be undone.",
+  "actionFailed": "Action failed. Please try again."
 }

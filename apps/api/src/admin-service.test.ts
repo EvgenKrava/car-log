@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { CognitoUserAdmin, CognitoUser } from './cognito-user-admin';
-import { listUsers, setAdmin, deleteUser, ForbiddenError, SelfLockoutError } from './admin-service';
+import { listUsers, setAdmin, setEnabled, deleteUser, ForbiddenError, SelfLockoutError } from './admin-service';
 
 const CALLER = { sub: 'caller-sub', isAdmin: true };
 const other: CognitoUser = { username: 'other', sub: 'other-sub', email: 'o@x.com', status: 'CONFIRMED', enabled: true, createdAt: '2026-01-01T00:00:00.000Z' };
@@ -39,5 +39,13 @@ describe('self-lockout guards', () => {
     const port = fakePort();
     await setAdmin(port, CALLER, 'other', 'other-sub', false);
     expect(port.removeFromGroup).toHaveBeenCalledWith('other', 'admin');
+  });
+  it('blocks disabling yourself', async () => {
+    await expect(setEnabled(fakePort(), CALLER, 'me', 'caller-sub', false)).rejects.toBeInstanceOf(SelfLockoutError);
+  });
+  it('allows disabling another user', async () => {
+    const port = fakePort();
+    await setEnabled(port, CALLER, 'other', 'other-sub', false);
+    expect(port.setEnabled).toHaveBeenCalledWith('other', false);
   });
 });

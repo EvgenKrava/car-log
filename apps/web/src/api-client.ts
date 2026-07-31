@@ -173,12 +173,12 @@ export const listUsers = (token: string, nextToken?: string): Promise<ListUsersR
   const qs = nextToken ? `?nextToken=${encodeURIComponent(nextToken)}` : '';
   return request(token, `/admin/users${qs}`, ListUsersResponseSchema);
 };
-export const setUserAdmin = (token: string, username: string, sub: string, makeAdmin: boolean): Promise<void> =>
-  request(token, `/admin/users/${encodeURIComponent(username)}/admin?sub=${encodeURIComponent(sub)}`, AdminUserSchema, { method: makeAdmin ? 'PUT' : 'DELETE' })
+export const setUserAdmin = (token: string, username: string, makeAdmin: boolean): Promise<void> =>
+  request(token, `/admin/users/${encodeURIComponent(username)}/admin`, AdminUserSchema, { method: makeAdmin ? 'PUT' : 'DELETE' })
     .then(() => undefined);
 export const setUserEnabled = (token: string, username: string, enabled: boolean): Promise<void> =>
   request(token, `/admin/users/${encodeURIComponent(username)}/enabled`, AdminUserSchema, { method: 'PUT', body: JSON.stringify({ enabled }) })
     .then(() => undefined);
-export const deleteUser = (token: string, username: string, sub: string): Promise<void> =>
-  request(token, `/admin/users/${encodeURIComponent(username)}?sub=${encodeURIComponent(sub)}`, AdminUserSchema, { method: 'DELETE' })
+export const deleteUser = (token: string, username: string): Promise<void> =>
+  request(token, `/admin/users/${encodeURIComponent(username)}`, AdminUserSchema, { method: 'DELETE' })
     .then(() => undefined);

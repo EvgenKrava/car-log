@@ -233,8 +233,8 @@ export function useAdminUsers() {
 export function useSetUserAdmin() {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ username, sub, makeAdmin }: { username: string; sub: string; makeAdmin: boolean }) =>
-      setUserAdmin(token, username, sub, makeAdmin),
+    mutationFn: ({ username, makeAdmin }: { username: string; makeAdmin: boolean }) =>
+      setUserAdmin(token, username, makeAdmin),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
   });
 }
@@ -248,7 +248,7 @@ export function useSetUserEnabled() {
 export function useDeleteUser() {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ username, sub }: { username: string; sub: string }) => deleteUser(token, username, sub),
+    mutationFn: ({ username }: { username: string }) => deleteUser(token, username),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
   });
 }
