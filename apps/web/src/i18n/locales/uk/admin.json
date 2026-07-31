@@ -11,5 +11,16 @@
   "disable": "Вимкнути",
   "deleteTitle": "Видалити користувача",
   "deleteConfirm": "Видалити {{email}}? Обліковий запис буде остаточно видалено без можливості відновлення.",
-  "actionFailed": "Не вдалося виконати дію. Спробуйте ще раз."
+  "actionFailed": "Не вдалося виконати дію. Спробуйте ще раз.",
+  "dashboard": "Панель",
+  "dashboardTitle": "Панель адміністратора",
+  "metricUsers": "Користувачі",
+  "metricAdmins": "Адміни",
+  "metricNew30d": "Нові (30 дн.)",
+  "metricCost": "Орієнтовна вартість",
+  "apiTraffic": "Трафік API (30 дн.)",
+  "errors4xx": "4xx",
+  "errors5xx": "5xx",
+  "p95Latency": "Затримка p95",
+  "recentActivity": "Остання активність"
 }

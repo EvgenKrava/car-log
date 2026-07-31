@@ -11,5 +11,16 @@
   "disable": "Disable",
   "deleteTitle": "Delete user",
   "deleteConfirm": "Delete {{email}}? This permanently removes the account and can't be undone.",
-  "actionFailed": "Action failed. Please try again."
+  "actionFailed": "Action failed. Please try again.",
+  "dashboard": "Dashboard",
+  "dashboardTitle": "Dashboard",
+  "metricUsers": "Users",
+  "metricAdmins": "Admins",
+  "metricNew30d": "New (30d)",
+  "metricCost": "Est. cost",
+  "apiTraffic": "API traffic (30d)",
+  "errors4xx": "4xx",
+  "errors5xx": "5xx",
+  "p95Latency": "p95 latency",
+  "recentActivity": "Recent activity"
 }
