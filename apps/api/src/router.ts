@@ -1,4 +1,4 @@
-import { CreateCarSchema } from '@carlog/contracts';
+import { CreateCarSchema, SetSharingSchema } from '@carlog/contracts';
 import { CarNotFoundError, createCar, type CarRepository, type PhotoRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handlePhotoRoute } from './photo-routes';
@@ -8,6 +8,7 @@ import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
 import { handleScanRoute } from './scan-routes';
 import { handleAdminRoute } from './admin-routes';
+import { handlePublicRoute } from './public-routes';
 import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -38,6 +39,15 @@ export type RouteDeps = {
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
   return withErrorHandling(async () => {
     const { method, path, ownerId, pathParams, body } = event;
+
+    if (path.startsWith('/public/')) {
+      const result = await handlePublicRoute(
+        { cars: deps.cars, events: deps.events, proofs: deps.proofs, storage: deps.storage },
+        event,
+      );
+      if (result) return result;
+    }
+
     if (!ownerId) return ok(401, { error: 'Unauthorized' });
     const id = pathParams.id;
 
@@ -90,6 +100,10 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     if (path === '/cars' && method === 'POST') {
       const car = createCar(ownerId, CreateCarSchema.parse(body));
       return ok(201, await deps.cars.create(car));
+    }
+    if (id && path === `/cars/${id}/sharing` && method === 'PUT') {
+      const { shared } = SetSharingSchema.parse(body);
+      return ok(200, await deps.cars.setShared(ownerId, id, shared));
     }
     if (id && path === `/cars/${id}` && method === 'PUT') return ok(200, await deps.cars.update(ownerId, id, CreateCarSchema.parse(body)));
     if (id && path === `/cars/${id}` && method === 'DELETE') { await deps.cars.delete(ownerId, id); return ok(204, null); }

@@ -155,6 +155,34 @@ describe('route', () => {
     });
   });
 
+  describe('sharing routes', () => {
+    it('PUT /cars/{id}/sharing sets shared and returns the updated car', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/sharing`, ownerId: 'u1', pathParams: { id: carId }, body: { shared: true } });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toMatchObject({ id: carId, shared: true });
+      expect(await cars.findSharedOwnerId(carId)).toBe('u1');
+    });
+
+    it('GET /public/cars/{carId} is reached without a token and does not 401', async () => {
+      const carId = await makeCar('u1');
+      await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/sharing`, ownerId: 'u1', pathParams: { id: carId }, body: { shared: true } });
+      const res = await route(deps, { ...base, method: 'GET', path: `/public/cars/${carId}`, ownerId: null, pathParams: { carId } });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.id).toBe(carId);
+      expect(body.ownerId).toBeUndefined();
+    });
+
+    it('GET /public/cars/{carId} 404s once unshared', async () => {
+      const carId = await makeCar('u1');
+      await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/sharing`, ownerId: 'u1', pathParams: { id: carId }, body: { shared: true } });
+      await route(deps, { ...base, method: 'PUT', path: `/cars/${carId}/sharing`, ownerId: 'u1', pathParams: { id: carId }, body: { shared: false } });
+      const res = await route(deps, { ...base, method: 'GET', path: `/public/cars/${carId}`, ownerId: null, pathParams: { carId } });
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
   describe('event routes', () => {
     const ev = { date: '2026-07-14', mileage: 1000, cost: 500, category: 'oil_change', works: [{ description: 'Oil change', parts: [{ name: 'Filter', quantity: 1 }] }] };
 
