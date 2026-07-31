@@ -118,6 +118,7 @@ export class CarLogStack extends Stack {
       environment: {
         TABLE_NAME: table.tableName,
         PHOTOS_BUCKET: photosBucket.bucketName,
+        USER_POOL_ID: userPool.userPoolId,
         // Bearer token (issued by the Bedrock-enabled account), resolved from SSM
         // SecureString at synth time (see bin/carlog.ts). CloudFormation rejects ssm-secure
         // dynamic references in Lambda env vars, so it must be a literal. Read by
@@ -148,6 +149,18 @@ export class CarLogStack extends Stack {
     fn.addToRolePolicy(new PolicyStatement({
       actions: ['lambda:InvokeFunction'],
       resources: [`arn:aws:lambda:${this.region}:${this.account}:function:*`],
+    }));
+    fn.addToRolePolicy(new PolicyStatement({
+      actions: [
+        'cognito-idp:ListUsers',
+        'cognito-idp:ListUsersInGroup',
+        'cognito-idp:AdminAddUserToGroup',
+        'cognito-idp:AdminRemoveUserFromGroup',
+        'cognito-idp:AdminEnableUser',
+        'cognito-idp:AdminDisableUser',
+        'cognito-idp:AdminDeleteUser',
+      ],
+      resources: [userPool.userPoolArn],
     }));
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
@@ -182,6 +195,10 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/import/jobs/{jobId}', methods: [HttpMethod.GET, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/import/scan/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/scan', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/admin/users', methods: [HttpMethod.GET], integration, authorizer });
+    httpApi.addRoutes({ path: '/admin/users/{username}', methods: [HttpMethod.DELETE], integration, authorizer });
+    httpApi.addRoutes({ path: '/admin/users/{username}/admin', methods: [HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
+    httpApi.addRoutes({ path: '/admin/users/{username}/enabled', methods: [HttpMethod.PUT], integration, authorizer });
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.
