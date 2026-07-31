@@ -10,7 +10,6 @@ import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusView } from '../components/ui/StatusView';
-import { UserMenu } from '../components/ui/UserMenu';
 import { VehicleCard } from '../components/ui/VehicleCard';
 
 export function Garage() {
@@ -21,7 +20,7 @@ export function Garage() {
 
   return (
     <AppShell>
-      <PageHeader title={t('common:appName')} actions={<UserMenu />} />
+      <PageHeader title={t('common:appName')} />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
           <StatusView state="loading" />

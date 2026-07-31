@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { AppBar, Box, IconButton, Toolbar, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { UserMenu } from './UserMenu';
 
 export function PageHeader({
   title, onBack, actions,
@@ -16,6 +17,7 @@ export function PageHeader({
         <Typography variant="h6" sx={{ flexGrow: 1 }}>{title}</Typography>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           {actions}
+          <UserMenu />
         </Box>
       </Toolbar>
     </AppBar>
