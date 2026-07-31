@@ -9,6 +9,7 @@ import { useMediaQuery, CssBaseline, ThemeProvider } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireAuth } from './auth';
+import { RequireAdmin } from './auth/RequireAdmin';
 import { buildTheme } from './theme';
 import { ThemeModeProvider, useThemeMode } from './lib/theme-mode';
 import { Garage } from './routes/Garage';
@@ -20,6 +21,7 @@ import { ConfirmSignUp } from './routes/auth/ConfirmSignUp';
 import { ForgotPassword } from './routes/auth/ForgotPassword';
 import { ResetPassword } from './routes/auth/ResetPassword';
 import { Callback } from './routes/Callback';
+import { UserManagement } from './routes/admin/UserManagement';
 import { InstallPrompt } from './components/InstallPrompt';
 
 const queryClient = new QueryClient();
@@ -45,6 +47,7 @@ function Root() {
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
+              <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
             </Routes>
             <InstallPrompt />
           </BrowserRouter>
