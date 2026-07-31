@@ -64,8 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const user = await getCurrentUser();
         setEmail(user.signInDetails?.loginId ?? user.username);
         setAccessToken(token);
-        const raw = session.tokens?.accessToken?.payload?.['cognito:groups'];
-        setGroups(Array.isArray(raw) ? raw.map(String) : []);
+        // Group membership rides in `cognito:groups` on both the ID and access
+        // tokens, but for federated (Google) identities the access token can omit
+        // it — so read from BOTH and union.
+        const merged = new Set<string>();
+        for (const src of [session.tokens?.idToken?.payload, session.tokens?.accessToken?.payload]) {
+          const raw = src?.['cognito:groups'];
+          if (Array.isArray(raw)) for (const g of raw) merged.add(String(g));
+        }
+        setGroups([...merged]);
         setStatus('authenticated');
         scheduleRefresh(token);
       } else {
