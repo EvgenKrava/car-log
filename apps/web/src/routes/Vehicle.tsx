@@ -542,13 +542,16 @@ function VehicleDetail({ car }: { car: Car }) {
                 borderRadius: 999,
                 color: 'text.secondary',
                 transition: 'background-color .2s ease, color .2s ease',
+                // Highlight ONLY the action root (not the label span, which also carries
+                // .Mui-selected — a bare `& .Mui-selected` would double-tint the label).
+                '&.Mui-selected': {
+                  color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.main),
+                  bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(91,91,214,0.12)'),
+                },
               },
               '& .MuiBottomNavigationAction-label': { fontSize: 10, mt: '3px' },
-              '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 10 },
-              '& .Mui-selected': {
-                color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.main),
-                bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(91,91,214,0.12)'),
-              },
+              // Keep the selected label the same size, transparent bg, inheriting the root's colour.
+              '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 10, bgcolor: 'transparent', color: 'inherit' },
               '& .MuiSvgIcon-root': { fontSize: 24 },
             }}
           >
