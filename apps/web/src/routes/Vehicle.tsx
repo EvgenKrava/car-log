@@ -343,12 +343,17 @@ function VehicleDetail({ car }: { car: Car }) {
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                  gap: { xs: 1.5, sm: 2 },
+                  // Mobile-first: one stat per row (full width, nothing truncates).
+                  // Desktop keeps the compact 3-across instrument cluster.
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+                  gap: { xs: 1.25, sm: 2 },
                   '& > :not(:first-of-type)': {
-                    borderLeft: 1,
                     borderColor: 'divider',
-                    pl: { xs: 1.5, sm: 2 },
+                    // Rows divided by a top border on mobile; columns by a left border on desktop.
+                    borderTop: { xs: 1, sm: 0 },
+                    borderLeft: { xs: 0, sm: 1 },
+                    pt: { xs: 1.25, sm: 0 },
+                    pl: { xs: 0, sm: 2 },
                   },
                 }}
               >
