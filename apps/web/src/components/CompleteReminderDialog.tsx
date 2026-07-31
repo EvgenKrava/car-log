@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
-import {
-  Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField,
-} from '@mui/material';
+import { Alert, Button, Stack, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { CreateEventInput, Reminder } from '@carlog/contracts';
 import { useCompleteReminder } from '../queries';
 import { NumberField } from './ui/NumberField';
-import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+import { Modal } from './ui/Modal';
 import { todayISO } from '../lib/reminder-view';
 
 // Completing reschedules (or removes) the reminder server-side, then offers to log
@@ -22,7 +20,6 @@ export function CompleteReminderDialog({
   const complete = useCompleteReminder(carId);
   const [date, setDate] = useState(todayISO());
   const [mileage, setMileage] = useState<number | undefined>(carMileage);
-  const sheet = useBottomSheetDismiss(complete.isPending ? undefined : onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -39,22 +36,26 @@ export function CompleteReminderDialog({
   };
 
   return (
-    <Dialog open={open} onClose={complete.isPending ? undefined : onClose} fullWidth maxWidth="xs" {...sheet}>
-      <DialogTitle>{t('reminders:completeTitle')}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2.5} sx={{ mt: 1 }}>
-          {complete.isError ? <Alert severity="error">{t('reminders:completeFailed')}</Alert> : null}
-          <TextField type="date" label={t('reminders:completeDate')} value={date}
-            onChange={(e) => setDate(e.target.value)} fullWidth InputLabelProps={{ shrink: true }} />
-          <NumberField value={mileage} onChange={setMileage} label={t('reminders:completeMileage')} fullWidth />
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={complete.isPending}>{t('common:cancel')}</Button>
-        <Button onClick={() => void onConfirm()} variant="contained" disabled={complete.isPending || !date}>
-          {t('reminders:complete')}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <Modal
+      open={open}
+      onClose={complete.isPending ? undefined : onClose}
+      title={t('reminders:completeTitle')}
+      maxWidth="xs"
+      actions={
+        <>
+          <Button onClick={onClose} disabled={complete.isPending}>{t('common:cancel')}</Button>
+          <Button onClick={() => void onConfirm()} variant="contained" disabled={complete.isPending || !date}>
+            {t('reminders:complete')}
+          </Button>
+        </>
+      }
+    >
+      <Stack spacing={2.5} sx={{ mt: 1 }}>
+        {complete.isError ? <Alert severity="error">{t('reminders:completeFailed')}</Alert> : null}
+        <TextField type="date" label={t('reminders:completeDate')} value={date}
+          onChange={(e) => setDate(e.target.value)} fullWidth InputLabelProps={{ shrink: true }} />
+        <NumberField value={mileage} onChange={setMileage} label={t('reminders:completeMileage')} fullWidth />
+      </Stack>
+    </Modal>
   );
 }

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Box, Button, Dialog, IconButton, Link, Stack, Typography } from '@mui/material';
+import { Box, Button, IconButton, Link, Stack, Typography } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -10,6 +10,7 @@ import { useProofs, useUploadProof, useDeleteProof } from '../queries';
 import { validateAttachmentFile } from '../lib/validate-attachment';
 import { useBatchUpload } from '../lib/use-batch-upload';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Modal } from './ui/Modal';
 import { BatchUploadStatus } from './ui/BatchUploadStatus';
 
 export function ProofList({ carId, eventId }: { carId: string; eventId: string }) {
@@ -67,9 +68,9 @@ export function ProofList({ carId, eventId }: { carId: string; eventId: string }
           ))}
         </Stack>
       )}
-      <Dialog open={Boolean(lightbox)} onClose={() => setLightbox(null)} maxWidth="md" PaperProps={{ className: 'carlog-no-sheet' }}>
+      <Modal open={Boolean(lightbox)} onClose={() => setLightbox(null)} maxWidth="md" plain contentSx={{ p: 0 }}>
         {lightbox ? <img src={lightbox} alt="proof" style={{ width: '100%', display: 'block' }} /> : null}
-      </Dialog>
+      </Modal>
       <ConfirmDialog open={Boolean(toDelete)} title={t('event:proofDeleteTitle')} message={t('event:proofDeleteConfirm')}
         confirmLabel={t('common:delete')} loading={del.isPending}
         onConfirm={async () => { if (toDelete) await del.mutateAsync(toDelete); setToDelete(null); }}

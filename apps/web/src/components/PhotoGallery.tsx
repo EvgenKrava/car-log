@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Box, Button, Dialog, IconButton, Stack, Typography,
-} from '@mui/material';
+import { Box, Button, IconButton, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -13,6 +11,7 @@ import { usePhotos, useUploadPhoto, useDeletePhoto } from '../queries';
 import { validatePhotoFile } from '../lib/validate-photo';
 import { useBatchUpload } from '../lib/use-batch-upload';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Modal } from './ui/Modal';
 import { StatusView } from './ui/StatusView';
 import { BatchUploadStatus } from './ui/BatchUploadStatus';
 
@@ -111,7 +110,7 @@ export function PhotoGallery({ carId }: { carId: string }) {
         </Box>
       )}
 
-      <Dialog open={lightboxIndex !== null} onClose={() => setLightboxIndex(null)} maxWidth="md" PaperProps={{ className: 'carlog-no-sheet' }}>
+      <Modal open={lightboxIndex !== null} onClose={() => setLightboxIndex(null)} maxWidth="md" plain contentSx={{ p: 0 }}>
         {current ? (
           <Box
             sx={{ position: 'relative', bgcolor: 'black' }}
@@ -152,7 +151,7 @@ export function PhotoGallery({ carId }: { carId: string }) {
             ) : null}
           </Box>
         ) : null}
-      </Dialog>
+      </Modal>
 
       <ConfirmDialog
         open={Boolean(toDelete)}

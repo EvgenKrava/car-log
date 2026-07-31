@@ -2,12 +2,10 @@ import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import {
-  Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField,
-} from '@mui/material';
+import { Alert, Button, MenuItem, Stack, TextField } from '@mui/material';
 import { CreateCarSchema, FuelTypeSchema, type Car, type CreateCarInput } from '@carlog/contracts';
 import { useCreateCar, useUpdateCar } from '../queries';
-import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+import { Modal } from './ui/Modal';
 
 const FUEL_TYPES = FuelTypeSchema.options;
 
@@ -34,7 +32,6 @@ type CarFormDialogProps = {
 
 export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) {
   const { t } = useTranslation(['car', 'common']);
-  const sheet = useBottomSheetDismiss(onClose);
   const create = useCreateCar();
   const update = useUpdateCar(car?.id ?? '');
   const isPending = create.isPending || update.isPending;
@@ -71,44 +68,47 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
   );
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" {...sheet}>
-      <form onSubmit={onSubmit}>
-        <DialogTitle>{mode === 'edit' ? t('car:editTitle') : t('car:addTitle')}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          <Stack spacing={2.5} sx={{ mt: 1 }}>
-            {(create.isError || update.isError) && (
-              <Alert severity="error">{t('common:loadingError')} {t('common:tryAgain')}</Alert>
-            )}
-            {text('make', t('car:make'))}
-            {text('model', t('car:model'))}
-            {text('year', t('car:year'), 'number')}
-            {text('mileage', t('car:mileage'), 'number')}
-            {/* Optional decimal (liters): empty must become undefined, not 0 —
-                the schema rejects 0 and EVs simply leave it blank. */}
-            <Controller name="engineVolume" control={control} render={({ field }) => (
-              <TextField {...field} label={t('car:engineVolume')} type="number" fullWidth
-                value={field.value ?? ''}
-                onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-                inputProps={{ step: 0.1, min: 0.1, inputMode: 'decimal' }}
-                error={Boolean(errors.engineVolume)} helperText={errors.engineVolume?.message} />
-            )} />
-            {text('nickname', t('car:nickname'))}
-            {text('vin', t('car:vin'))}
-            {text('licensePlate', t('car:licensePlate'))}
-            <Controller name="fuelType" control={control} render={({ field }) => (
-              <TextField {...field} select label={t('car:fuelType')} fullWidth>
-                {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{t(`car:fuelType_${f}`)}</MenuItem>)}
-              </TextField>
-            )} />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
+    <Modal
+      open={open}
+      onClose={onClose}
+      onSubmit={onSubmit}
+      title={mode === 'edit' ? t('car:editTitle') : t('car:addTitle')}
+      contentSx={{ pt: 1 }}
+      actions={
+        <>
           <Button onClick={onClose}>{t('common:cancel')}</Button>
           <Button type="submit" variant="contained" disabled={isPending}>
             {mode === 'edit' ? t('car:saveChanges') : t('car:save')}
           </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+        </>
+      }
+    >
+      <Stack spacing={2.5} sx={{ mt: 1 }}>
+        {(create.isError || update.isError) && (
+          <Alert severity="error">{t('common:loadingError')} {t('common:tryAgain')}</Alert>
+        )}
+        {text('make', t('car:make'))}
+        {text('model', t('car:model'))}
+        {text('year', t('car:year'), 'number')}
+        {text('mileage', t('car:mileage'), 'number')}
+        {/* Optional decimal (liters): empty must become undefined, not 0 —
+            the schema rejects 0 and EVs simply leave it blank. */}
+        <Controller name="engineVolume" control={control} render={({ field }) => (
+          <TextField {...field} label={t('car:engineVolume')} type="number" fullWidth
+            value={field.value ?? ''}
+            onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+            inputProps={{ step: 0.1, min: 0.1, inputMode: 'decimal' }}
+            error={Boolean(errors.engineVolume)} helperText={errors.engineVolume?.message} />
+        )} />
+        {text('nickname', t('car:nickname'))}
+        {text('vin', t('car:vin'))}
+        {text('licensePlate', t('car:licensePlate'))}
+        <Controller name="fuelType" control={control} render={({ field }) => (
+          <TextField {...field} select label={t('car:fuelType')} fullWidth>
+            {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{t(`car:fuelType_${f}`)}</MenuItem>)}
+          </TextField>
+        )} />
+      </Stack>
+    </Modal>
   );
 }

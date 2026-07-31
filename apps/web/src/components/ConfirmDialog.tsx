@@ -1,8 +1,6 @@
-import {
-  Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
-} from '@mui/material';
+import { Button, DialogContentText } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+import { Modal } from './ui/Modal';
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -18,19 +16,22 @@ export function ConfirmDialog({
   open, title, message, confirmLabel = 'Delete', onConfirm, onClose, loading = false,
 }: ConfirmDialogProps) {
   const { t } = useTranslation(['common']);
-  const sheet = useBottomSheetDismiss(onClose);
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" {...sheet}>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
-        <DialogContentText>{message}</DialogContentText>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>{t('common:cancel')}</Button>
-        <Button onClick={onConfirm} color="error" variant="contained" disabled={loading}>
-          {confirmLabel}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={title}
+      maxWidth="xs"
+      actions={
+        <>
+          <Button onClick={onClose}>{t('common:cancel')}</Button>
+          <Button onClick={onConfirm} color="error" variant="contained" disabled={loading}>
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      <DialogContentText>{message}</DialogContentText>
+    </Modal>
   );
 }

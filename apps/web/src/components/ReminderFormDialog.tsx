@@ -2,15 +2,13 @@ import { useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField,
-} from '@mui/material';
+import { Alert, Button, MenuItem, Stack, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { EVENT_CATEGORIES, type CreateReminderInput, type Reminder } from '@carlog/contracts';
 import { useCreateReminder, useUpdateReminder } from '../queries';
 import { NumberField } from './ui/NumberField';
-import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+import { Modal } from './ui/Modal';
 
 // Validates against the CreateReminderSchema rules but with localized messages
 // (same pattern as EventFormDialog.buildFormSchema).
@@ -55,7 +53,6 @@ export function ReminderFormDialog({
   const { control, handleSubmit, reset, formState: { errors, isSubmitted } } = useForm<CreateReminderInput>({
     resolver: zodResolver(formSchema), defaultValues: EMPTY,
   });
-  const sheet = useBottomSheetDismiss(onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -71,11 +68,22 @@ export function ReminderFormDialog({
   const isError = create.isError || update.isError;
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" {...sheet}>
-      <form onSubmit={onSubmit}>
-        <DialogTitle>{mode === 'edit' ? t('reminders:editTitle') : t('reminders:addTitle')}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          <Stack spacing={2.5} sx={{ mt: 1 }}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      onSubmit={onSubmit}
+      title={mode === 'edit' ? t('reminders:editTitle') : t('reminders:addTitle')}
+      contentSx={{ pt: 1 }}
+      actions={
+        <>
+          <Button onClick={onClose}>{t('common:cancel')}</Button>
+          <Button type="submit" variant="contained" disabled={isPending}>
+            {mode === 'edit' ? t('reminders:saveChanges') : t('reminders:save')}
+          </Button>
+        </>
+      }
+    >
+      <Stack spacing={2.5} sx={{ mt: 1 }}>
             {isError ? <Alert severity="error">{t('reminders:saveFailed')}</Alert> : null}
             {isSubmitted && Object.keys(errors).length > 0 ? (
               <Alert severity="warning">{t('reminders:errorFixFields')}</Alert>
@@ -118,15 +126,7 @@ export function ReminderFormDialog({
             <Controller name="notes" control={control} render={({ field }) => (
               <TextField {...field} value={field.value ?? ''} label={t('reminders:notes')} fullWidth multiline minRows={2} />
             )} />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose}>{t('common:cancel')}</Button>
-          <Button type="submit" variant="contained" disabled={isPending}>
-            {mode === 'edit' ? t('reminders:saveChanges') : t('reminders:save')}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+      </Stack>
+    </Modal>
   );
 }

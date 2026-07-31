@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
-  IconButton, LinearProgress, MenuItem, Stack, TextField, Typography,
+  Alert, Box, Button, IconButton, LinearProgress, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
 import { WorksSummary } from './ui/WorksSummary';
-import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+import { Modal } from './ui/Modal';
 import { EVENT_CATEGORIES, IMPORT_INLINE_MAX, IMPORT_FILE_MAX, type CandidateEvent, type ImportJob } from '@carlog/contracts';
 import { useCreateImportJob, useImportJob, useLatestImportJob, useDeleteImportJob, useCreateEvent } from '../queries';
 
@@ -49,11 +48,6 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   };
   const hideDialog = () => { onClose(); };
   const close = () => { reset(); onClose(); };
-  // Swipe-down mirrors the backdrop close: hide (keep job state) during progress/review,
-  // full reset from the input phase.
-  const sheet = useBottomSheetDismiss(
-    (phase === 'progress' || phase === 'review') ? hideDialog : close,
-  );
 
   const seedReview = (events: CandidateEvent[]) => {
     setDrafts(events);
@@ -227,9 +221,47 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
   };
 
   return (
-    <Dialog open={open} onClose={(phase === 'progress' || phase === 'review') ? hideDialog : close} maxWidth="sm" fullWidth {...sheet}>
-      <DialogTitle>{t('import:title')}</DialogTitle>
-      <DialogContent>
+    <Modal
+      open={open}
+      onClose={(phase === 'progress' || phase === 'review') ? hideDialog : close}
+      title={t('import:title')}
+      actions={
+        <>
+          {phase === 'progress' || (phase === 'review' && showResumeBanner) ? (
+            <Button onClick={onStartNew}>{t('import:startNew')}</Button>
+          ) : null}
+          {phase === 'input' ? (
+            <>
+              <Button onClick={close}>{t('import:cancel')}</Button>
+              <Button
+                variant="contained"
+                onClick={() => void onStartImport()}
+                disabled={(!text.trim() && !file) || createJob.isPending}
+              >
+                {t('import:startImport')}
+              </Button>
+            </>
+          ) : phase === 'progress' ? (
+            <>
+              {job.data?.status === 'failed' && job.data.events.length > 0 ? (
+                <Button variant="contained" onClick={() => { if (job.data) seedReview(job.data.events); }}>
+                  {t('import:addAll', { count: job.data.events.length })}
+                </Button>
+              ) : null}
+              <Button onClick={hideDialog}>{t('import:hide')}</Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={hideDialog}>{t('import:cancel')}</Button>
+              <Button variant="contained" onClick={() => void onCommit()}
+                disabled={drafts.length === 0 || committing || drafts.some((d) => !d.date)}>
+                {committing ? t('import:adding') : t('import:addAll', { count: drafts.length })}
+              </Button>
+            </>
+          )}
+        </>
+      }
+    >
         {showResumeBanner && phase !== 'input' ? (
           <Alert severity="info" sx={{ mb: 2 }}>{t('import:resumeBanner')}</Alert>
         ) : null}
@@ -316,41 +348,6 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
             ))}
           </Stack>
         )}
-      </DialogContent>
-      <DialogActions>
-        {phase === 'progress' || (phase === 'review' && showResumeBanner) ? (
-          <Button onClick={onStartNew}>{t('import:startNew')}</Button>
-        ) : null}
-        {phase === 'input' ? (
-          <>
-            <Button onClick={close}>{t('import:cancel')}</Button>
-            <Button
-              variant="contained"
-              onClick={() => void onStartImport()}
-              disabled={(!text.trim() && !file) || createJob.isPending}
-            >
-              {t('import:startImport')}
-            </Button>
-          </>
-        ) : phase === 'progress' ? (
-          <>
-            {job.data?.status === 'failed' && job.data.events.length > 0 ? (
-              <Button variant="contained" onClick={() => { if (job.data) seedReview(job.data.events); }}>
-                {t('import:addAll', { count: job.data.events.length })}
-              </Button>
-            ) : null}
-            <Button onClick={hideDialog}>{t('import:hide')}</Button>
-          </>
-        ) : (
-          <>
-            <Button onClick={hideDialog}>{t('import:cancel')}</Button>
-            <Button variant="contained" onClick={() => void onCommit()}
-              disabled={drafts.length === 0 || committing || drafts.some((d) => !d.date)}>
-              {committing ? t('import:adding') : t('import:addAll', { count: drafts.length })}
-            </Button>
-          </>
-        )}
-      </DialogActions>
-    </Dialog>
+    </Modal>
   );
 }

@@ -1,14 +1,13 @@
 import { useRef, useState } from 'react';
 import {
-  Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
-  IconButton, MenuItem, Stack, TextField, Typography,
+  Alert, Box, Button, CircularProgress, IconButton, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from './ui/NumberField';
 import { WorksSummary } from './ui/WorksSummary';
-import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+import { Modal } from './ui/Modal';
 import { prepareScanFile } from '../lib/prepare-scan';
 import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
@@ -47,9 +46,6 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     reset();
     onClose();
   };
-  // Swipe-down closes the sheet, but not mid-scan (matches the backdrop being locked then).
-  const sheet = useBottomSheetDismiss(phase === 'scanning' ? undefined : close);
-
   // Validate and stage a picked/dropped file. Shared by the file <input> (click) and the
   // dropzone's drag-and-drop handler so both paths behave identically.
   const handleFile = (selected: File) => {
@@ -189,9 +185,36 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
   };
 
   return (
-    <Dialog open={open} onClose={phase === 'scanning' ? undefined : close} maxWidth="sm" fullWidth {...sheet}>
-      <DialogTitle>{t('import:scanInvoice')}</DialogTitle>
-      <DialogContent>
+    <Modal
+      open={open}
+      onClose={phase === 'scanning' ? undefined : close}
+      title={t('import:scanInvoice')}
+      actions={
+        phase === 'scanning' ? null : phase === 'input' ? (
+          <>
+            <Button onClick={close}>{t('import:cancel')}</Button>
+            <Button
+              variant="contained"
+              onClick={() => void onScan()}
+              disabled={!file || extractScan.isPending}
+            >
+              {t('import:scanStart')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button onClick={close}>{t('import:cancel')}</Button>
+            <Button
+              variant="contained"
+              onClick={() => void onCommit()}
+              disabled={drafts.length === 0 || committing || drafts.some((d) => !d.date)}
+            >
+              {committing ? t('import:adding') : t('import:addAll', { count: drafts.length })}
+            </Button>
+          </>
+        )
+      }
+    >
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
         {attachWarning ? <Alert severity="warning" sx={{ mb: 2 }}>{t('import:scanAttachFailed')}</Alert> : null}
 
@@ -307,32 +330,6 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
             ))}
           </Stack>
         )}
-      </DialogContent>
-      <DialogActions>
-        {phase === 'input' ? (
-          <>
-            <Button onClick={close}>{t('import:cancel')}</Button>
-            <Button
-              variant="contained"
-              onClick={() => void onScan()}
-              disabled={!file || extractScan.isPending}
-            >
-              {t('import:scanStart')}
-            </Button>
-          </>
-        ) : phase === 'scanning' ? null : (
-          <>
-            <Button onClick={close}>{t('import:cancel')}</Button>
-            <Button
-              variant="contained"
-              onClick={() => void onCommit()}
-              disabled={drafts.length === 0 || committing || drafts.some((d) => !d.date)}
-            >
-              {committing ? t('import:adding') : t('import:addAll', { count: drafts.length })}
-            </Button>
-          </>
-        )}
-      </DialogActions>
-    </Dialog>
+    </Modal>
   );
 }

@@ -3,8 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import {
-  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton,
-  Stack, TextField, Typography, useTheme,
+  Alert, Box, Button, Chip, Divider, IconButton, Stack, TextField, Typography, useTheme,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +13,7 @@ import { useCar, useCreateEvent, useEvents, useUpdateEvent } from '../queries';
 import { CATEGORY_META, categoryTint } from '../lib/event-category';
 import { formatNumber } from '../i18n/format';
 import { NumberField } from './ui/NumberField';
-import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
+import { Modal } from './ui/Modal';
 
 // The form validates against the shared CreateEventSchema (the API contract) but layers on
 // localized messages and a future-date guard that only makes sense for user-entered events
@@ -86,7 +85,6 @@ export function EventFormDialog({
     resolver: zodResolver(formSchema), defaultValues: EMPTY,
   });
   const works = useFieldArray({ control, name: 'works' });
-  const sheet = useBottomSheetDismiss(onClose);
 
   // A gentle, NON-blocking check: an odometer usually only goes up, so a create-mode
   // reading below the car's last-known mileage is probably a typo. Backdated/imported
@@ -121,11 +119,22 @@ export function EventFormDialog({
   const isError = create.isError || update.isError;
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" {...sheet}>
-      <form onSubmit={onSubmit}>
-        <DialogTitle>{mode === 'edit' ? t('event:editTitle') : t('event:addTitle')}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          <Stack spacing={2.5} sx={{ mt: 1 }}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      onSubmit={onSubmit}
+      title={mode === 'edit' ? t('event:editTitle') : t('event:addTitle')}
+      contentSx={{ pt: 1 }}
+      actions={
+        <>
+          <Button onClick={onClose}>{t('common:cancel')}</Button>
+          <Button type="submit" variant="contained" disabled={isPending}>
+            {mode === 'edit' ? t('event:saveChanges') : t('event:save')}
+          </Button>
+        </>
+      }
+    >
+      <Stack spacing={2.5} sx={{ mt: 1 }}>
             {isError ? <Alert severity="error">{t('event:saveFailed')}</Alert> : null}
             {isSubmitted && Object.keys(errors).length > 0 ? (
               <Alert severity="warning">{t('event:errorFixFields')}</Alert>
@@ -207,16 +216,8 @@ export function EventFormDialog({
               </Stack>
             ))}
             <Button onClick={() => works.append({ description: '', parts: [] })}>{t('event:addWork')}</Button>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose}>{t('common:cancel')}</Button>
-          <Button type="submit" variant="contained" disabled={isPending}>
-            {mode === 'edit' ? t('event:saveChanges') : t('event:save')}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+      </Stack>
+    </Modal>
   );
 }
 
