@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -49,6 +49,28 @@ export function useDeleteCar() {
   return useMutation({
     mutationFn: (id: string) => deleteCar(token, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cars'] }),
+  });
+}
+
+export function useSetCarSharing() {
+  const { accessToken } = useAuth();
+  const token = accessToken ?? '';
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ carId, shared }: { carId: string; shared: boolean }) => setCarSharing(token, carId, shared),
+    onSuccess: (_data, { carId }) => {
+      void qc.invalidateQueries({ queryKey: ['cars', carId] });
+      void qc.invalidateQueries({ queryKey: ['cars'] });
+    },
+  });
+}
+
+export function usePublicCar(carId: string) {
+  return useQuery({
+    queryKey: ['public', carId],
+    queryFn: () => getPublicCar(carId),
+    enabled: Boolean(carId),
+    retry: false,
   });
 }
 

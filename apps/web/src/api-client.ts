@@ -31,6 +31,8 @@ import {
   type ListUsersResponse,
   MetricsResponseSchema,
   type MetricsResponse,
+  PublicCarSchema,
+  type PublicCar,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -67,6 +69,16 @@ export const updateCar = (token: string, id: string, input: CreateCarInput): Pro
 
 export const deleteCar = (token: string, id: string): Promise<void> =>
   request(token, `/cars/${id}`, CarSchema, { method: 'DELETE' }).then(() => undefined);
+
+export const setCarSharing = (token: string, carId: string, shared: boolean): Promise<Car> =>
+  request(token, `/cars/${carId}/sharing`, CarSchema, { method: 'PUT', body: JSON.stringify({ shared }) });
+
+export async function getPublicCar(carId: string): Promise<PublicCar> {
+  const res = await fetch(`${API_URL}/public/cars/${encodeURIComponent(carId)}`);
+  if (res.status === 404) throw new Error('NOT_SHARED');
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return PublicCarSchema.parse(await res.json());
+}
 
 export const presignPhoto = (token: string, carId: string, input: { contentType: PhotoContentType; size: number }): Promise<PresignResponse> =>
   request(token, `/cars/${carId}/photos/presign`, PresignResponseSchema, { method: 'POST', body: JSON.stringify(input) });
