@@ -1,11 +1,10 @@
-import type { CarRepository, EventRepository, ProofRepository, PhotoStorage } from '@carlog/domain';
+import type { CarRepository, EventRepository } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
-import { proofKey } from './event-key';
 import type { ApiEvent } from './router';
 import { toPublicCar } from './to-public-car';
 
 export type PublicDeps = {
-  cars: CarRepository; events: EventRepository; proofs: ProofRepository; storage: PhotoStorage;
+  cars: CarRepository; events: EventRepository;
 };
 
 // Handles /public/cars/{carId} — unauthenticated. Returns undefined for non-matching paths.
@@ -21,14 +20,5 @@ export async function handlePublicRoute(deps: PublicDeps, event: ApiEvent): Prom
   if (!car || !car.shared) return ok(404, { error: 'Not found' });
 
   const events = await deps.events.listByCar(ownerId, carId);
-  const withProofs = await Promise.all(events.map(async (e) => {
-    const proofs = await deps.proofs.listByEvent(ownerId, carId, e.id);
-    const signed = await Promise.all(proofs.map(async (p) => ({
-      url: await deps.storage.presignGet(proofKey(ownerId, carId, e.id, p.id)),
-      contentType: p.contentType,
-      filename: p.filename,
-    })));
-    return { ...e, proofs: signed };
-  }));
-  return ok(200, toPublicCar(car, withProofs));
+  return ok(200, toPublicCar(car, events));
 }

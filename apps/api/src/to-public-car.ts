@@ -1,10 +1,6 @@
 import type { Car, Event, PublicCar } from '@carlog/contracts';
 
-type WithProofs = Event & {
-  proofs: Array<{ url: string; contentType: string; filename?: string }>;
-};
-
-export function toPublicCar(car: Car, events: WithProofs[]): PublicCar {
+export function toPublicCar(car: Car, events: Event[]): PublicCar {
   return {
     id: car.id,
     make: car.make,
@@ -26,7 +22,6 @@ export function toPublicCar(car: Car, events: WithProofs[]): PublicCar {
       title: e.title,
       notes: e.notes,
       works: e.works,
-      proofs: e.proofs.map((p) => ({ url: p.url, contentType: p.contentType, filename: p.filename })),
     })),
   };
 }

@@ -4,14 +4,11 @@ import { FuelTypeSchema } from './car';
 
 export const SetSharingSchema = z.object({ shared: z.boolean() });
 
-export const PublicProofSchema = z.object({
-  url: z.string(), contentType: z.string(), filename: z.string().optional(),
-});
 export const PublicEventSchema = z.object({
   id: z.string(), date: z.string(), category: EventCategorySchema,
   mileage: z.number(), cost: z.number(), currency: z.string(),
   title: z.string().optional(), notes: z.string().optional(),
-  works: z.array(WorkSchema), proofs: z.array(PublicProofSchema),
+  works: z.array(WorkSchema),
 });
 export const PublicCarSchema = z.object({
   id: z.string(), make: z.string(), model: z.string(), year: z.number(),

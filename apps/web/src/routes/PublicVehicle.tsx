@@ -6,7 +6,6 @@ import {
 import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import EvStationIcon from '@mui/icons-material/EvStation';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import type { EventCategory, FuelType, PublicCar, PublicEvent } from '@carlog/contracts';
 import { usePublicCar } from '../queries';
 import { CATEGORY_META, categoryTint } from '../lib/event-category';
@@ -175,41 +174,6 @@ function PublicEventCard({ event }: { event: PublicEvent }) {
               ))}
             </Stack>
           </>
-        ) : null}
-
-        {event.proofs.length ? (
-          <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1.5 }}>
-            {event.proofs.map((p, i) =>
-              p.contentType === 'application/pdf' ? (
-                <Link
-                  key={i}
-                  href={p.url}
-                  target="_blank"
-                  rel="noopener"
-                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 1, border: 1, borderColor: 'divider', borderRadius: 2 }}
-                >
-                  <PictureAsPdfIcon color="error" />
-                  <Typography variant="body2" noWrap sx={{ maxWidth: 140 }}>{p.filename ?? t('event:openPdf')}</Typography>
-                </Link>
-              ) : (
-                <Box
-                  key={i}
-                  component="a"
-                  href={p.url}
-                  target="_blank"
-                  rel="noopener"
-                  sx={{ display: 'block' }}
-                >
-                  <img
-                    src={p.url}
-                    alt={p.filename ?? 'proof'}
-                    loading="lazy"
-                    style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }}
-                  />
-                </Box>
-              ),
-            )}
-          </Stack>
         ) : null}
       </CardContent>
     </Card>

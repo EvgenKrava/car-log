@@ -42,7 +42,7 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (path.startsWith('/public/')) {
       const result = await handlePublicRoute(
-        { cars: deps.cars, events: deps.events, proofs: deps.proofs, storage: deps.storage },
+        { cars: deps.cars, events: deps.events },
         event,
       );
       if (result) return result;

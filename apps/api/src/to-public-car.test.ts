@@ -30,7 +30,6 @@ describe('toPublicCar', () => {
         works: [],
         createdAt: 'x',
         updatedAt: 'y',
-        proofs: [{ url: 'https://s/1', contentType: 'image/jpeg' }],
       },
     ] as never;
     const pc = toPublicCar(car, events);
@@ -41,7 +40,7 @@ describe('toPublicCar', () => {
     expect(pc).toMatchObject({
       make: 'M',
       vin: 'V',
-      events: [{ id: 'e1', cost: 50, proofs: [{ url: 'https://s/1' }] }],
+      events: [{ id: 'e1', cost: 50 }],
     });
   });
 });
