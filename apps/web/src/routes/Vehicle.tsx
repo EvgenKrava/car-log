@@ -486,24 +486,25 @@ function VehicleDetail({ car }: { car: Car }) {
         onManual={() => setManualOpen(true)}
       />
 
-      {/* iOS-style bottom tab bar — mobile only. Fixed to the bottom edge with a
-          hairline top border and safe-area padding for notched devices. Desktop
-          uses the sticky top Tabs above. */}
+      {/* Instagram-style bottom bar — mobile only. A floating, fully-rounded,
+          icon-only capsule that hovers above the bottom edge (side + bottom margins),
+          frosted/translucent, with a highlight behind the active icon. Desktop uses
+          the sticky top Tabs above. */}
       <Paper
         elevation={0}
         sx={{
           position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
+          left: 16,
+          right: 16,
+          bottom: 'calc(env(safe-area-inset-bottom) + 12px)',
           display: { xs: 'block', sm: 'none' },
           zIndex: (theme) => theme.zIndex.appBar,
-          borderTop: 1,
+          borderRadius: 999,
+          overflow: 'hidden',
+          border: 1,
           borderColor: 'divider',
-          pb: 'env(safe-area-inset-bottom)',
-          // Frosted, translucent bar like native iOS (Telegram/Slack): content
-          // scrolls under a blurred, semi-opaque surface instead of a flat block.
-          bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(24,27,32,0.8)' : 'rgba(255,255,255,0.8)'),
+          boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
+          bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
           backdropFilter: 'saturate(180%) blur(20px)',
           WebkitBackdropFilter: 'saturate(180%) blur(20px)',
         }}
@@ -511,31 +512,27 @@ function VehicleDetail({ car }: { car: Car }) {
         <BottomNavigation
           value={tab}
           onChange={(_, v: TabKey) => setTab(v)}
-          showLabels
           sx={{
             bgcolor: 'transparent',
-            height: 64,
-            px: 1,
+            height: 56,
+            px: 0.5,
+            // Icon-only, like Instagram. Labels kept for a11y but visually hidden.
+            '& .MuiBottomNavigationAction-label': { display: 'none' },
             '& .MuiBottomNavigationAction-root': {
               minWidth: 0,
-              borderRadius: '18px',
+              maxWidth: 'none',
+              borderRadius: 999,
               mx: 0.5,
-              my: 1,
-              py: 0.5,
+              my: 0.75,
               color: 'text.secondary',
-              transition: 'background-color .2s ease, box-shadow .2s ease, color .2s ease',
+              transition: 'background-color .2s ease, color .2s ease',
             },
-            // Telegram-style floating selection: the active tab sits on an elevated
-            // rounded "pill" (light capsule + soft shadow), not just a colour change.
+            // Highlight pill behind the active icon.
             '& .Mui-selected': {
-              color: 'primary.main',
-              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.10)' : theme.palette.background.paper),
-              boxShadow: (theme) => (theme.palette.mode === 'dark' ? 'none' : '0 2px 10px rgba(16,24,40,0.14)'),
+              color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.main),
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(91,91,214,0.12)'),
             },
-            // Constant label size (MUI enlarges the selected one by default).
-            '& .MuiBottomNavigationAction-label': { fontSize: 11, mt: '2px', fontWeight: 600 },
-            '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 11 },
-            '& .MuiSvgIcon-root': { fontSize: 26 },
+            '& .MuiSvgIcon-root': { fontSize: 27 },
           }}
         >
           <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
