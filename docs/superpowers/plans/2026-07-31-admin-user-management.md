@@ -681,17 +681,12 @@ git commit -m "feat(api): /admin/users routes wired into the router"
 **Files:**
 - Modify: `infrastructure/cdk/lib/carlog-stack.ts`
 
-- [ ] **Step 1: Create the admin group** — after the `UserPool` is created (~line 45–60), add:
-
-```ts
-import { CfnUserPoolGroup } from 'aws-cdk-lib/aws-cognito';
-// ...
-new CfnUserPoolGroup(this, 'AdminGroup', {
-  userPoolId: userPool.userPoolId,
-  groupName: 'admin',
-  description: 'CarLog administrators',
-});
-```
+- [ ] **Step 1: Admin group is bootstrapped out-of-band (no CDK).** The `admin`
+  Cognito group is created once via CLI (see Task 14 / done during dev) and is
+  **not** managed by CDK — adding a `CfnUserPoolGroup` for a group that already
+  exists would fail the next `cdk deploy`. Skip group creation here; Task 7 only
+  wires the env var, IAM, and routes. (If the stack is ever torn down and
+  recreated, re-run the `create-group` CLI in Task 14 Step 3.)
 
 - [ ] **Step 2: Pass the pool id to the Lambda** — in the `NodejsFunction` `environment` block (~line 118), add:
 
@@ -1174,11 +1169,20 @@ AWS_PROFILE=yevhenii CDK_DEFAULT_REGION=us-east-1 pnpm --filter @carlog/cdk exec
 ./scripts/deploy-web.sh
 ```
 
-- [ ] **Step 3: Bootstrap the first admin** (replace `<UserPoolId>` from stack output, `<you>` = your Cognito username):
+- [ ] **Step 3: Bootstrap the admin group + first admin** (out-of-band, since CDK
+  doesn't manage the group). Replace `<UserPoolId>` from stack output; find the
+  username by email if needed. This may already be done during dev:
 
 ```bash
+# create the group (idempotent — ignore "GroupExistsException")
+AWS_PROFILE=yevhenii aws cognito-idp create-group \
+  --user-pool-id <UserPoolId> --group-name admin \
+  --description "CarLog administrators" --region us-east-1 || true
+# resolve username by email
+UN=$(AWS_PROFILE=yevhenii aws cognito-idp list-users --user-pool-id <UserPoolId> \
+  --filter 'email = "oldfromkb@gmail.com"' --query 'Users[0].Username' --output text --region us-east-1)
 AWS_PROFILE=yevhenii aws cognito-idp admin-add-user-to-group \
-  --user-pool-id <UserPoolId> --username <you> --group-name admin --region us-east-1
+  --user-pool-id <UserPoolId> --username "$UN" --group-name admin --region us-east-1
 ```
 
 Then **sign out and back in** on the web app so the new token carries `cognito:groups: [admin]`.
