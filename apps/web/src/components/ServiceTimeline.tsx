@@ -79,19 +79,18 @@ export function ServiceTimeline({
     <Box sx={{ mt: 4 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Typography variant="h6">{t('event:sectionTitle')}</Typography>
+        {/* On the vehicle page the FAB (driven by the parent) is the sole add
+            affordance, matching the garage's single-FAB pattern — so no header
+            button here. The AddRecordMenu stays mounted for the empty-state button.
+            Standalone use (no parent callbacks) keeps its own inline button. */}
         {hasMenu ? (
-          <>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={(e) => setMenuAnchor(e.currentTarget)}>
-              {t('event:addRecord')}
-            </Button>
-            <AddRecordMenu
-              anchorEl={menuAnchor}
-              onClose={() => setMenuAnchor(null)}
-              onScan={onScan!}
-              onImport={onImport!}
-              onManual={() => setOpen(true)}
-            />
-          </>
+          <AddRecordMenu
+            anchorEl={menuAnchor}
+            onClose={() => setMenuAnchor(null)}
+            onScan={onScan!}
+            onImport={onImport!}
+            onManual={() => setOpen(true)}
+          />
         ) : controlled ? null : (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('event:addService')}</Button>
         )}
