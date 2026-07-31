@@ -13,6 +13,7 @@ function fakePort(overrides: Partial<CognitoUserAdmin> = {}): CognitoUserAdmin {
     removeFromGroup: vi.fn(async () => {}),
     setEnabled: vi.fn(async () => {}),
     deleteUser: vi.fn(async () => {}),
+    getSub: vi.fn(async () => 'other-sub'),
     ...overrides,
   };
 }

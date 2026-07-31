@@ -9,6 +9,7 @@ const port = (): CognitoUserAdmin => ({
   listGroupUsernames: vi.fn(async () => new Set<string>()),
   addToGroup: vi.fn(async () => {}), removeFromGroup: vi.fn(async () => {}),
   setEnabled: vi.fn(async () => {}), deleteUser: vi.fn(async () => {}),
+  getSub: vi.fn(async () => 'other-sub'),
 });
 const base = (over: Partial<ApiEvent>): ApiEvent => ({
   method: 'GET', path: '/admin/users', ownerId: 'caller', groups: ['admin'],
@@ -27,5 +28,13 @@ describe('handleAdminRoute', () => {
     const res = await handleAdminRoute(port(), base({}));
     expect(res?.statusCode).toBe(200);
     expect(JSON.parse(res!.body as string).users).toHaveLength(1);
+  });
+  it('blocks an admin from revoking their own admin role', async () => {
+    const selfPort: CognitoUserAdmin = { ...port(), getSub: vi.fn(async () => 'caller-sub') };
+    const res = await handleAdminRoute(selfPort, base({
+      path: '/admin/users/me/admin', method: 'DELETE', pathParams: { username: 'me' },
+      groups: ['admin'], ownerId: 'caller-sub',
+    }));
+    expect(res?.statusCode).toBe(409);
   });
 });

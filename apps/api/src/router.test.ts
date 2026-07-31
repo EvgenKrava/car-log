@@ -28,6 +28,7 @@ const adminUsers: CognitoUserAdmin = {
   removeFromGroup: vi.fn(async () => {}),
   setEnabled: vi.fn(async () => {}),
   deleteUser: vi.fn(async () => {}),
+  getSub: vi.fn(async () => null),
 };
 let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin };
 beforeEach(() => {

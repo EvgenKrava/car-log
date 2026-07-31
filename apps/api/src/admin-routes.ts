@@ -14,19 +14,17 @@ export async function handleAdminRoute(port: CognitoUserAdmin, event: ApiEvent):
 
   const actor: AdminActor = { sub: ownerId ?? '', isAdmin: isAdmin(groups) };
   const username = pathParams.username;
-  // targetSub is required by self-lockout checks; the client sends it as a query param
-  // on mutating actions (it already has it from the list).
-  const targetSub = queryParams.sub ?? '';
 
   try {
     if (path === '/admin/users' && method === 'GET') {
       return ok(200, await listUsers(port, actor, queryParams.nextToken));
     }
     if (username && path === `/admin/users/${username}/admin` && method === 'PUT') {
-      await setAdmin(port, actor, username, targetSub, true);
+      await setAdmin(port, actor, username, '', true);
       return ok(204, null);
     }
     if (username && path === `/admin/users/${username}/admin` && method === 'DELETE') {
+      const targetSub = (await port.getSub(username)) ?? '';
       await setAdmin(port, actor, username, targetSub, false);
       return ok(204, null);
     }
@@ -36,6 +34,7 @@ export async function handleAdminRoute(port: CognitoUserAdmin, event: ApiEvent):
       return ok(204, null);
     }
     if (username && path === `/admin/users/${username}` && method === 'DELETE') {
+      const targetSub = (await port.getSub(username)) ?? '';
       await deleteUser(port, actor, username, targetSub);
       return ok(204, null);
     }

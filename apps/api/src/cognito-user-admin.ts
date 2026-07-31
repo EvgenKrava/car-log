@@ -2,6 +2,7 @@ import {
   CognitoIdentityProviderClient, ListUsersCommand, ListUsersInGroupCommand,
   AdminAddUserToGroupCommand, AdminRemoveUserFromGroupCommand,
   AdminEnableUserCommand, AdminDisableUserCommand, AdminDeleteUserCommand,
+  AdminGetUserCommand,
   type UserType,
 } from '@aws-sdk/client-cognito-identity-provider';
 
@@ -21,6 +22,7 @@ export interface CognitoUserAdmin {
   removeFromGroup(username: string, group: string): Promise<void>;
   setEnabled(username: string, enabled: boolean): Promise<void>;
   deleteUser(username: string): Promise<void>;
+  getSub(username: string): Promise<string | null>;
 }
 
 const attr = (u: UserType, name: string): string =>
@@ -73,5 +75,9 @@ export class AwsCognitoUserAdmin implements CognitoUserAdmin {
   }
   async deleteUser(username: string): Promise<void> {
     await this.client.send(new AdminDeleteUserCommand({ UserPoolId: this.userPoolId, Username: username }));
+  }
+  async getSub(username: string): Promise<string | null> {
+    const res = await this.client.send(new AdminGetUserCommand({ UserPoolId: this.userPoolId, Username: username }));
+    return res.UserAttributes?.find((a) => a.Name === 'sub')?.Value ?? null;
   }
 }

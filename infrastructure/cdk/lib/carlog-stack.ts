@@ -159,6 +159,7 @@ export class CarLogStack extends Stack {
         'cognito-idp:AdminEnableUser',
         'cognito-idp:AdminDisableUser',
         'cognito-idp:AdminDeleteUser',
+        'cognito-idp:AdminGetUser',
       ],
       resources: [userPool.userPoolArn],
     }));
