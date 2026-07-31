@@ -13,7 +13,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
 import HistoryIcon from '@mui/icons-material/History';
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
+import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import SpeedIcon from '@mui/icons-material/Speed';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -186,15 +188,16 @@ function RemindersTabLabel({ car }: { car: Car }) {
 
 // The reminders icon for the mobile bottom bar, badged with the due/overdue count
 // (mirrors RemindersTabLabel, which badges the desktop tab's text).
-function RemindersBadgeIcon({ car }: { car: Car }) {
+function RemindersBadgeIcon({ car, active }: { car: Car; active: boolean }) {
   const { data: reminders } = useReminders(car.id);
   const today = todayISO();
   const statuses = (reminders ?? []).map((r) => reminderStatus(r, car.mileage, today));
   const overdue = statuses.filter((s) => s === 'overdue').length;
   const due = overdue + statuses.filter((s) => s === 'due_soon').length;
+  const Bell = active ? NotificationsIcon : NotificationsNoneIcon;
   return (
     <Badge badgeContent={due} color={overdue ? 'error' : 'warning'} max={99}>
-      <NotificationsIcon />
+      <Bell />
     </Badge>
   );
 }
@@ -498,12 +501,39 @@ function VehicleDetail({ car }: { car: Car }) {
           borderTop: 1,
           borderColor: 'divider',
           pb: 'env(safe-area-inset-bottom)',
+          // Frosted, translucent bar like native iOS (Telegram/Slack): content
+          // scrolls under a blurred, semi-opaque surface instead of a flat block.
+          bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(24,27,32,0.8)' : 'rgba(255,255,255,0.8)'),
+          backdropFilter: 'saturate(180%) blur(20px)',
+          WebkitBackdropFilter: 'saturate(180%) blur(20px)',
         }}
       >
-        <BottomNavigation value={tab} onChange={(_, v: TabKey) => setTab(v)} showLabels>
+        <BottomNavigation
+          value={tab}
+          onChange={(_, v: TabKey) => setTab(v)}
+          showLabels
+          sx={{
+            bgcolor: 'transparent',
+            height: 52,
+            '& .MuiBottomNavigationAction-root': { minWidth: 0, px: 1, py: 0.5, color: 'text.secondary' },
+            '& .Mui-selected': { color: 'primary.main' },
+            // iOS labels stay a constant small size (MUI enlarges the selected one by default).
+            '& .MuiBottomNavigationAction-label': { fontSize: 10.5, mt: '3px' },
+            '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 10.5 },
+            '& .MuiSvgIcon-root': { fontSize: 24 },
+          }}
+        >
           <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
-          <BottomNavigationAction value="photos" label={t('vehicle:tabPhotos')} icon={<PhotoLibraryIcon />} />
-          <BottomNavigationAction value="reminders" label={t('vehicle:tabReminders')} icon={<RemindersBadgeIcon car={car} />} />
+          <BottomNavigationAction
+            value="photos"
+            label={t('vehicle:tabPhotos')}
+            icon={tab === 'photos' ? <PhotoLibraryIcon /> : <PhotoLibraryOutlinedIcon />}
+          />
+          <BottomNavigationAction
+            value="reminders"
+            label={t('vehicle:tabReminders')}
+            icon={<RemindersBadgeIcon car={car} active={tab === 'reminders'} />}
+          />
         </BottomNavigation>
       </Paper>
     </AppShell>
