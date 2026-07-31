@@ -5,3 +5,4 @@ export * from './proof';
 export * from './import';
 export * from './reminder';
 export * from './admin';
+export * from './metrics';
