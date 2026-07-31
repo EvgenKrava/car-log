@@ -5,6 +5,7 @@ import { Button, Container, Fab, Grid } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useCars } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
+import { GarageAttention } from '../components/GarageAttention';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -33,13 +34,16 @@ export function Garage() {
             action={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('garage:addCar')}</Button>}
           />
         ) : (
-          <Grid container spacing={2}>
-            {cars.map((car) => (
-              <Grid item xs={12} sm={6} md={4} key={car.id}>
-                <VehicleCard car={car} onClick={() => navigate(`/cars/${car.id}`)} />
-              </Grid>
-            ))}
-          </Grid>
+          <>
+            <GarageAttention cars={cars} />
+            <Grid container spacing={2}>
+              {cars.map((car) => (
+                <Grid item xs={12} sm={6} md={4} key={car.id}>
+                  <VehicleCard car={car} onClick={() => navigate(`/cars/${car.id}`)} />
+                </Grid>
+              ))}
+            </Grid>
+          </>
         )}
       </Container>
       <Fab color="primary" onClick={() => setOpen(true)} aria-label="Add car"

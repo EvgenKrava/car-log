@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
-import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput } from '@carlog/contracts';
+import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
 import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder } from './api-client';
 
 export function useCars() {
@@ -104,7 +104,22 @@ export function useUpdateEvent(carId: string) {
 }
 export function useDeleteEvent(carId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
-  return useMutation({ mutationFn: (eventId: string) => deleteEvent(token, carId, eventId), onSuccess: () => qc.invalidateQueries({ queryKey: ['cars', carId, 'events'] }) });
+  const key = ['cars', carId, 'events'];
+  // Optimistic delete: drop the row from the cached list immediately so the timeline
+  // responds instantly, then roll back if the request fails.
+  return useMutation({
+    mutationFn: (eventId: string) => deleteEvent(token, carId, eventId),
+    onMutate: async (eventId: string) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<Event[]>(key);
+      qc.setQueryData<Event[]>(key, (old) => (old ?? []).filter((e) => e.id !== eventId));
+      return { prev };
+    },
+    onError: (_err, _eventId, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  });
 }
 export function useProofs(carId: string, eventId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? '';

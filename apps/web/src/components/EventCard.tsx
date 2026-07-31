@@ -1,23 +1,32 @@
 import { useState } from 'react';
 import {
-  Accordion, AccordionDetails, AccordionSummary, Button, Chip, Stack, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Button, Chip, Stack, Typography, useTheme,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useTranslation } from 'react-i18next';
 import type { Event } from '@carlog/contracts';
 import { formatNumber, formatDate } from '../i18n/format';
-import { useDeleteEvent } from '../queries';
+import { CATEGORY_META, categoryTint } from '../lib/event-category';
+import { useDeleteEvent, useProofs } from '../queries';
 import { EventFormDialog } from './EventFormDialog';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ProofList } from './ProofList';
 
 export function EventCard({ carId, event }: { carId: string; event: Event }) {
   const { t, i18n } = useTranslation(['event', 'common']);
+  const theme = useTheme();
   const del = useDeleteEvent(carId);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const partsCount = event.works.reduce((n, w) => n + w.parts.length, 0);
+  // Proof count for the collapsed-card cue. ProofList (rendered in the details
+  // below) already subscribes to this exact query, and the accordion keeps its
+  // children mounted — so this reuses the cached result, adding no request.
+  const { data: proofs } = useProofs(carId, event.id);
+  const proofCount = proofs?.length ?? 0;
+  const { color, Icon } = CATEGORY_META[event.category];
 
   return (
     <Accordion
@@ -37,7 +46,12 @@ export function EventCard({ carId, event }: { carId: string; event: Event }) {
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', width: '100%' }}>
-          <Chip label={t(`event:category_${event.category}`)} size="small" color="primary" variant="outlined" sx={{ minWidth: 96 }} />
+          <Chip
+            icon={<Icon sx={{ fontSize: 15, color: `${color} !important` }} />}
+            label={t(`event:category_${event.category}`)}
+            size="small"
+            sx={{ minWidth: 96, color, bgcolor: categoryTint(color, theme.palette.mode), border: 1, borderColor: 'transparent' }}
+          />
           <Typography sx={{ fontWeight: 600 }}>{formatDate(`${event.date}T00:00:00.000Z`, i18n.language)}</Typography>
           {/* Imported/scanned events without a known odometer reading are stored as 0 —
               hide the meaningless "0" instead of rendering it. */}
@@ -48,6 +62,15 @@ export function EventCard({ carId, event }: { carId: string; event: Event }) {
                 event.cost > 0 ? `${formatNumber(event.cost, i18n.language)} ${event.currency}` : null,
               ].filter(Boolean).join(' · ')}
             </Typography>
+          ) : null}
+          {/* Proof cue: shows at a glance which records are backed by a receipt/photo,
+              without expanding the card. Pushed to the right on wide rows. */}
+          {proofCount > 0 ? (
+            <Stack direction="row" spacing={0.25} alignItems="center" sx={{ ml: 'auto', color: 'text.secondary' }}
+              aria-label={t('event:proofCount', { count: proofCount })}>
+              <AttachFileIcon sx={{ fontSize: 15 }} />
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>{proofCount}</Typography>
+            </Stack>
           ) : null}
         </Stack>
       </AccordionSummary>
