@@ -489,67 +489,101 @@ function VehicleDetail({ car }: { car: Car }) {
         onManual={() => setManualOpen(true)}
       />
 
-      {/* Mobile bottom tab bar — a floating frosted capsule. Icon + label items
-          (vertically centered), a highlight pill behind the active tab, and a
-          labeled "+" add item at the end (per-tab action). Desktop uses the top Tabs. */}
-      <Paper
-        elevation={0}
+      {/* Mobile bottom nav — a floating frosted capsule of 3 tabs, plus a SEPARATE
+          circular add button beside it. Desktop uses the top Tabs + the FAB above. */}
+      <Box
         sx={{
           position: 'fixed',
           left: 16,
           right: 16,
           bottom: 'calc(env(safe-area-inset-bottom) + 12px)',
-          display: { xs: 'block', sm: 'none' },
+          display: { xs: 'flex', sm: 'none' },
+          gap: 1.25,
+          alignItems: 'stretch',
           zIndex: (theme) => theme.zIndex.appBar,
-          borderRadius: 999,
-          overflow: 'hidden',
-          border: 1,
-          borderColor: 'divider',
-          boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
-          bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
-          backdropFilter: 'saturate(180%) blur(20px)',
-          WebkitBackdropFilter: 'saturate(180%) blur(20px)',
         }}
       >
-        <BottomNavigation
-          value={tab}
-          showLabels
-          onChange={(_, v: string) => { if (v === 'add') triggerAdd(); else setTab(v as TabKey); }}
+        <Paper
+          elevation={0}
           sx={{
-            bgcolor: 'transparent',
-            height: 62,
-            px: 0.5,
-            '& .MuiBottomNavigationAction-root': {
-              minWidth: 0,
-              borderRadius: '16px',
-              mx: 0.25,
-              color: 'text.secondary',
-              transition: 'background-color .2s ease, color .2s ease',
-            },
-            '& .MuiBottomNavigationAction-label': { fontSize: 10, mt: '3px' },
-            '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 10 },
-            // Highlight pill behind the active tab.
-            '& .Mui-selected': {
-              color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.main),
-              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(91,91,214,0.12)'),
-            },
-            '& .MuiSvgIcon-root': { fontSize: 24 },
+            flexGrow: 1,
+            minWidth: 0,
+            borderRadius: 999,
+            overflow: 'hidden',
+            border: 1,
+            borderColor: 'divider',
+            boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
+            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
+            backdropFilter: 'saturate(180%) blur(20px)',
+            WebkitBackdropFilter: 'saturate(180%) blur(20px)',
           }}
         >
-          <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
-          <BottomNavigationAction
-            value="photos"
-            label={t('vehicle:tabPhotos')}
-            icon={tab === 'photos' ? <PhotoLibraryIcon /> : <PhotoLibraryOutlinedIcon />}
-          />
-          <BottomNavigationAction
-            value="reminders"
-            label={t('vehicle:tabReminders')}
-            icon={<RemindersBadgeIcon car={car} active={tab === 'reminders'} />}
-          />
-          <BottomNavigationAction value="add" label={t('common:add')} icon={<AddIcon color="primary" />} />
-        </BottomNavigation>
-      </Paper>
+          <BottomNavigation
+            value={tab}
+            showLabels
+            onChange={(_, v: TabKey) => setTab(v)}
+            sx={{
+              bgcolor: 'transparent',
+              height: 62,
+              px: 0.5,
+              '& .MuiBottomNavigationAction-root': {
+                minWidth: 0,
+                my: 0.75,
+                mx: 0.25,
+                // Fully-rounded highlight to match the capsule's own (pill) rounding.
+                borderRadius: 999,
+                color: 'text.secondary',
+                transition: 'background-color .2s ease, color .2s ease',
+              },
+              '& .MuiBottomNavigationAction-label': { fontSize: 10, mt: '3px' },
+              '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 10 },
+              '& .Mui-selected': {
+                color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.main),
+                bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(91,91,214,0.12)'),
+              },
+              '& .MuiSvgIcon-root': { fontSize: 24 },
+            }}
+          >
+            <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
+            <BottomNavigationAction
+              value="photos"
+              label={t('vehicle:tabPhotos')}
+              icon={tab === 'photos' ? <PhotoLibraryIcon /> : <PhotoLibraryOutlinedIcon />}
+            />
+            <BottomNavigationAction
+              value="reminders"
+              label={t('vehicle:tabReminders')}
+              icon={<RemindersBadgeIcon car={car} active={tab === 'reminders'} />}
+            />
+          </BottomNavigation>
+        </Paper>
+        <Box
+          component="button"
+          type="button"
+          onClick={triggerAdd}
+          aria-label={tab === 'photos' ? t('photos:add') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+          sx={{
+            flexShrink: 0,
+            width: 62,
+            p: 0,
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: '50%',
+            cursor: 'pointer',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'primary.main',
+            boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
+            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
+            backdropFilter: 'saturate(180%) blur(20px)',
+            WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+            transition: 'transform .1s ease',
+            '&:active': { transform: 'scale(0.94)' },
+          }}
+        >
+          <AddIcon />
+        </Box>
+      </Box>
     </AppShell>
   );
 }
