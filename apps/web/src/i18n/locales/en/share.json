@@ -1,0 +1,10 @@
+{
+  "menu": "Public link",
+  "toggle": "Make history public",
+  "hint": "Anyone with the link can view this car's service history.",
+  "copy": "Copy",
+  "copied": "Copied",
+  "notShared": "This history isn't shared.",
+  "readOnly": "Read-only",
+  "sharedVia": "Shared via CarLog"
+}
