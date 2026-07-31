@@ -7,10 +7,11 @@ import {
 import PersonIcon from '@mui/icons-material/Person';
 import LogoutIcon from '@mui/icons-material/Logout';
 import GroupIcon from '@mui/icons-material/Group';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import { useAuth } from '../../auth';
 
 export function UserMenu() {
-  const { t } = useTranslation(['common']);
+  const { t } = useTranslation(['common', 'admin']);
   const { email, signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
@@ -47,6 +48,17 @@ export function UserMenu() {
           <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
           <ListItemText>{t('common:profile')}</ListItemText>
         </MenuItem>
+        {isAdmin ? (
+          <MenuItem
+            onClick={() => {
+              close();
+              navigate('/admin');
+            }}
+          >
+            <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('admin:dashboard')}</ListItemText>
+          </MenuItem>
+        ) : null}
         {isAdmin ? (
           <MenuItem
             onClick={() => {

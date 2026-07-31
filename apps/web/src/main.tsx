@@ -22,6 +22,7 @@ import { ForgotPassword } from './routes/auth/ForgotPassword';
 import { ResetPassword } from './routes/auth/ResetPassword';
 import { Callback } from './routes/Callback';
 import { UserManagement } from './routes/admin/UserManagement';
+import { Dashboard } from './routes/admin/Dashboard';
 import { InstallPrompt } from './components/InstallPrompt';
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ function Root() {
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
+              <Route path="/admin" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
               <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
             </Routes>
             <InstallPrompt />
