@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert, Badge, Box, Button, Card, CardContent, Container, Fab, IconButton, ListItemIcon,
-  ListItemText, Menu, MenuItem, Stack, Tab, Tabs, Tooltip, Typography,
+  Alert, Badge, BottomNavigation, BottomNavigationAction, Box, Button, Card, CardContent,
+  Container, Fab, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Slide, Stack,
+  Tab, Tabs, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -24,11 +25,11 @@ import { useCar, useDeleteCar, useEvents, useReminders } from '../queries';
 import { reminderStatus, todayISO } from '../lib/reminder-view';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { AddRecordMenu } from '../components/AddRecordMenu';
+import { AddRecordSheet } from '../components/AddRecordSheet';
 import { ImportEventsDialog } from '../components/ImportEventsDialog';
 import { ScanInvoiceDialog } from '../components/ScanInvoiceDialog';
-import { PhotoGallery } from '../components/PhotoGallery';
-import { RemindersSection } from '../components/RemindersSection';
+import { PhotoGallery, type PhotoGalleryHandle } from '../components/PhotoGallery';
+import { RemindersSection, type RemindersSectionHandle } from '../components/RemindersSection';
 import { ServiceTimeline } from '../components/ServiceTimeline';
 import { SpendSparkline } from '../components/SpendSparkline';
 import { AppShell } from '../components/ui/AppShell';
@@ -183,8 +184,23 @@ function RemindersTabLabel({ car }: { car: Car }) {
   );
 }
 
+// The reminders icon for the mobile bottom bar, badged with the due/overdue count
+// (mirrors RemindersTabLabel, which badges the desktop tab's text).
+function RemindersBadgeIcon({ car }: { car: Car }) {
+  const { data: reminders } = useReminders(car.id);
+  const today = todayISO();
+  const statuses = (reminders ?? []).map((r) => reminderStatus(r, car.mileage, today));
+  const overdue = statuses.filter((s) => s === 'overdue').length;
+  const due = overdue + statuses.filter((s) => s === 'due_soon').length;
+  return (
+    <Badge badgeContent={due} color={overdue ? 'error' : 'warning'} max={99}>
+      <NotificationsIcon />
+    </Badge>
+  );
+}
+
 function VehicleDetail({ car }: { car: Car }) {
-  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event']);
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event', 'reminders']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
@@ -193,8 +209,11 @@ function VehicleDetail({ car }: { car: Car }) {
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  // Anchor for the FAB's add-record menu (history tab only).
-  const [fabAnchor, setFabAnchor] = useState<HTMLElement | null>(null);
+  // The universal FAB's add-options sheet (history tab). Photos/reminders trigger
+  // their section's add action directly via these imperative handles.
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const photosRef = useRef<PhotoGalleryHandle>(null);
+  const remindersRef = useRef<RemindersSectionHandle>(null);
   // Active tab lives in the URL (?tab=photos) so refresh and back/forward keep
   // the user's place; the default (history) stays out of the URL.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -367,6 +386,9 @@ function VehicleDetail({ car }: { car: Car }) {
               tabs stay reachable while scrolling a long timeline. */}
           <Box
             sx={{
+              // Desktop: sticky top tab bar. On mobile the tabs live in a fixed
+              // iOS-style bottom bar instead (rendered below), so hide this.
+              display: { xs: 'none', sm: 'block' },
               position: 'sticky',
               top: { xs: 56, sm: 64 },
               zIndex: (theme) => theme.zIndex.appBar - 1,
@@ -408,12 +430,12 @@ function VehicleDetail({ car }: { car: Car }) {
           ) : null}
           {tab === 'photos' ? (
             <Box sx={{ '& > *': { mt: 0 } }}>
-              <PhotoGallery carId={car.id} />
+              <PhotoGallery ref={photosRef} carId={car.id} />
             </Box>
           ) : null}
           {tab === 'reminders' ? (
             <Box sx={{ '& > *': { mt: 0 } }}>
-              <RemindersSection car={car} />
+              <RemindersSection ref={remindersRef} car={car} />
             </Box>
           ) : null}
 
@@ -431,25 +453,54 @@ function VehicleDetail({ car }: { car: Car }) {
       />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
-      {/* Primary add-record affordance — the FAB the project's UI conventions call for.
-          Shown on the history tab; opens the same 3-option menu as the timeline header. */}
-      {tab === 'history' ? (
+      {/* One universal add button across all tabs: history → options sheet,
+          photos → file picker, reminders → new reminder. Slides up into place.
+          Sits above the mobile bottom bar (bottom: 88 on xs). */}
+      <Slide direction="up" in appear timeout={280}>
         <Fab
           color="primary"
-          aria-label={t('event:addRecord')}
-          onClick={(e) => setFabAnchor(e.currentTarget)}
-          sx={{ position: 'fixed', bottom: 24, right: 24 }}
+          aria-label={tab === 'photos' ? t('photos:add') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+          onClick={() => {
+            if (tab === 'history') setAddSheetOpen(true);
+            else if (tab === 'photos') photosRef.current?.openPicker();
+            else remindersRef.current?.openAdd();
+          }}
+          sx={{ position: 'fixed', right: 24, bottom: { xs: 88, sm: 24 } }}
         >
           <AddIcon />
         </Fab>
-      ) : null}
-      <AddRecordMenu
-        anchorEl={fabAnchor}
-        onClose={() => setFabAnchor(null)}
+      </Slide>
+      <AddRecordSheet
+        open={addSheetOpen}
+        onClose={() => setAddSheetOpen(false)}
         onScan={() => setScanOpen(true)}
         onImport={() => setImportOpen(true)}
         onManual={() => setManualOpen(true)}
       />
+
+      {/* iOS-style bottom tab bar — mobile only. Fixed to the bottom edge with a
+          hairline top border and safe-area padding for notched devices. Desktop
+          uses the sticky top Tabs above. */}
+      <Paper
+        elevation={0}
+        sx={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          display: { xs: 'block', sm: 'none' },
+          zIndex: (theme) => theme.zIndex.appBar,
+          borderTop: 1,
+          borderColor: 'divider',
+          pb: 'env(safe-area-inset-bottom)',
+        }}
+      >
+        <BottomNavigation value={tab} onChange={(_, v: TabKey) => setTab(v)} showLabels>
+          <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
+          <BottomNavigationAction value="photos" label={t('vehicle:tabPhotos')} icon={<PhotoLibraryIcon />} />
+          <BottomNavigationAction value="reminders" label={t('vehicle:tabReminders')} icon={<RemindersBadgeIcon car={car} />} />
+        </BottomNavigation>
+      </Paper>
     </AppShell>
   );
 }

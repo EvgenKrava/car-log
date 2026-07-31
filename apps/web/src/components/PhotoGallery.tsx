@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Button, IconButton, Stack, Typography } from '@mui/material';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { Box, IconButton, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -15,13 +14,16 @@ import { Modal } from './ui/Modal';
 import { StatusView } from './ui/StatusView';
 import { BatchUploadStatus } from './ui/BatchUploadStatus';
 
-export function PhotoGallery({ carId }: { carId: string }) {
+export type PhotoGalleryHandle = { openPicker: () => void };
+
+export const PhotoGallery = forwardRef<PhotoGalleryHandle, { carId: string }>(function PhotoGallery({ carId }, ref) {
   const { t } = useTranslation(['photos', 'common']);
   const { data: photos, isLoading, isError } = usePhotos(carId);
   const upload = useUploadPhoto(carId);
   const del = useDeletePhoto(carId);
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
+  useImperativeHandle(ref, () => ({ openPicker: () => inputRef.current?.click() }), []);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
   const touchStartX = useRef<number | null>(null);
@@ -59,13 +61,8 @@ export function PhotoGallery({ carId }: { carId: string }) {
 
   return (
     <Box sx={{ mt: 3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        <Typography variant="h6">{t('photos:title')}</Typography>
-        <Button startIcon={<AddPhotoAlternateIcon />} onClick={() => inputRef.current?.click()} disabled={batch.running}>
-          {t('photos:add')}
-        </Button>
-        <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={onPick} />
-      </Stack>
+      <Typography variant="h6" sx={{ mb: 1 }}>{t('photos:title')}</Typography>
+      <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={onPick} />
       <BatchUploadStatus items={batch.items} running={batch.running} />
 
       {isLoading ? (
@@ -164,4 +161,4 @@ export function PhotoGallery({ carId }: { carId: string }) {
       />
     </Box>
   );
-}
+});

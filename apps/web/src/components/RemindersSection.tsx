@@ -1,6 +1,5 @@
-import { useState } from 'react';
-import { Box, Button, Stack, Typography } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import { forwardRef, useImperativeHandle, useState } from 'react';
+import { Box, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { Car, CreateEventInput, Reminder } from '@carlog/contracts';
 import { useDeleteReminder, useReminders } from '../queries';
@@ -12,12 +11,15 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { EventFormDialog } from './EventFormDialog';
 import { StatusView } from './ui/StatusView';
 
-export function RemindersSection({ car }: { car: Car }) {
+export type RemindersSectionHandle = { openAdd: () => void };
+
+export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>(function RemindersSection({ car }, ref) {
   const { t } = useTranslation(['reminders', 'common']);
   const { data: reminders, isLoading, isError } = useReminders(car.id);
   const del = useDeleteReminder(car.id);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Reminder | undefined>();
+  useImperativeHandle(ref, () => ({ openAdd: () => { setEditing(undefined); setFormOpen(true); } }), []);
   const [deleting, setDeleting] = useState<Reminder | undefined>();
   const [completing, setCompleting] = useState<Reminder | undefined>();
   // After a completion, offer to log the done work as a service event (skippable).
@@ -27,12 +29,7 @@ export function RemindersSection({ car }: { car: Car }) {
 
   return (
     <Box sx={{ mt: 4 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        <Typography variant="h6">{t('reminders:sectionTitle')}</Typography>
-        <Button variant="outlined" startIcon={<AddIcon />} onClick={() => { setEditing(undefined); setFormOpen(true); }}>
-          {t('reminders:add')}
-        </Button>
-      </Stack>
+      <Typography variant="h6" sx={{ mb: 1 }}>{t('reminders:sectionTitle')}</Typography>
       {isLoading ? (
         <StatusView state="loading" />
       ) : isError ? (
@@ -70,4 +67,4 @@ export function RemindersSection({ car }: { car: Car }) {
         carId={car.id} mode="create" initial={eventPrefill} />
     </Box>
   );
-}
+});
