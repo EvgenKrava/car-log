@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Accordion, AccordionDetails, AccordionSummary, Button, Chip, Stack, Typography, useTheme,
+  Accordion, AccordionDetails, AccordionSummary, Box, Button, Stack, Typography, useTheme,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -45,13 +45,21 @@ export function EventCard({ carId, event }: { carId: string; event: Event }) {
       }}
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', width: '100%' }}>
-          <Chip
-            icon={<Icon sx={{ fontSize: 15, color: `${color} !important` }} />}
-            label={t(`event:category_${event.category}`)}
-            size="small"
-            sx={{ minWidth: 96, color, bgcolor: categoryTint(color, theme.palette.mode), border: 1, borderColor: 'transparent' }}
-          />
+        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexWrap: 'wrap', width: '100%' }}>
+          {/* Event type shown as an icon only (colour-coded, tinted disc); the
+              category name is the accessible label/tooltip, not visible text. */}
+          <Box
+            role="img"
+            aria-label={t(`event:category_${event.category}`)}
+            title={t(`event:category_${event.category}`)}
+            sx={{
+              width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+              display: 'grid', placeItems: 'center',
+              color, bgcolor: categoryTint(color, theme.palette.mode),
+            }}
+          >
+            <Icon sx={{ fontSize: 19 }} />
+          </Box>
           <Typography sx={{ fontWeight: 600 }}>{formatDate(`${event.date}T00:00:00.000Z`, i18n.language)}</Typography>
           {/* Imported/scanned events without a known odometer reading are stored as 0 —
               hide the meaningless "0" instead of rendering it. */}

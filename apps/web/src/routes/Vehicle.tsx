@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Alert, Badge, BottomNavigation, BottomNavigationAction, Box, Button, Card, CardContent,
-  Container, Fab, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Slide, Stack,
+  Container, Fab, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack,
   Tab, Tabs, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -224,6 +224,15 @@ function VehicleDetail({ car }: { car: Car }) {
   const tab: TabKey = isTabKey(tabParam) ? tabParam : 'history';
   const setTab = (next: TabKey) =>
     setSearchParams(next === 'history' ? {} : { tab: next }, { replace: true });
+
+  // The add action depends on the active tab: history → options sheet, photos →
+  // file picker, reminders → new reminder. Shared by the desktop FAB and the
+  // mobile bottom bar's "+" item.
+  const triggerAdd = () => {
+    if (tab === 'history') setAddSheetOpen(true);
+    else if (tab === 'photos') photosRef.current?.openPicker();
+    else remindersRef.current?.openAdd();
+  };
 
   const title = car.nickname || `${car.make} ${car.model}`;
   const hasNickname = Boolean(car.nickname);
@@ -461,23 +470,17 @@ function VehicleDetail({ car }: { car: Car }) {
       />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
-      {/* One universal add button across all tabs: history → options sheet,
-          photos → file picker, reminders → new reminder. Slides up into place.
-          Sits above the mobile bottom bar (bottom: 88 on xs). */}
-      <Slide direction="up" in appear timeout={280}>
-        <Fab
-          color="primary"
-          aria-label={tab === 'photos' ? t('photos:add') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
-          onClick={() => {
-            if (tab === 'history') setAddSheetOpen(true);
-            else if (tab === 'photos') photosRef.current?.openPicker();
-            else remindersRef.current?.openAdd();
-          }}
-          sx={{ position: 'fixed', right: 24, bottom: { xs: 88, sm: 24 } }}
-        >
-          <AddIcon />
-        </Fab>
-      </Slide>
+      {/* Add affordance. Desktop (no bottom bar) → a FAB; mobile → the "+" lives in
+          the bottom bar as a labeled item (below). Per-tab action: history → options
+          sheet, photos → file picker, reminders → new reminder. */}
+      <Fab
+        color="primary"
+        aria-label={tab === 'photos' ? t('photos:add') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+        onClick={triggerAdd}
+        sx={{ display: { xs: 'none', sm: 'flex' }, position: 'fixed', right: 24, bottom: 24 }}
+      >
+        <AddIcon />
+      </Fab>
       <AddRecordSheet
         open={addSheetOpen}
         onClose={() => setAddSheetOpen(false)}
@@ -486,10 +489,9 @@ function VehicleDetail({ car }: { car: Car }) {
         onManual={() => setManualOpen(true)}
       />
 
-      {/* Instagram-style bottom bar — mobile only. A floating, fully-rounded,
-          icon-only capsule that hovers above the bottom edge (side + bottom margins),
-          frosted/translucent, with a highlight behind the active icon. Desktop uses
-          the sticky top Tabs above. */}
+      {/* Mobile bottom tab bar — a floating frosted capsule. Icon + label items
+          (vertically centered), a highlight pill behind the active tab, and a
+          labeled "+" add item at the end (per-tab action). Desktop uses the top Tabs. */}
       <Paper
         elevation={0}
         sx={{
@@ -511,28 +513,27 @@ function VehicleDetail({ car }: { car: Car }) {
       >
         <BottomNavigation
           value={tab}
-          onChange={(_, v: TabKey) => setTab(v)}
+          showLabels
+          onChange={(_, v: string) => { if (v === 'add') triggerAdd(); else setTab(v as TabKey); }}
           sx={{
             bgcolor: 'transparent',
-            height: 56,
+            height: 62,
             px: 0.5,
-            // Icon-only, like Instagram. Labels kept for a11y but visually hidden.
-            '& .MuiBottomNavigationAction-label': { display: 'none' },
             '& .MuiBottomNavigationAction-root': {
               minWidth: 0,
-              maxWidth: 'none',
-              borderRadius: 999,
-              mx: 0.5,
-              my: 0.75,
+              borderRadius: '16px',
+              mx: 0.25,
               color: 'text.secondary',
               transition: 'background-color .2s ease, color .2s ease',
             },
-            // Highlight pill behind the active icon.
+            '& .MuiBottomNavigationAction-label': { fontSize: 10, mt: '3px' },
+            '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 10 },
+            // Highlight pill behind the active tab.
             '& .Mui-selected': {
               color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.main),
-              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(91,91,214,0.12)'),
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(91,91,214,0.12)'),
             },
-            '& .MuiSvgIcon-root': { fontSize: 27 },
+            '& .MuiSvgIcon-root': { fontSize: 24 },
           }}
         >
           <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
@@ -546,6 +547,7 @@ function VehicleDetail({ car }: { car: Car }) {
             label={t('vehicle:tabReminders')}
             icon={<RemindersBadgeIcon car={car} active={tab === 'reminders'} />}
           />
+          <BottomNavigationAction value="add" label={t('common:add')} icon={<AddIcon color="primary" />} />
         </BottomNavigation>
       </Paper>
     </AppShell>
