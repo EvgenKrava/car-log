@@ -29,6 +29,8 @@ import {
   AdminUserSchema,
   ListUsersResponseSchema,
   type ListUsersResponse,
+  MetricsResponseSchema,
+  type MetricsResponse,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -173,6 +175,8 @@ export const listUsers = (token: string, nextToken?: string): Promise<ListUsersR
   const qs = nextToken ? `?nextToken=${encodeURIComponent(nextToken)}` : '';
   return request(token, `/admin/users${qs}`, ListUsersResponseSchema);
 };
+export const getMetrics = (token: string): Promise<MetricsResponse> =>
+  request(token, '/admin/metrics', MetricsResponseSchema);
 export const setUserAdmin = (token: string, username: string, makeAdmin: boolean): Promise<void> =>
   request(token, `/admin/users/${encodeURIComponent(username)}/admin`, AdminUserSchema, { method: makeAdmin ? 'PUT' : 'DELETE' })
     .then(() => undefined);

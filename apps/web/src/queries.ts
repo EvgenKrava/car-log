@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -229,6 +229,10 @@ export function useCompleteReminder(carId: string) {
 export function useAdminUsers() {
   const { accessToken } = useAuth(); const token = accessToken ?? '';
   return useQuery({ queryKey: ['admin', 'users'], queryFn: () => listUsers(token), enabled: Boolean(token) });
+}
+export function useAdminMetrics() {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({ queryKey: ['admin', 'metrics'], queryFn: () => getMetrics(token), enabled: Boolean(token), staleTime: 5 * 60_000 });
 }
 export function useSetUserAdmin() {
   const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
