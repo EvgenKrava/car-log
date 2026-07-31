@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, listPhotos, uploadPhoto, deletePhoto, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -223,5 +223,32 @@ export function useCompleteReminder(carId: string) {
       void qc.invalidateQueries({ queryKey: ['cars', carId] });
       void qc.invalidateQueries({ queryKey: ['cars'] });
     },
+  });
+}
+
+export function useAdminUsers() {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({ queryKey: ['admin', 'users'], queryFn: () => listUsers(token), enabled: Boolean(token) });
+}
+export function useSetUserAdmin() {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ username, sub, makeAdmin }: { username: string; sub: string; makeAdmin: boolean }) =>
+      setUserAdmin(token, username, sub, makeAdmin),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+}
+export function useSetUserEnabled() {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ username, enabled }: { username: string; enabled: boolean }) => setUserEnabled(token, username, enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+}
+export function useDeleteUser() {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ username, sub }: { username: string; sub: string }) => deleteUser(token, username, sub),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
   });
 }

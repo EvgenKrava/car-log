@@ -26,6 +26,9 @@ import {
   type Reminder,
   type CreateReminderInput,
   type CompleteReminderInput,
+  AdminUserSchema,
+  ListUsersResponseSchema,
+  type ListUsersResponse,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -165,3 +168,17 @@ export const deleteReminder = (token: string, carId: string, reminderId: string)
 // 200 → the rescheduled next occurrence; 204 (one-shot, deleted) → undefined.
 export const completeReminder = (token: string, carId: string, reminderId: string, input: CompleteReminderInput): Promise<Reminder | undefined> =>
   request(token, `${reminderBase(carId)}/${reminderId}/complete`, ReminderSchema, { method: 'POST', body: JSON.stringify(input) });
+
+export const listUsers = (token: string, nextToken?: string): Promise<ListUsersResponse> => {
+  const qs = nextToken ? `?nextToken=${encodeURIComponent(nextToken)}` : '';
+  return request(token, `/admin/users${qs}`, ListUsersResponseSchema);
+};
+export const setUserAdmin = (token: string, username: string, sub: string, makeAdmin: boolean): Promise<void> =>
+  request(token, `/admin/users/${encodeURIComponent(username)}/admin?sub=${encodeURIComponent(sub)}`, AdminUserSchema, { method: makeAdmin ? 'PUT' : 'DELETE' })
+    .then(() => undefined);
+export const setUserEnabled = (token: string, username: string, enabled: boolean): Promise<void> =>
+  request(token, `/admin/users/${encodeURIComponent(username)}/enabled`, AdminUserSchema, { method: 'PUT', body: JSON.stringify({ enabled }) })
+    .then(() => undefined);
+export const deleteUser = (token: string, username: string, sub: string): Promise<void> =>
+  request(token, `/admin/users/${encodeURIComponent(username)}?sub=${encodeURIComponent(sub)}`, AdminUserSchema, { method: 'DELETE' })
+    .then(() => undefined);
