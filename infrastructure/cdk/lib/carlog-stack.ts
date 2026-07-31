@@ -208,6 +208,8 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/admin/users/{username}/admin', methods: [HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/admin/users/{username}/enabled', methods: [HttpMethod.PUT], integration, authorizer });
     httpApi.addRoutes({ path: '/admin/metrics', methods: [HttpMethod.GET], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/sharing', methods: [HttpMethod.PUT], integration, authorizer });
+    httpApi.addRoutes({ path: '/public/cars/{carId}', methods: [HttpMethod.GET], integration }); // NO authorizer — public
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.
