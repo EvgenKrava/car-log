@@ -1,16 +1,18 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import {
-  Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton,
-  MenuItem, Stack, TextField, Typography,
+  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton,
+  Stack, TextField, Typography, useTheme,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { CreateEventSchema, EVENT_CATEGORIES, type Event, type CreateEventInput } from '@carlog/contracts';
-import { useCreateEvent, useUpdateEvent } from '../queries';
+import { useCar, useCreateEvent, useEvents, useUpdateEvent } from '../queries';
+import { CATEGORY_META, categoryTint } from '../lib/event-category';
+import { formatNumber } from '../i18n/format';
 import { NumberField } from './ui/NumberField';
 import { useBottomSheetDismiss } from './ui/useBottomSheetDismiss';
 
@@ -63,10 +65,21 @@ const toForm = (e: Event): CreateEventInput => ({
 export function EventFormDialog({
   open, onClose, carId, mode, event, initial,
 }: { open: boolean; onClose: () => void; carId: string; mode: 'create' | 'edit'; event?: Event; initial?: Partial<CreateEventInput> }) {
-  const { t } = useTranslation(['event', 'common']);
+  const { t, i18n } = useTranslation(['event', 'common']);
+  const theme = useTheme();
   const create = useCreateEvent(carId);
   const update = useUpdateEvent(carId);
   const isPending = create.isPending || update.isPending;
+  const { data: car } = useCar(carId);
+  const { data: events } = useEvents(carId);
+
+  // Currency follows the car's most recent event — histories rarely switch currency,
+  // so the last-used value is a better default than a hardcoded 'UAH'.
+  const lastCurrency = useMemo(() => {
+    const latest = [...(events ?? [])].sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    return latest?.currency ?? EMPTY.currency;
+  }, [events]);
+  const lastMileage = car?.mileage ?? 0;
 
   const formSchema = useMemo(() => buildFormSchema(t), [t]);
   const { control, handleSubmit, reset, formState: { errors, isSubmitted } } = useForm<CreateEventInput>({
@@ -75,9 +88,28 @@ export function EventFormDialog({
   const works = useFieldArray({ control, name: 'works' });
   const sheet = useBottomSheetDismiss(onClose);
 
+  // A gentle, NON-blocking check: an odometer usually only goes up, so a create-mode
+  // reading below the car's last-known mileage is probably a typo. Backdated/imported
+  // events legitimately can be lower, so this stays a hint, never a validation error.
+  const watchedMileage = useWatch({ control, name: 'mileage' });
+  const mileageBelowLast =
+    mode === 'create' && lastMileage > 0 && typeof watchedMileage === 'number'
+    && watchedMileage > 0 && watchedMileage < lastMileage;
+
+  // Seed values are read only at open-time (via a ref), never as effect deps — so a
+  // background refetch of events/car while the dialog is open can't wipe in-progress edits.
+  const seedRef = useRef({ lastMileage, lastCurrency });
+  seedRef.current = { lastMileage, lastCurrency };
+
   useEffect(() => {
     if (!open) return;
-    reset(mode === 'edit' && event ? toForm(event) : { ...EMPTY, ...initial });
+    // Create-mode seeds mileage from the odometer and currency from history; `initial`
+    // (e.g. a reminder-completion prefill) still overrides both.
+    reset(
+      mode === 'edit' && event
+        ? toForm(event)
+        : { ...EMPTY, mileage: seedRef.current.lastMileage, currency: seedRef.current.lastCurrency, ...initial },
+    );
   }, [open, mode, event, initial, reset]);
 
   const onSubmit = handleSubmit(async (data) => {
@@ -103,19 +135,56 @@ export function EventFormDialog({
                 error={Boolean(errors.date)} helperText={errors.date?.message as string | undefined} />
             )} />
             <Controller name="category" control={control} render={({ field }) => (
-              <TextField {...field} select label={t('event:category')} fullWidth>
-                {EVENT_CATEGORIES.map((c) => <MenuItem key={c} value={c}>{t(`event:category_${c}`)}</MenuItem>)}
-              </TextField>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontWeight: 600 }}>
+                  {t('event:category')}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {EVENT_CATEGORIES.map((c) => {
+                    const { color, Icon } = CATEGORY_META[c];
+                    const active = field.value === c;
+                    return (
+                      <Chip
+                        key={c}
+                        icon={<Icon sx={{ fontSize: 16, color: `${color} !important` }} />}
+                        label={t(`event:category_${c}`)}
+                        onClick={() => field.onChange(c)}
+                        sx={{
+                          color,
+                          fontWeight: 600,
+                          bgcolor: active ? categoryTint(color, theme.palette.mode) : 'transparent',
+                          border: 2,
+                          borderColor: active ? color : 'divider',
+                        }}
+                      />
+                    );
+                  })}
+                </Box>
+              </Box>
             )} />
-            <Controller name="mileage" control={control} render={({ field }) => (
-              <NumberField label={t('event:mileage')} fullWidth value={field.value}
-                onChange={(v) => field.onChange(v ?? 0)} onBlur={field.onBlur} name={field.name}
-                error={Boolean(errors.mileage)} helperText={errors.mileage?.message as string | undefined} />
-            )} />
-            <Controller name="cost" control={control} render={({ field }) => (
-              <NumberField label={t('event:cost')} fullWidth value={field.value}
-                onChange={(v) => field.onChange(v ?? 0)} onBlur={field.onBlur} name={field.name} />
-            )} />
+            <Box>
+              <Controller name="mileage" control={control} render={({ field }) => (
+                <NumberField label={t('event:mileage')} fullWidth value={field.value}
+                  onChange={(v) => field.onChange(v ?? 0)} onBlur={field.onBlur} name={field.name}
+                  error={Boolean(errors.mileage)} helperText={errors.mileage?.message as string | undefined} />
+              )} />
+              {mileageBelowLast ? (
+                <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+                  {t('event:mileageBelowLast', { mileage: formatNumber(lastMileage, i18n.language) })}
+                </Typography>
+              ) : null}
+            </Box>
+            <Stack direction="row" spacing={1.5}>
+              <Controller name="cost" control={control} render={({ field }) => (
+                <NumberField label={t('event:cost')} fullWidth value={field.value}
+                  onChange={(v) => field.onChange(v ?? 0)} onBlur={field.onBlur} name={field.name} />
+              )} />
+              <Controller name="currency" control={control} render={({ field }) => (
+                <TextField {...field} label={t('event:currency')} sx={{ width: 110 }}
+                  inputProps={{ maxLength: 8, style: { textTransform: 'uppercase' } }}
+                  onChange={(e) => field.onChange(e.target.value.toUpperCase())} />
+              )} />
+            </Stack>
             <Controller name="title" control={control} render={({ field }) => (
               <TextField {...field} label={t('event:title')} fullWidth value={field.value ?? ''} />
             )} />

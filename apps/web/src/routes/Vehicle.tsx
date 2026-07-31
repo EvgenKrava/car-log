@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert, Badge, Box, Button, Card, CardContent, Container, IconButton, ListItemIcon,
-  ListItemText, Menu, MenuItem, Stack, Tab, Tabs, Typography,
+  Alert, Badge, Box, Button, Card, CardContent, Container, Fab, IconButton, ListItemIcon,
+  ListItemText, Menu, MenuItem, Stack, Tab, Tabs, Tooltip, Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -23,11 +24,13 @@ import { useCar, useDeleteCar, useEvents, useReminders } from '../queries';
 import { reminderStatus, todayISO } from '../lib/reminder-view';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { AddRecordMenu } from '../components/AddRecordMenu';
 import { ImportEventsDialog } from '../components/ImportEventsDialog';
 import { ScanInvoiceDialog } from '../components/ScanInvoiceDialog';
 import { PhotoGallery } from '../components/PhotoGallery';
 import { RemindersSection } from '../components/RemindersSection';
 import { ServiceTimeline } from '../components/ServiceTimeline';
+import { SpendSparkline } from '../components/SpendSparkline';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
@@ -36,7 +39,7 @@ import { formatNumber } from '../i18n/format';
 // One of the three key facts on the hero — an icon beside a small caps label
 // and a prominent value. Icons sit in a tinted square so the row reads as a
 // dashboard, not a table; minWidth 0 + noWrap keeps 360px widths safe.
-function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function StatTile({ icon, label, value, note }: { icon: React.ReactNode; label: string; value: string; note?: string }) {
   return (
     <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
       <Box
@@ -62,7 +65,14 @@ function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string
         >
           {label}
         </Typography>
-        <Typography sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap>{value}</Typography>
+        <Typography sx={{ fontWeight: 700, lineHeight: 1.3 }} noWrap>
+          {value}
+          {note ? (
+            <Tooltip title={note}>
+              <Box component="span" sx={{ ml: 0.4, color: 'text.secondary', cursor: 'help', fontWeight: 600 }}>*</Box>
+            </Tooltip>
+          ) : null}
+        </Typography>
       </Box>
     </Stack>
   );
@@ -138,16 +148,18 @@ const FUEL_ICONS: Record<Car['fuelType'], React.ReactNode> = {
 };
 
 // Total spent across events, grouped by currency; shows the dominant currency's
-// sum (multi-currency histories are rare — the tooltip-free short form wins).
-function totalSpent(events: Event[] | undefined, lang: string): string | null {
+// sum. When the history mixes currencies, `multi` is set so the tile can flag that
+// the figure is a single-currency subtotal rather than a true grand total.
+function totalSpent(events: Event[] | undefined, lang: string): { text: string; multi: boolean } | null {
   if (!events?.length) return null;
   const byCurrency = new Map<string, number>();
   for (const e of events) {
     if (e.cost > 0) byCurrency.set(e.currency, (byCurrency.get(e.currency) ?? 0) + e.cost);
   }
   if (!byCurrency.size) return null;
-  const [currency, sum] = [...byCurrency.entries()].sort((a, b) => b[1] - a[1])[0]!;
-  return `${formatNumber(Math.round(sum), lang)} ${currency}`;
+  const entries = [...byCurrency.entries()].sort((a, b) => b[1] - a[1]);
+  const [currency, sum] = entries[0]!;
+  return { text: `${formatNumber(Math.round(sum), lang)} ${currency}`, multi: entries.length > 1 };
 }
 
 const TAB_KEYS = ['history', 'photos', 'reminders'] as const;
@@ -172,7 +184,7 @@ function RemindersTabLabel({ car }: { car: Car }) {
 }
 
 function VehicleDetail({ car }: { car: Car }) {
-  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos']);
+  const { t, i18n } = useTranslation(['vehicle', 'car', 'common', 'import', 'photos', 'event']);
   const navigate = useNavigate();
   const del = useDeleteCar();
   const [editOpen, setEditOpen] = useState(false);
@@ -181,6 +193,8 @@ function VehicleDetail({ car }: { car: Car }) {
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  // Anchor for the FAB's add-record menu (history tab only).
+  const [fabAnchor, setFabAnchor] = useState<HTMLElement | null>(null);
   // Active tab lives in the URL (?tab=photos) so refresh and back/forward keep
   // the user's place; the default (history) stays out of the URL.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -332,9 +346,12 @@ function VehicleDetail({ car }: { car: Car }) {
                 <StatTile
                   icon={<PaymentsIcon sx={{ fontSize: 20 }} />}
                   label={t('vehicle:statSpent')}
-                  value={spent ?? t('vehicle:statNotRecorded')}
+                  value={spent?.text ?? t('vehicle:statNotRecorded')}
+                  note={spent?.multi ? t('vehicle:statSpentMulti') : undefined}
                 />
               </Box>
+
+              {events ? <SpendSparkline events={events} lang={i18n.language} /> : null}
 
               {car.vin ? (
                 <Box sx={{ mt: { xs: 2, sm: 2.5 }, pt: { xs: 1.5, sm: 2 }, borderTop: 1, borderColor: 'divider' }}>
@@ -414,6 +431,25 @@ function VehicleDetail({ car }: { car: Car }) {
       />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
+      {/* Primary add-record affordance — the FAB the project's UI conventions call for.
+          Shown on the history tab; opens the same 3-option menu as the timeline header. */}
+      {tab === 'history' ? (
+        <Fab
+          color="primary"
+          aria-label={t('event:addRecord')}
+          onClick={(e) => setFabAnchor(e.currentTarget)}
+          sx={{ position: 'fixed', bottom: 24, right: 24 }}
+        >
+          <AddIcon />
+        </Fab>
+      ) : null}
+      <AddRecordMenu
+        anchorEl={fabAnchor}
+        onClose={() => setFabAnchor(null)}
+        onScan={() => setScanOpen(true)}
+        onImport={() => setImportOpen(true)}
+        onManual={() => setManualOpen(true)}
+      />
     </AppShell>
   );
 }

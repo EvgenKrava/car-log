@@ -1,1 +1,1 @@
-{ "empty": "Add your first car", "emptyHint": "Start keeping a maintenance history for every vehicle you own.", "addCar": "Add a car", "loadError": "Could not load your garage." }
+{ "empty": "Add your first car", "emptyHint": "Start keeping a maintenance history for every vehicle you own.", "addCar": "Add a car", "loadError": "Could not load your garage.", "attentionTitle": "Needs attention" }
