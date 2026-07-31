@@ -10,6 +10,7 @@ import { InMemoryReminderRepository } from './in-memory-reminder-repository';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 import type { CognitoUserAdmin } from './cognito-user-admin';
+import type { MetricsPort } from './cloudwatch-metrics';
 
 let cars: InMemoryCarRepository;
 let photos: InMemoryPhotoRepository;
@@ -30,7 +31,12 @@ const adminUsers: CognitoUserAdmin = {
   deleteUser: vi.fn(async () => {}),
   getSub: vi.fn(async () => null),
 };
-let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin };
+const metrics: MetricsPort = {
+  apiTraffic: vi.fn(async () => []),
+  errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
+  estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
+};
+let deps: { cars: InMemoryCarRepository; photos: InMemoryPhotoRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   photos = new InMemoryPhotoRepository();
@@ -46,6 +52,8 @@ beforeEach(() => {
     loadScanBase64: async () => 'BASE64DATA',
     newId: () => crypto.randomUUID(),
     adminUsers,
+    metrics,
+    apiId: 'api-1',
   };
 });
 

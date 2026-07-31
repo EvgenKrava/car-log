@@ -11,6 +11,7 @@ import { handleAdminRoute } from './admin-routes';
 import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 import type { CognitoUserAdmin } from './cognito-user-admin';
+import type { MetricsPort } from './cloudwatch-metrics';
 
 export type ApiEvent = {
   method: string;
@@ -30,6 +31,8 @@ export type RouteDeps = {
   loadScanBase64: (key: string) => Promise<string | null>;
   newId: () => string;
   adminUsers: CognitoUserAdmin;
+  metrics: MetricsPort;
+  apiId: string;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -39,7 +42,10 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     const id = pathParams.id;
 
     if (path.startsWith('/admin/')) {
-      const result = await handleAdminRoute(deps.adminUsers, event);
+      const result = await handleAdminRoute(
+        { users: deps.adminUsers, metrics: deps.metrics, events: deps.events, apiId: deps.apiId },
+        event,
+      );
       if (result) return result;
     }
 

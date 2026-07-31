@@ -1,19 +1,30 @@
 import { SetEnabledSchema } from '@carlog/contracts';
+import type { EventRepository } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
 import type { ApiEvent } from './router';
 import { isAdmin } from './admin-guard';
 import type { CognitoUserAdmin } from './cognito-user-admin';
+import type { MetricsPort } from './cloudwatch-metrics';
+import { getMetrics } from './metrics-service';
 import {
   listUsers, setAdmin, setEnabled, deleteUser, ForbiddenError, SelfLockoutError, type AdminActor,
 } from './admin-service';
 
+export type AdminRouteDeps = {
+  users: CognitoUserAdmin;
+  metrics: MetricsPort;
+  events: EventRepository;
+  apiId: string;
+};
+
 // Returns undefined for non-/admin paths so the main router can continue.
-export async function handleAdminRoute(port: CognitoUserAdmin, event: ApiEvent): Promise<ApiResult | undefined> {
+export async function handleAdminRoute(deps: AdminRouteDeps, event: ApiEvent): Promise<ApiResult | undefined> {
   const { method, path, ownerId, groups, pathParams, queryParams, body } = event;
   if (!path.startsWith('/admin/')) return undefined;
 
   const actor: AdminActor = { sub: ownerId ?? '', isAdmin: isAdmin(groups) };
   const username = pathParams.username;
+  const port = deps.users;
 
   try {
     if (path === '/admin/users' && method === 'GET') {
@@ -41,6 +52,12 @@ export async function handleAdminRoute(port: CognitoUserAdmin, event: ApiEvent):
       if (targetSub === null) return ok(404, { error: 'User not found' });
       await deleteUser(port, actor, username, targetSub);
       return ok(204, null);
+    }
+    if (path === '/admin/metrics' && method === 'GET') {
+      return ok(200, await getMetrics(
+        { users: deps.users, metrics: deps.metrics, events: deps.events, apiId: deps.apiId, now: new Date() },
+        actor,
+      ));
     }
     return ok(404, { error: 'Not found' });
   } catch (e) {

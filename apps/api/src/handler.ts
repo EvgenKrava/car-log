@@ -3,6 +3,7 @@ import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
+import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2, Context,
 } from 'aws-lambda';
@@ -16,6 +17,7 @@ import { DynamoImportJobRepository } from './import-job-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { AwsCognitoUserAdmin } from './cognito-user-admin';
+import { AwsCloudWatchMetrics } from './cloudwatch-metrics';
 import { runImportJob, type ImportWorkPayload } from './import-worker';
 import { route, type ApiEvent, type RouteDeps } from './router';
 import { parseGroups } from './admin-guard';
@@ -35,6 +37,7 @@ const adminUsers = new AwsCognitoUserAdmin(
   new CognitoIdentityProviderClient({}),
   process.env.USER_POOL_ID ?? '',
 );
+const metrics = new AwsCloudWatchMetrics(new CloudWatchClient({}));
 
 const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
   await lambda.send(new InvokeCommand({
@@ -81,6 +84,8 @@ const deps: RouteDeps = {
   loadScanBase64,
   newId: () => crypto.randomUUID(),
   adminUsers,
+  metrics,
+  apiId: process.env.API_ID ?? '',
 };
 
 const isImportPayload = (e: unknown): e is ImportWorkPayload =>
