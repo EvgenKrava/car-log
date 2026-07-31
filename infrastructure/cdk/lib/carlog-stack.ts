@@ -111,6 +111,17 @@ export class CarLogStack extends Stack {
     // BEDROCK_REGION; when unset, the Lambda falls back to its own AWS_REGION.
     const bedrockRegion = this.node.tryGetContext('bedrockRegion') as string | undefined;
 
+    // Created before the Lambda so its apiId can be passed into the function's environment
+    // (used by the admin metrics handler to scope CloudWatch GetMetricData queries to this
+    // API). Routes are added further below, once the Lambda integration exists.
+    const httpApi = new HttpApi(this, 'HttpApi', {
+      corsPreflight: {
+        allowOrigins: ['*'],
+        allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.PUT, CorsHttpMethod.DELETE, CorsHttpMethod.OPTIONS],
+        allowHeaders: ['Content-Type', 'Authorization'],
+      },
+    });
+
     const fn = new NodejsFunction(this, 'CarsFn', {
       runtime: Runtime.NODEJS_20_X,
       entry: join(__dirnameLocal, '../../../apps/api/src/handler.ts'),
@@ -119,6 +130,7 @@ export class CarLogStack extends Stack {
         TABLE_NAME: table.tableName,
         PHOTOS_BUCKET: photosBucket.bucketName,
         USER_POOL_ID: userPool.userPoolId,
+        API_ID: httpApi.apiId,
         // Bearer token (issued by the Bedrock-enabled account), resolved from SSM
         // SecureString at synth time (see bin/carlog.ts). CloudFormation rejects ssm-secure
         // dynamic references in Lambda env vars, so it must be a literal. Read by
@@ -163,18 +175,13 @@ export class CarLogStack extends Stack {
       ],
       resources: [userPool.userPoolArn],
     }));
+    // GetMetricData has no resource-level scoping in IAM — '*' is correct/required.
+    fn.addToRolePolicy(new PolicyStatement({ actions: ['cloudwatch:GetMetricData'], resources: ['*'] }));
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
       jwtAudience: [client.userPoolClientId],
     });
 
-    const httpApi = new HttpApi(this, 'HttpApi', {
-      corsPreflight: {
-        allowOrigins: ['*'],
-        allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.PUT, CorsHttpMethod.DELETE, CorsHttpMethod.OPTIONS],
-        allowHeaders: ['Content-Type', 'Authorization'],
-      },
-    });
     const integration = new HttpLambdaIntegration('CarsIntegration', fn);
     httpApi.addRoutes({ path: '/cars', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
@@ -200,6 +207,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/admin/users/{username}', methods: [HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/admin/users/{username}/admin', methods: [HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/admin/users/{username}/enabled', methods: [HttpMethod.PUT], integration, authorizer });
+    httpApi.addRoutes({ path: '/admin/metrics', methods: [HttpMethod.GET], integration, authorizer });
 
     // Rate limiting: throttle the default stage so no client can flood the API.
     // 20 req/s steady with a 40-request burst is ample for the MVP and bounds cost.
