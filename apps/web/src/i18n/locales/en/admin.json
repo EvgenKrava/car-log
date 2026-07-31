@@ -1,0 +1,14 @@
+{
+  "title": "User management",
+  "loadError": "Could not load users.",
+  "empty": "No users found.",
+  "roleAdmin": "Admin",
+  "disabled": "Disabled",
+  "userActions": "User actions",
+  "grantAdmin": "Grant admin",
+  "revokeAdmin": "Revoke admin",
+  "enable": "Enable",
+  "disable": "Disable",
+  "deleteTitle": "Delete user",
+  "deleteConfirm": "Delete {{email}}? This permanently removes the account and can't be undone."
+}
