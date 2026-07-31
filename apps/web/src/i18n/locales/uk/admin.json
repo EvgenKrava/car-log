@@ -22,5 +22,7 @@
   "errors4xx": "4xx",
   "errors5xx": "5xx",
   "p95Latency": "Затримка p95",
-  "recentActivity": "Остання активність"
+  "recentActivity": "Остання активність",
+  "noActivity": "Немає нещодавньої активності.",
+  "dashboardLoadError": "Не вдалося завантажити метрики панелі."
 }

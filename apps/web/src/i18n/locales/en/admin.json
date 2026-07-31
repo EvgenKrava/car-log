@@ -22,5 +22,7 @@
   "errors4xx": "4xx",
   "errors5xx": "5xx",
   "p95Latency": "p95 latency",
-  "recentActivity": "Recent activity"
+  "recentActivity": "Recent activity",
+  "noActivity": "No recent activity.",
+  "dashboardLoadError": "Could not load dashboard metrics."
 }

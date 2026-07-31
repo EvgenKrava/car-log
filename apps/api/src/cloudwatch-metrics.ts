@@ -39,7 +39,8 @@ export class AwsCloudWatchMetrics implements MetricsPort {
       { Id: 'lat', MetricStat: { Metric: { Namespace: 'AWS/ApiGateway', MetricName: 'Latency', Dimensions: apiDim(apiId) }, Period: 2592000, Stat: 'p95' } },
     ], start, end);
     const sum = (id: string) => (results.find((x) => x.Id === id)?.Values ?? []).reduce((a, b) => a + b, 0);
-    const p95 = (results.find((x) => x.Id === 'lat')?.Values ?? [])[0] ?? 0;
+    const latVals = results.find((x) => x.Id === 'lat')?.Values ?? [];
+    const p95 = latVals.length ? Math.max(...latVals) : 0;
     return { count4xx: sum('e4'), count5xx: sum('e5'), p95LatencyMs: Math.round(p95) };
   }
 

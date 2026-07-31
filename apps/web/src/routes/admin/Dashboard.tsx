@@ -126,7 +126,7 @@ export function Dashboard() {
         {isLoading ? (
           <StatusView state="loading" />
         ) : isError || !data ? (
-          <StatusView state="error" message={t('admin:loadError')} />
+          <StatusView state="error" message={t('admin:dashboardLoadError')} />
         ) : (
           <Stack spacing={2}>
             <Card>
@@ -197,7 +197,7 @@ export function Dashboard() {
                   />
                 </Stack>
                 <Typography color="text.secondary">
-                  {t('admin:p95Latency')}: {data.errors.p95LatencyMs} ms
+                  {t('admin:p95Latency')}: {formatNumber(data.errors.p95LatencyMs, i18n.language)} ms
                 </Typography>
               </CardContent>
             </Card>
@@ -218,7 +218,7 @@ export function Dashboard() {
                     ))}
                   </Stack>
                 ) : (
-                  <EmptyState title={t('admin:empty')} />
+                  <EmptyState title={t('admin:noActivity')} />
                 )}
               </CardContent>
             </Card>
