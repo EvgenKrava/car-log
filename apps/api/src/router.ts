@@ -7,8 +7,10 @@ import { handleReminderRoute } from './reminder-routes';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
 import { handleScanRoute } from './scan-routes';
+import { handleAdminRoute } from './admin-routes';
 import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
+import type { CognitoUserAdmin } from './cognito-user-admin';
 
 export type ApiEvent = {
   method: string;
@@ -27,6 +29,7 @@ export type RouteDeps = {
   enqueueImport: (p: ImportWorkPayload) => Promise<void>;
   loadScanBase64: (key: string) => Promise<string | null>;
   newId: () => string;
+  adminUsers: CognitoUserAdmin;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -34,6 +37,11 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     const { method, path, ownerId, pathParams, body } = event;
     if (!ownerId) return ok(401, { error: 'Unauthorized' });
     const id = pathParams.id;
+
+    if (path.startsWith('/admin/')) {
+      const result = await handleAdminRoute(deps.adminUsers, event);
+      if (result) return result;
+    }
 
     if (path === '/import/extract') {
       const result = await handleImportRoute(deps, event, ownerId);

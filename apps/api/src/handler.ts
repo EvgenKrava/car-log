@@ -2,6 +2,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2, Context,
 } from 'aws-lambda';
@@ -14,6 +15,7 @@ import { DynamoReminderRepository } from './dynamo-reminder-repository';
 import { DynamoImportJobRepository } from './import-job-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
+import { AwsCognitoUserAdmin } from './cognito-user-admin';
 import { runImportJob, type ImportWorkPayload } from './import-worker';
 import { route, type ApiEvent, type RouteDeps } from './router';
 import { parseGroups } from './admin-guard';
@@ -29,6 +31,10 @@ const llm = new BedrockLlmProvider();
 const cars = new DynamoCarRepository(tableName, client);
 const importJobs = new DynamoImportJobRepository(tableName, client);
 const events = new DynamoEventRepository(tableName, client);
+const adminUsers = new AwsCognitoUserAdmin(
+  new CognitoIdentityProviderClient({}),
+  process.env.USER_POOL_ID ?? '',
+);
 
 const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
   await lambda.send(new InvokeCommand({
@@ -74,6 +80,7 @@ const deps: RouteDeps = {
   enqueueImport,
   loadScanBase64,
   newId: () => crypto.randomUUID(),
+  adminUsers,
 };
 
 const isImportPayload = (e: unknown): e is ImportWorkPayload =>
