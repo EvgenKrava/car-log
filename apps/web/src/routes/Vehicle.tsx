@@ -514,13 +514,28 @@ function VehicleDetail({ car }: { car: Car }) {
           showLabels
           sx={{
             bgcolor: 'transparent',
-            height: 52,
-            '& .MuiBottomNavigationAction-root': { minWidth: 0, px: 1, py: 0.5, color: 'text.secondary' },
-            '& .Mui-selected': { color: 'primary.main' },
-            // iOS labels stay a constant small size (MUI enlarges the selected one by default).
-            '& .MuiBottomNavigationAction-label': { fontSize: 10.5, mt: '3px' },
-            '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 10.5 },
-            '& .MuiSvgIcon-root': { fontSize: 24 },
+            height: 64,
+            px: 1,
+            '& .MuiBottomNavigationAction-root': {
+              minWidth: 0,
+              borderRadius: '18px',
+              mx: 0.5,
+              my: 1,
+              py: 0.5,
+              color: 'text.secondary',
+              transition: 'background-color .2s ease, box-shadow .2s ease, color .2s ease',
+            },
+            // Telegram-style floating selection: the active tab sits on an elevated
+            // rounded "pill" (light capsule + soft shadow), not just a colour change.
+            '& .Mui-selected': {
+              color: 'primary.main',
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.10)' : theme.palette.background.paper),
+              boxShadow: (theme) => (theme.palette.mode === 'dark' ? 'none' : '0 2px 10px rgba(16,24,40,0.14)'),
+            },
+            // Constant label size (MUI enlarges the selected one by default).
+            '& .MuiBottomNavigationAction-label': { fontSize: 11, mt: '2px', fontWeight: 600 },
+            '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: 11 },
+            '& .MuiSvgIcon-root': { fontSize: 26 },
           }}
         >
           <BottomNavigationAction value="history" label={t('vehicle:tabHistory')} icon={<HistoryIcon />} />
