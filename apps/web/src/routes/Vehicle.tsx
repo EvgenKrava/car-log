@@ -10,7 +10,7 @@ import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ShareIcon from '@mui/icons-material/Share';
+
 import PublicIcon from '@mui/icons-material/Public';
 import HistoryIcon from '@mui/icons-material/History';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -249,22 +249,6 @@ function VehicleDetail({ car }: { car: Car }) {
 
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
 
-  // Native share of a plain-text car summary; clipboard fallback where Web Share is
-  // unavailable (most desktop browsers). A public read-only link is a later Phase-4 feature.
-  const onShare = async () => {
-    const summary = [
-      title,
-      `${car.make} ${car.model}${car.year ? ` (${car.year})` : ''}`,
-      car.mileage > 0 ? mileageDisplay : null,
-    ].filter(Boolean).join('\n');
-    try {
-      if (navigator.share) await navigator.share({ title, text: summary });
-      else await navigator.clipboard.writeText(summary);
-    } catch {
-      /* user dismissed the share sheet, or clipboard denied — no-op */
-    }
-  };
-
   return (
     <AppShell>
       <PageHeader title={title} onBack={() => navigate('/')} />
@@ -337,10 +321,6 @@ function VehicleDetail({ car }: { car: Car }) {
                     <MenuItem onClick={() => { setMenuAnchor(null); setEditOpen(true); }}>
                       <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
                       <ListItemText>{t('common:edit')}</ListItemText>
-                    </MenuItem>
-                    <MenuItem onClick={() => { setMenuAnchor(null); void onShare(); }}>
-                      <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText>{t('common:share')}</ListItemText>
                     </MenuItem>
                     <MenuItem onClick={() => { setMenuAnchor(null); setShareOpen(true); }}>
                       <ListItemIcon><PublicIcon fontSize="small" /></ListItemIcon>
