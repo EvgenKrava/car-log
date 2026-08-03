@@ -15,6 +15,7 @@ import { ThemeModeProvider, useThemeMode } from './lib/theme-mode';
 import { Garage } from './routes/Garage';
 import { Profile } from './routes/Profile';
 import { Vehicle } from './routes/Vehicle';
+import { ChatConversation } from './routes/ChatConversation';
 import { PublicVehicle } from './routes/PublicVehicle';
 import { Login } from './routes/auth/Login';
 import { SignUp } from './routes/auth/SignUp';
@@ -50,6 +51,7 @@ function Root() {
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
+              <Route path="/cars/:id/chat/:sid" element={<RequireAuth><ChatConversation /></RequireAuth>} />
               <Route path="/admin" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
               <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
             </Routes>
