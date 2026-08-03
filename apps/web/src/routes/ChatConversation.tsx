@@ -99,7 +99,7 @@ export function ChatConversation() {
               </Stack>
             </Stack>
           ) : (
-            <Stack spacing={1.25}>
+            <Stack spacing={2}>
               {messages.map((m, i) => <ChatBubble key={i} {...m} />)}
               {pending ? (
                 <ChatBubble role="user" content={pending.content} createdAt=""
