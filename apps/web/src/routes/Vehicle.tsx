@@ -410,7 +410,8 @@ function VehicleDetail({ car }: { car: Car }) {
             sx={{
               // Desktop: sticky top tab bar. On mobile the tabs live in a fixed
               // iOS-style bottom bar instead (rendered below), so hide this.
-              display: { xs: 'none', sm: 'block' },
+              // Hidden entirely on the Chat tab — chat is an immersive view with its own header.
+              display: { xs: 'none', sm: tab === 'chat' ? 'none' : 'block' },
               position: 'sticky',
               top: { xs: 56, sm: 64 },
               zIndex: (theme) => theme.zIndex.appBar - 1,
@@ -452,7 +453,7 @@ function VehicleDetail({ car }: { car: Car }) {
           ) : null}
           {tab === 'chat' ? (
             <Box sx={{ '& > *': { mt: 0 } }}>
-              <ChatPanel carId={car.id} />
+              <ChatPanel carId={car.id} onBack={() => setTab('history')} />
             </Box>
           ) : null}
           {tab === 'reminders' ? (
@@ -504,7 +505,8 @@ function VehicleDetail({ car }: { car: Car }) {
           left: 16,
           right: 16,
           bottom: 'calc(env(safe-area-inset-bottom) + 12px)',
-          display: { xs: 'flex', sm: 'none' },
+          // Hidden on the Chat tab (immersive view with its own header/back).
+          display: { xs: tab === 'chat' ? 'none' : 'flex', sm: 'none' },
           gap: 1.25,
           alignItems: 'stretch',
           zIndex: (theme) => theme.zIndex.appBar,

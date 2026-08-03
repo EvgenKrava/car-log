@@ -27,8 +27,15 @@ import {
   type MetricsResponse,
   PublicCarSchema,
   type PublicCar,
-  ChatResponseSchema,
-  type ChatMessage,
+  ChatSessionSchema,
+  ChatSessionSummarySchema,
+  PostMessageResponseSchema,
+  ChatAttachmentPresignResponseSchema,
+  type ChatSession,
+  type ChatSessionSummary,
+  type PostMessageResponse,
+  type AttachmentRef,
+  type ScanDocContentType,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -144,8 +151,39 @@ export const extractFromScan = (token: string, carId: string, s3Key: string, con
 export const confirmProofFromScan = (token: string, carId: string, eventId: string, s3Key: string, contentType: string, size: number) =>
   request(token, `/cars/${carId}/events/${eventId}/proofs/from-scan`, ProofSchema, { method: 'POST', body: JSON.stringify({ s3Key, contentType, size }) });
 
-export const chatWithCar = (token: string, carId: string, messages: ChatMessage[]): Promise<{ reply: string }> =>
-  request(token, `/cars/${carId}/chat`, ChatResponseSchema, { method: 'POST', body: JSON.stringify({ messages }) });
+const ChatSessionListSchema = z.array(ChatSessionSummarySchema);
+const chatBase = (carId: string) => `/cars/${carId}/chat`;
+
+export const listChatSessions = (token: string, carId: string): Promise<ChatSessionSummary[]> =>
+  request(token, `${chatBase(carId)}/sessions`, ChatSessionListSchema);
+
+export const createChatSession = (token: string, carId: string): Promise<ChatSession> =>
+  request(token, `${chatBase(carId)}/sessions`, ChatSessionSchema, { method: 'POST' });
+
+export const getChatSession = (token: string, carId: string, sid: string): Promise<ChatSession> =>
+  request(token, `${chatBase(carId)}/sessions/${sid}`, ChatSessionSchema);
+
+export const renameChatSession = (token: string, carId: string, sid: string, title: string): Promise<ChatSession> =>
+  request(token, `${chatBase(carId)}/sessions/${sid}`, ChatSessionSchema, { method: 'PUT', body: JSON.stringify({ title }) });
+
+export const deleteChatSession = (token: string, carId: string, sid: string): Promise<void> =>
+  request(token, `${chatBase(carId)}/sessions/${sid}`, ChatSessionSchema, { method: 'DELETE' }).then(() => undefined);
+
+export const postChatMessage = (
+  token: string, carId: string, sid: string, input: { content: string; attachments: AttachmentRef[] },
+): Promise<PostMessageResponse> =>
+  request(token, `${chatBase(carId)}/sessions/${sid}/messages`, PostMessageResponseSchema, { method: 'POST', body: JSON.stringify(input) });
+
+// Presign + upload one already-prepared (downscaled) file, returning its attachment ref.
+export async function uploadChatAttachment(token: string, carId: string, file: File): Promise<AttachmentRef> {
+  const contentType = file.type as ScanDocContentType;
+  const { key, uploadUrl } = await request(
+    token, `${chatBase(carId)}/attachments/presign`, ChatAttachmentPresignResponseSchema,
+    { method: 'POST', body: JSON.stringify({ contentType, size: file.size }) },
+  );
+  await uploadToS3(uploadUrl, file);
+  return { key, contentType, filename: file.name, size: file.size };
+}
 
 const ReminderListSchema = z.array(ReminderSchema);
 const reminderBase = (carId: string) => `/cars/${carId}/reminders`;

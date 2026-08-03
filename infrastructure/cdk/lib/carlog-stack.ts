@@ -101,6 +101,8 @@ export class CarLogStack extends Stack {
         // Uploaded import .txt files are transient job inputs — purge after a day.
         { prefix: 'imports/', expiration: Duration.days(1) },
         { prefix: 'scans/', expiration: Duration.days(1) },
+        // Chat attachments live as long as their session (7-day DynamoDB TTL) — expire to match.
+        { prefix: 'chat/', expiration: Duration.days(7) },
       ],
     });
 
@@ -194,7 +196,10 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/reminders', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/reminders/{reminderId}', methods: [HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/reminders/{reminderId}/complete', methods: [HttpMethod.POST], integration, authorizer });
-    httpApi.addRoutes({ path: '/cars/{id}/chat', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/sessions', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/messages', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/attachments/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/jobs', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });

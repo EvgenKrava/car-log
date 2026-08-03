@@ -1,11 +1,21 @@
 {
-  "empty": "Ask anything about this car — its service history, costs, or what's due next.",
+  "empty": "Ask anything about this car — its service history, costs, or what's due next. You can attach a photo or receipt too.",
   "suggestionSpend": "How much have I spent on brakes?",
   "suggestionDue": "When is my next service likely due?",
   "suggestionSummary": "Summarize this car's history for a buyer",
   "placeholder": "Ask about this car…",
   "send": "Send",
+  "attach": "Attach a photo or PDF",
+  "attachTooMany": "You can attach up to {{max}} files.",
   "thinking": "Thinking…",
   "error": "Couldn't get a reply. Please try again.",
-  "disclaimer": "AI can make mistakes — verify important details."
+  "disclaimer": "AI can make mistakes — verify important details.",
+  "back": "Back",
+  "newChat": "New chat",
+  "switcherTitle": "Your chats",
+  "noSessions": "No chats yet.",
+  "rename": "Rename",
+  "renameTitle": "Rename chat",
+  "deleteTitle": "Delete chat",
+  "deleteConfirm": "Delete this chat? This can't be undone."
 }

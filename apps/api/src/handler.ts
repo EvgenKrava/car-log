@@ -13,6 +13,7 @@ import { DynamoEventRepository } from './dynamo-event-repository';
 import { DynamoProofRepository } from './dynamo-proof-repository';
 import { DynamoReminderRepository } from './dynamo-reminder-repository';
 import { DynamoImportJobRepository } from './import-job-repository';
+import { DynamoChatSessionRepository } from './dynamo-chat-session-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { AwsCognitoUserAdmin } from './cognito-user-admin';
@@ -77,6 +78,7 @@ const deps: RouteDeps = {
   proofs: new DynamoProofRepository(tableName, client),
   reminders: new DynamoReminderRepository(tableName, client),
   llm,
+  sessions: new DynamoChatSessionRepository(tableName, client),
   importJobs,
   enqueueImport,
   loadScanBase64,

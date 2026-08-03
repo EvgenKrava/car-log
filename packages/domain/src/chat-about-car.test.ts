@@ -79,7 +79,7 @@ describe('chatAboutCar', () => {
     const llm = provider('You are due for oil soon.');
     const messages: ChatMessage[] = [{ role: 'user', content: 'When is my next oil change?' }];
     await expect(chatAboutCar(messages, llm, ctx)).resolves.toBe('You are due for oil soon.');
-    expect(llm.chat).toHaveBeenCalledWith(messages, ctx);
+    expect(llm.chat).toHaveBeenCalledWith(messages, ctx, []);
   });
 
   it('rejects an empty history', async () => {

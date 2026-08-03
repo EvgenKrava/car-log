@@ -1,9 +1,9 @@
 import { CreateCarSchema, SetSharingSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository } from '@carlog/domain';
+import { CarNotFoundError, createCar, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handleEventRoute } from './event-routes';
 import { handleReminderRoute } from './reminder-routes';
-import { handleChatRoute } from './chat-routes';
+import { handleChatRoute } from './chat-session-routes';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
 import { handleScanRoute } from './scan-routes';
@@ -27,6 +27,7 @@ export type ApiEvent = {
 export type RouteDeps = {
   cars: CarRepository; storage: PhotoStorage;
   events: EventRepository; proofs: ProofRepository; reminders: ReminderRepository; llm: LlmProvider;
+  sessions: ChatSessionRepository;
   importJobs: ImportJobRepository;
   enqueueImport: (p: ImportWorkPayload) => Promise<void>;
   loadScanBase64: (key: string) => Promise<string | null>;
@@ -90,9 +91,12 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
       if (result) return result;
     }
 
-    if (id && path === `/cars/${id}/chat`) {
+    if (id && path.startsWith(`/cars/${id}/chat`)) {
       const result = await handleChatRoute(
-        { cars: deps.cars, events: deps.events, reminders: deps.reminders, llm: deps.llm },
+        {
+          cars: deps.cars, events: deps.events, reminders: deps.reminders, sessions: deps.sessions,
+          storage: deps.storage, llm: deps.llm, loadS3Base64: deps.loadScanBase64, newId: deps.newId,
+        },
         event, ownerId, id,
       );
       if (result) return result;

@@ -1,25 +1,93 @@
 import { z } from 'zod';
+import { ScanDocContentTypeSchema, MAX_SCAN_SIZE, maxScanSize } from './import';
 
-// One turn of the per-car chat. Role is limited to the two turns the client owns;
-// tool/system turns are internal to the provider and never cross this boundary.
-export const ChatMessageSchema = z.object({
+const optText = (s: z.ZodString) => z.literal('').transform(() => undefined).or(s.optional());
+
+// A file the user attached to a chat message. Stored as an S3 key + metadata — never bytes.
+// Content types match the scan/vision path (Claude can't decode HEIC).
+export const AttachmentRefSchema = z.object({
+  key: z.string().min(1),
+  contentType: ScanDocContentTypeSchema,
+  filename: optText(z.string().max(200)),
+  size: z.number().int().min(1).max(MAX_SCAN_SIZE),
+});
+
+// The same attachment as returned to the client for display — plus a short-lived signed URL.
+export const ChatAttachmentViewSchema = AttachmentRefSchema.extend({
+  url: z.string().url(),
+});
+
+// One conversation turn as persisted. `attachments` are refs (keys); the client owns nothing.
+export const StoredChatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
-  content: z.string().min(1).max(4000),
+  content: z.string().max(4000),
+  attachments: z.array(AttachmentRefSchema).max(4).default([]),
+  createdAt: z.string().datetime(),
 });
 
-// The whole conversation is resent each turn (stateless backend). The last turn must
-// be the user's — that's the message the model is being asked to answer.
-export const ChatRequestSchema = z.object({
-  messages: z.array(ChatMessageSchema).min(1).max(40),
-}).refine((r) => r.messages[r.messages.length - 1]?.role === 'user', {
-  message: 'The last message must be from the user',
-  path: ['messages'],
+// A turn as returned to the client (attachments carry signed URLs).
+export const ChatMessageViewSchema = StoredChatMessageSchema.extend({
+  attachments: z.array(ChatAttachmentViewSchema).max(4).default([]),
 });
 
-export const ChatResponseSchema = z.object({
+export const ChatSessionSchema = z.object({
+  id: z.string().uuid(),
+  carId: z.string().uuid(),
+  ownerId: z.string().min(1),
+  title: z.string().max(120),
+  messages: z.array(ChatMessageViewSchema),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+// Lightweight row for the session switcher — no message bodies.
+export const ChatSessionSummarySchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().max(120),
+  updatedAt: z.string().datetime(),
+  messageCount: z.number().int().min(0),
+});
+
+// Append-a-message request: text, attachments, or both — but not neither.
+export const PostMessageRequestSchema = z.object({
+  content: z.string().max(4000).default(''),
+  attachments: z.array(AttachmentRefSchema).max(4).default([]),
+}).refine((r) => r.content.trim() !== '' || r.attachments.length > 0, {
+  message: 'Provide a message or at least one attachment',
+  path: ['content'],
+});
+
+export const PostMessageResponseSchema = z.object({
   reply: z.string(),
+  session: ChatSessionSchema,
 });
 
-export type ChatMessage = z.infer<typeof ChatMessageSchema>;
-export type ChatRequest = z.infer<typeof ChatRequestSchema>;
-export type ChatResponse = z.infer<typeof ChatResponseSchema>;
+export const RenameSessionRequestSchema = z.object({
+  title: z.string().min(1).max(120),
+});
+
+export const ChatAttachmentPresignRequestSchema = z.object({
+  contentType: ScanDocContentTypeSchema,
+  size: z.number().int().min(1).max(MAX_SCAN_SIZE),
+}).refine((v) => v.size <= maxScanSize(v.contentType), { message: 'file too large for its type', path: ['size'] });
+
+export const ChatAttachmentPresignResponseSchema = z.object({
+  key: z.string().min(1),
+  uploadUrl: z.string().url(),
+});
+
+export type AttachmentRef = z.infer<typeof AttachmentRefSchema>;
+export type ChatAttachmentView = z.infer<typeof ChatAttachmentViewSchema>;
+export type StoredChatMessage = z.infer<typeof StoredChatMessageSchema>;
+export type ChatMessageView = z.infer<typeof ChatMessageViewSchema>;
+export type ChatSession = z.infer<typeof ChatSessionSchema>;
+export type ChatSessionSummary = z.infer<typeof ChatSessionSummarySchema>;
+export type PostMessageRequest = z.infer<typeof PostMessageRequestSchema>;
+export type PostMessageResponse = z.infer<typeof PostMessageResponseSchema>;
+export type RenameSessionRequest = z.infer<typeof RenameSessionRequestSchema>;
+export type ChatAttachmentPresignRequest = z.infer<typeof ChatAttachmentPresignRequestSchema>;
+export type ChatAttachmentPresignResponse = z.infer<typeof ChatAttachmentPresignResponseSchema>;
+
+// The minimal message shape the LLM provider consumes (role + text). Attachments for the
+// current turn are passed to `chat()` separately as decoded bytes.
+export type ChatMessage = { role: 'user' | 'assistant'; content: string };

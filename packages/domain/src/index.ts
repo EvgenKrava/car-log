@@ -8,6 +8,8 @@ export * from './proof-repository';
 export * from './llm-provider';
 export { extractEvents, extractEventsFromDocument, ExtractionFailedError } from './extract-events';
 export { chatAboutCar, buildCarChatContext } from './chat-about-car';
+export { newChatSession, appendMessage, deriveTitle, SESSION_MESSAGE_CAP, type ChatSessionRecord } from './chat-session';
+export * from './chat-session-repository';
 export { chunkText, mergeCandidates } from './chunk-text';
 export * from './reminder';
 export * from './reminder-repository';

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
-import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event, ChatMessage } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, chatWithCar, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, uploadChatAttachment, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import { prepareScanFile } from './lib/prepare-scan';
 
 export function useCars() {
   const { accessToken } = useAuth();
@@ -250,12 +251,63 @@ export function useDeleteUser() {
   });
 }
 
-// Per-car AI chat. Stateless request — the caller owns the conversation state and passes
-// the full message history each turn; nothing is cached.
-export function useChatWithCar(carId: string) {
-  const { accessToken } = useAuth();
-  const token = accessToken ?? '';
+// Per-car AI chat sessions (persisted, 7-day TTL server-side).
+const chatSessionsKey = (carId: string) => ['cars', carId, 'chat', 'sessions'];
+const chatSessionKey = (carId: string, sid: string) => ['cars', carId, 'chat', 'sessions', sid];
+
+export function useChatSessions(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({ queryKey: chatSessionsKey(carId), queryFn: () => listChatSessions(token, carId), enabled: Boolean(token && carId) });
+}
+
+export function useChatSession(carId: string, sid: string | undefined) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  // retry:false so a stale/expired/deleted session id fails fast — the panel resets ?chat.
+  return useQuery({ queryKey: chatSessionKey(carId, sid ?? ''), queryFn: () => getChatSession(token, carId, sid ?? ''), enabled: Boolean(token && carId && sid), retry: false });
+}
+
+export function useCreateChatSession(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
   return useMutation({
-    mutationFn: (messages: ChatMessage[]) => chatWithCar(token, carId, messages),
+    mutationFn: () => createChatSession(token, carId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatSessionsKey(carId) }),
+  });
+}
+
+export function useRenameChatSession(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sid, title }: { sid: string; title: string }) => renameChatSession(token, carId, sid, title),
+    onSuccess: (_d, { sid }) => {
+      void qc.invalidateQueries({ queryKey: chatSessionsKey(carId) });
+      void qc.invalidateQueries({ queryKey: chatSessionKey(carId, sid) });
+    },
+  });
+}
+
+export function useDeleteChatSession(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sid: string) => deleteChatSession(token, carId, sid),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatSessionsKey(carId) }),
+  });
+}
+
+// Sends a turn: downscales + uploads each attachment (images shrunk via prepareScanFile,
+// PDFs as-is), then posts the message with the resulting S3 keys.
+export function usePostChatMessage(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sid, content, files }: { sid: string; content: string; files: File[] }) => {
+      const attachments = await Promise.all(files.map(async (f) => {
+        const prepared = f.type.startsWith('image/') ? await prepareScanFile(f) : f;
+        return uploadChatAttachment(token, carId, prepared);
+      }));
+      return postChatMessage(token, carId, sid, { content, attachments });
+    },
+    onSuccess: (res, { sid }) => {
+      qc.setQueryData(chatSessionKey(carId, sid), res.session);
+      void qc.invalidateQueries({ queryKey: chatSessionsKey(carId) });
+    },
   });
 }

@@ -1,6 +1,6 @@
 import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
 import type { ChatMessage } from '@carlog/contracts';
-import type { LlmProvider, ExtractionContext, CarChatContext } from '@carlog/domain';
+import type { LlmProvider, ExtractionContext, CarChatContext, ChatAttachment } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 
 // Bare on-demand foundation-model id. The Bedrock-enabled account (677276119483) that
@@ -237,23 +237,38 @@ export class BedrockLlmProvider implements LlmProvider {
     return toolUse && 'input' in toolUse ? toolUse.input : null;
   }
 
-  async chat(messages: ChatMessage[], context: CarChatContext): Promise<string> {
+  async chat(messages: ChatMessage[], context: CarChatContext, attachments: ChatAttachment[]): Promise<string> {
     // v1 ships no tools. If one is ever registered without wiring the tool-use loop,
     // fail loudly rather than silently ignoring it.
     if (CHAT_TOOLS.length > 0) {
       throw new Error('chat tools registered but the tool-use loop is not wired');
     }
+    // Attach the current turn's files (image/PDF) to the LAST user message as vision blocks,
+    // mirroring extractEventsFromDocument. Prior turns are plain text (their analysis already
+    // lives in the assistant replies) — re-sending old bytes each turn would blow the cap.
+    const lastIdx = messages.length - 1;
+    const convo = messages.map((m, i) => {
+      if (i === lastIdx && attachments.length > 0) {
+        const blocks = attachments.map((a) => a.mediaType === 'application/pdf'
+          ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: a.base64 } }
+          : { type: 'image' as const, source: { type: 'base64' as const, media_type: a.mediaType as 'image/jpeg' | 'image/png' | 'image/webp', data: a.base64 } });
+        return { role: m.role, content: [...blocks, { type: 'text' as const, text: m.content }] };
+      }
+      return { role: m.role, content: m.content };
+    });
     let res;
     try {
       res = await this.client.messages.create({
         model: MODEL,
-        max_tokens: 1024,
+        // Adaptive thinking shares this budget with the reply, so keep headroom above a
+        // short answer to avoid truncating after a bit of reasoning.
+        max_tokens: 2048,
         thinking: { type: 'adaptive' },
         // Chat is a single conversational reply, not deep reasoning — 'low' keeps it well
         // inside the ~29s Lambda / 30s API Gateway cap.
         output_config: { effort: 'low' },
         system: chatSystem(context),
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        messages: convo,
       });
     } catch (err) {
       const e = err as Error;

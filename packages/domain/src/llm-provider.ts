@@ -24,6 +24,10 @@ export type CarChatContext = {
   reminders: { title: string; category: string; dueDate?: string; dueMileage?: number; notes?: string }[];
 };
 
+// A decoded attachment for the current chat turn — base64 bytes + its MIME type. The API
+// adapter fetches these from S3; the domain/provider never touches storage.
+export type ChatAttachment = { base64: string; mediaType: string };
+
 export interface LlmProvider {
   // Returns the model's raw structured output as unknown JSON. The extractEvents
   // use-case validates it against the contract schema — the provider is NOT
@@ -31,7 +35,8 @@ export interface LlmProvider {
   extractEvents(text: string, ctx: ExtractionContext): Promise<unknown>;
   // Vision: read a maintenance document (image or PDF) and return raw structured output.
   extractEventsFromDocument(base64: string, mediaType: string, ctx: ExtractionContext): Promise<unknown>;
-  // Answer the latest user message grounded in the car's own data. `messages` is the
-  // full conversation so far (ending in a user turn); returns the assistant's reply text.
-  chat(messages: ChatMessage[], context: CarChatContext): Promise<string>;
+  // Answer the latest user message grounded in the car's own data. `messages` is the full
+  // conversation so far (ending in a user turn); `attachments` are the current turn's decoded
+  // files (image/PDF) to analyze, or `[]`. Returns the assistant's reply text.
+  chat(messages: ChatMessage[], context: CarChatContext, attachments: ChatAttachment[]): Promise<string>;
 }

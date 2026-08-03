@@ -1,5 +1,5 @@
 import type { Car, Event, Reminder, ChatMessage } from '@carlog/contracts';
-import type { LlmProvider, CarChatContext } from './llm-provider';
+import type { LlmProvider, CarChatContext, ChatAttachment } from './llm-provider';
 
 // Bound the timeline handed to the model so a large imported history can't inflate the
 // prompt past the latency/token budget. The most recent events carry the most relevant
@@ -57,10 +57,10 @@ export function buildCarChatContext(car: Car, events: Event[], reminders: Remind
 // Answer the latest user message using the car context. Input is already validated at
 // the contract boundary; the guard here is a defensive backstop for direct callers.
 export async function chatAboutCar(
-  messages: ChatMessage[], llm: LlmProvider, context: CarChatContext,
+  messages: ChatMessage[], llm: LlmProvider, context: CarChatContext, attachments: ChatAttachment[] = [],
 ): Promise<string> {
   if (messages.length === 0 || messages[messages.length - 1]!.role !== 'user') {
     throw new Error('chat requires a non-empty history ending in a user message');
   }
-  return llm.chat(messages, context);
+  return llm.chat(messages, context, attachments);
 }

@@ -6,6 +6,7 @@ import { InMemoryProofRepository } from './in-memory-proof-repository';
 import { InMemoryLlmProvider } from './in-memory-llm-provider';
 import { InMemoryImportJobRepository } from './in-memory-import-job-repository';
 import { InMemoryReminderRepository } from './in-memory-reminder-repository';
+import { InMemoryChatSessionRepository } from './in-memory-chat-session-repository';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -34,7 +35,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -44,6 +45,7 @@ beforeEach(() => {
     proofs: new InMemoryProofRepository(),
     reminders: new InMemoryReminderRepository(),
     llm: new InMemoryLlmProvider({ events: [{ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' }] }),
+    sessions: new InMemoryChatSessionRepository(),
     importJobs: new InMemoryImportJobRepository(),
     enqueueImport: enqueueSpy,
     loadScanBase64: async () => 'BASE64DATA',
@@ -492,33 +494,83 @@ describe('route', () => {
     });
   });
 
-  describe('chat routes', () => {
-    it('POST /cars/{id}/chat returns a reply for the owner', async () => {
+  describe('chat sessions', () => {
+    const createSession = async (ownerId: string, carId: string) => {
+      const res = await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/chat/sessions`, ownerId, pathParams: { id: carId } });
+      return { res, session: JSON.parse(res.body) as { id: string; messages: unknown[] } };
+    };
+
+    it('creates, lists, gets, and deletes a session', async () => {
       const carId = await makeCar('u1');
+      const { res: created, session } = await createSession('u1', carId);
+      expect(created.statusCode).toBe(201);
+      expect(session.id).toBeDefined();
+
+      const list = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/chat/sessions`, ownerId: 'u1', pathParams: { id: carId } });
+      expect(JSON.parse(list.body)).toHaveLength(1);
+
+      const got = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/chat/sessions/${session.id}`, ownerId: 'u1', pathParams: { id: carId, sid: session.id } });
+      expect(got.statusCode).toBe(200);
+
+      const del = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/chat/sessions/${session.id}`, ownerId: 'u1', pathParams: { id: carId, sid: session.id } });
+      expect(del.statusCode).toBe(204);
+      const listAfter = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/chat/sessions`, ownerId: 'u1', pathParams: { id: carId } });
+      expect(JSON.parse(listAfter.body)).toHaveLength(0);
+    });
+
+    it('appends a user + assistant turn and titles the session', async () => {
+      const carId = await makeCar('u1');
+      const { session } = await createSession('u1', carId);
       const res = await route(deps, {
-        ...base, method: 'POST', path: `/cars/${carId}/chat`, ownerId: 'u1', pathParams: { id: carId },
-        body: { messages: [{ role: 'user', content: 'When is my next service?' }] },
+        ...base, method: 'POST', path: `/cars/${carId}/chat/sessions/${session.id}/messages`, ownerId: 'u1',
+        pathParams: { id: carId, sid: session.id }, body: { content: 'When is my next service?' },
       });
       expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body).reply).toBe('stub chat reply');
+      const b = JSON.parse(res.body);
+      expect(b.reply).toBe('stub chat reply');
+      expect(b.session.messages).toHaveLength(2);
+      expect(b.session.messages[0].role).toBe('user');
+      expect(b.session.messages[1].role).toBe('assistant');
+      expect(b.session.title).toBe('When is my next service?');
     });
 
-    it('404s for a car the caller does not own', async () => {
+    it('rejects a message that is empty with no attachments', async () => {
       const carId = await makeCar('u1');
+      const { session } = await createSession('u1', carId);
       const res = await route(deps, {
-        ...base, method: 'POST', path: `/cars/${carId}/chat`, ownerId: 'u2', pathParams: { id: carId },
-        body: { messages: [{ role: 'user', content: 'hi' }] },
-      });
-      expect(res.statusCode).toBe(404);
-    });
-
-    it('400s when the last message is not from the user', async () => {
-      const carId = await makeCar('u1');
-      const res = await route(deps, {
-        ...base, method: 'POST', path: `/cars/${carId}/chat`, ownerId: 'u1', pathParams: { id: carId },
-        body: { messages: [{ role: 'assistant', content: 'hello' }] },
+        ...base, method: 'POST', path: `/cars/${carId}/chat/sessions/${session.id}/messages`, ownerId: 'u1',
+        pathParams: { id: carId, sid: session.id }, body: { content: '   ' },
       });
       expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects an attachment key outside the owner/car prefix', async () => {
+      const carId = await makeCar('u1');
+      const { session } = await createSession('u1', carId);
+      const res = await route(deps, {
+        ...base, method: 'POST', path: `/cars/${carId}/chat/sessions/${session.id}/messages`, ownerId: 'u1',
+        pathParams: { id: carId, sid: session.id },
+        body: { content: 'look', attachments: [{ key: 'chat/u2/other/x.jpg', contentType: 'image/jpeg', size: 1000 }] },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('presign returns a chat-scoped key for the owner', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, {
+        ...base, method: 'POST', path: `/cars/${carId}/chat/attachments/presign`, ownerId: 'u1', pathParams: { id: carId },
+        body: { contentType: 'image/jpeg', size: 2048 },
+      });
+      expect(res.statusCode).toBe(200);
+      const b = JSON.parse(res.body);
+      expect(b.key.startsWith(`chat/u1/${carId}/`)).toBe(true);
+      expect(b.uploadUrl).toBe('https://s3.example/put');
+    });
+
+    it('session routes 404 for a car the caller does not own', async () => {
+      const carId = await makeCar('u1');
+      const res = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/chat/sessions`, ownerId: 'u2', pathParams: { id: carId } });
+      expect(res.statusCode).toBe(404);
     });
   });
 });
