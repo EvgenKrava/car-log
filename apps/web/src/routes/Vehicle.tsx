@@ -24,7 +24,7 @@ import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import EvStationIcon from '@mui/icons-material/EvStation';
 import type { Car, Event } from '@carlog/contracts';
-import { useCar, useDeleteCar, useEvents, useReminders } from '../queries';
+import { useCar, useDeleteCar, useEvents, useReminders, useCreateChatSession } from '../queries';
 import { reminderStatus, todayISO } from '../lib/reminder-view';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -228,10 +228,12 @@ function VehicleDetail({ car }: { car: Car }) {
     setSearchParams(next === 'history' ? {} : { tab: next }, { replace: true });
 
   // The add action depends on the active tab: history → options sheet,
-  // reminders → new reminder. Shared by the desktop FAB and the mobile bottom
-  // bar's "+" item.
+  // reminders → new reminder; chat → start a new chat session (same "+" affordance
+  // as the other tabs). Shared by the desktop FAB and the mobile bottom bar's "+".
+  const createChatSession = useCreateChatSession(car.id);
   const triggerAdd = () => {
-    if (tab === 'reminders') remindersRef.current?.openAdd();
+    if (tab === 'chat') void createChatSession.mutateAsync().then((s) => navigate(`/cars/${car.id}/chat/${s.id}`));
+    else if (tab === 'reminders') remindersRef.current?.openAdd();
     else setAddSheetOpen(true);
   };
 
@@ -481,10 +483,9 @@ function VehicleDetail({ car }: { car: Car }) {
           sheet, reminders → new reminder. */}
       <Fab
         color="primary"
-        aria-label={tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+        aria-label={tab === 'chat' ? t('chat:newChat') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
         onClick={triggerAdd}
-        // No "add" on the Chat tab — it has its own composer/send.
-        sx={{ display: { xs: 'none', sm: tab === 'chat' ? 'none' : 'flex' }, position: 'fixed', right: 24, bottom: 24 }}
+        sx={{ display: { xs: 'none', sm: 'flex' }, position: 'fixed', right: 24, bottom: 24 }}
       >
         <AddIcon />
       </Fab>
@@ -567,13 +568,11 @@ function VehicleDetail({ car }: { car: Car }) {
             />
           </BottomNavigation>
         </Paper>
-        {/* No "add" on the Chat tab — the chat has its own composer/send. */}
-        {tab !== 'chat' ? (
-          <Box
+        <Box
             component="button"
             type="button"
             onClick={triggerAdd}
-            aria-label={tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+            aria-label={tab === 'chat' ? t('chat:newChat') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
             sx={{
               flexShrink: 0,
               width: 62,
@@ -595,7 +594,6 @@ function VehicleDetail({ car }: { car: Car }) {
           >
             <AddIcon />
           </Box>
-        ) : null}
       </Box>
     </AppShell>
   );

@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, CircularProgress, IconButton, Stack, TextField, Typography } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
-import { useChatSessions, useCreateChatSession, useDeleteChatSession, useRenameChatSession } from '../queries';
+import { useChatSessions, useDeleteChatSession, useRenameChatSession } from '../queries';
 import { formatDate } from '../i18n/format';
 import { Modal } from './ui/Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -19,7 +18,6 @@ export function ChatPanel({ carId }: { carId: string }) {
   const { t, i18n } = useTranslation(['chat', 'common']);
   const navigate = useNavigate();
   const sessions = useChatSessions(carId);
-  const createSession = useCreateChatSession(carId);
   const deleteSession = useDeleteChatSession(carId);
   const renameSession = useRenameChatSession(carId);
 
@@ -27,19 +25,11 @@ export function ChatPanel({ carId }: { carId: string }) {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const openChat = (sid: string) => navigate(`/cars/${carId}/chat/${sid}`);
-  const startNewChat = async () => {
-    const s = await createSession.mutateAsync();
-    openChat(s.id);
-  };
 
   const list = sessions.data ?? [];
 
   return (
     <Stack spacing={1.5}>
-      <Button startIcon={<AddIcon />} variant="contained" onClick={startNewChat} disabled={createSession.isPending} sx={{ alignSelf: 'flex-start' }}>
-        {t('chat:newChat')}
-      </Button>
-
       {sessions.isLoading ? (
         <Stack alignItems="center" sx={{ py: 6 }}><CircularProgress size={22} /></Stack>
       ) : list.length === 0 ? (
