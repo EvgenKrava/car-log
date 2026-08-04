@@ -1,5 +1,8 @@
-import type { Car, Event, Reminder, ChatMessage } from '@carlog/contracts';
-import type { LlmProvider, CarChatContext, ChatAttachment } from './llm-provider';
+import type { Car, Event, Reminder, ChatMessage, ChatAction } from '@carlog/contracts';
+import type {
+  LlmProvider, CarChatContext, ChatAttachment, ChatTurnEntry, ChatToolResult, ChatTurnResult,
+} from './llm-provider';
+import { CHAT_TOOLS, type ChatToolExecutor, type ChatToolDefinition } from './chat-tools';
 
 // Bound the timeline handed to the model so a large imported history can't inflate the
 // prompt past the latency/token budget. The most recent events carry the most relevant
@@ -54,13 +57,89 @@ export function buildCarChatContext(car: Car, events: Event[], reminders: Remind
   };
 }
 
-// Answer the latest user message using the car context. Input is already validated at
-// the contract boundary; the guard here is a defensive backstop for direct callers.
+// Loop bounds. API Gateway hard-caps the HTTP integration at 30s regardless of the
+// Lambda's own timeout, so the turn is bounded by wall-clock as well as round count.
+export const MAX_MODEL_CALLS = 3;
+export const TURN_BUDGET_MS = 26_000;
+export const MIN_ROUND_BUDGET_MS = 8_000;
+
+export type ChatTurnOutput = { reply: string; actions: ChatAction[] };
+export type ChatAboutCarDeps = { now?: () => number };
+
+const FALLBACK_REPLY = 'Sorry — I could not produce an answer from this car\'s records.';
+
+// Answer the latest user message, letting the model call tools to read and change this
+// car's data. Bounded by MAX_MODEL_CALLS and TURN_BUDGET_MS: when either runs out the
+// final call is made with no tools, so the model must answer in text.
 export async function chatAboutCar(
-  messages: ChatMessage[], llm: LlmProvider, context: CarChatContext, attachments: ChatAttachment[] = [],
-): Promise<string> {
+  messages: ChatMessage[],
+  llm: LlmProvider,
+  context: CarChatContext,
+  executor: ChatToolExecutor,
+  attachments: ChatAttachment[] = [],
+  deps: ChatAboutCarDeps = {},
+): Promise<ChatTurnOutput> {
   if (messages.length === 0 || messages[messages.length - 1]!.role !== 'user') {
     throw new Error('chat requires a non-empty history ending in a user message');
   }
-  return llm.chat(messages, context, attachments);
+  const now = deps.now ?? Date.now;
+  const startedAt = now();
+
+  const transcript: ChatTurnEntry[] = messages.map((m) => ({ role: 'user', content: m.content }));
+  const texts: string[] = [];
+  const actions: ChatAction[] = [];
+
+  for (let round = 0; round < MAX_MODEL_CALLS; round += 1) {
+    const isLastRound = round === MAX_MODEL_CALLS - 1;
+    const remaining = TURN_BUDGET_MS - (now() - startedAt);
+    // Offer tools only while there is room for a follow-up call to narrate the result.
+    const tools: ChatToolDefinition[] =
+      isLastRound || remaining < MIN_ROUND_BUDGET_MS ? [] : CHAT_TOOLS;
+
+    // Bytes go on the first round only — by round 2 the model has already read them, and
+    // re-sending them each round would blow the token budget.
+    const turnAttachments = round === 0 ? attachments : [];
+
+    let result: ChatTurnResult;
+    try {
+      result = await llm.chatTurn(transcript, context, turnAttachments, tools);
+    } catch (err) {
+      // Nothing committed yet ⇒ let the provider error surface as the usual 503.
+      if (actions.length === 0) throw err;
+      throw new ChatTurnInterruptedError(actions, err);
+    }
+
+    if (result.text.trim() !== '') texts.push(result.text.trim());
+    transcript.push({ role: 'assistant', raw: result.raw });
+
+    if (result.toolCalls.length === 0) break;
+
+    // Execute this round's calls concurrently, then return ALL results in ONE entry:
+    // splitting them across entries trains the model out of parallel tool use.
+    const outcomes = await Promise.all(result.toolCalls.map((call) => executor.execute(call)));
+    const results: ChatToolResult[] = outcomes.map((outcome, i) => ({
+      id: result.toolCalls[i]!.id,
+      content: outcome.content,
+      isError: outcome.isError,
+    }));
+    for (const outcome of outcomes) {
+      if (outcome.action) actions.push(outcome.action);
+    }
+    transcript.push({ role: 'tool_results', results });
+  }
+
+  const reply = texts.join('\n\n').trim()
+    || actions.map((a) => a.summary).join('\n')
+    || FALLBACK_REPLY;
+  return { reply, actions };
+}
+
+// Thrown when a round fails AFTER earlier rounds already committed writes. Carries what
+// was done so the route can persist an assistant message instead of losing real side
+// effects behind a 503. `cause` is the provider error.
+export class ChatTurnInterruptedError extends Error {
+  constructor(readonly actions: ChatAction[], override readonly cause: unknown) {
+    super('chat turn interrupted after committing changes');
+    this.name = 'ChatTurnInterruptedError';
+  }
 }
