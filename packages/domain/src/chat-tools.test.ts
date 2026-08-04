@@ -32,6 +32,16 @@ describe('CHAT_TOOLS', () => {
     }
   });
 
+  it('requires cost on create_event, so a model that omits it fails fast instead of burning its retry', () => {
+    // CreateEventSchema.cost is z.number().min(0) with no default, so an omitted cost is a
+    // guaranteed Zod rejection. Tools are only offered on rounds 0-1 (round 2 is forced
+    // tool-free), so surfacing this in the JSON Schema's `required` list — not just in Zod —
+    // steers the model away from spending its one retry on a foreseeable failure.
+    const tool = CHAT_TOOLS.find((t) => t.name === 'create_event');
+    expect(tool).toBeDefined();
+    expect(tool!.inputSchema.required).toContain('cost');
+  });
+
   it('never asks the model for an owner or car identifier', () => {
     const json = JSON.stringify(CHAT_TOOLS);
     expect(json).not.toContain('ownerId');

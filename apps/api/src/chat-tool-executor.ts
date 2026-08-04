@@ -1,7 +1,7 @@
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 import {
-  CreateReminderSchema, CreateEventSchema, CreateCarSchema, MAX_REMINDERS_PER_CAR,
-  type Car, type Event, type Reminder, type ChatAction, type ChatActionKind,
+  CreateReminderSchema, CreateEventSchema, CreateCarSchema, EventCategorySchema,
+  MAX_REMINDERS_PER_CAR, type Car, type Event, type Reminder, type ChatAction, type ChatActionKind,
 } from '@carlog/contracts';
 import {
   createReminder, createEvent, bumpCarMileage, searchEvents, sumSpend,
@@ -13,12 +13,22 @@ export type ChatToolExecutorDeps = {
   cars: CarRepository;
   events: EventRepository;
   reminders: ReminderRepository;
-  car: Car;            // the authorized car, already loaded by the route
+  car: Car;            // the authorized car, as loaded when the route started the turn.
+                        // Write paths must NOT read this for their base/merge state — see
+                        // the re-read in dispatch() below — it may be stale by the time a
+                        // later tool call in the same turn (or round) executes. It stays
+                        // here only for context that isn't part of a write decision.
   timeline: Event[];    // the FULL event list, already loaded for the chat context
   ownerId: string;
   carId: string;
   newId: () => string;
 };
+
+// The contract cap (ChatActionSchema.summary is max(200)) — an over-long summary would
+// persist and then fail ChatSessionSchema.parse on every subsequent read of the session.
+const SUMMARY_MAX = 200;
+const clamp = (summary: string): string =>
+  summary.length <= SUMMARY_MAX ? summary : `${summary.slice(0, SUMMARY_MAX - 1)}…`;
 
 const ok = (content: string, action?: ChatAction): ChatToolOutcome => ({ content, isError: false, action });
 const fail = (content: string): ChatToolOutcome => ({ content, isError: true });
@@ -27,9 +37,11 @@ const fail = (content: string): ChatToolOutcome => ({ content, isError: true });
 const zodMessage = (err: ZodError): string =>
   err.issues.map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message)).join('; ');
 
-// Drop keys the model omitted so a partial update merges instead of clearing fields.
+// Drop keys that mean "not provided". `undefined` is the JS-native omission; `null` is what
+// models commonly send instead, since JSON has no `undefined` — both mean the same thing
+// here, so a partial update merges instead of clearing (or rejecting) the field.
 const defined = (input: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+  Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined && v !== null));
 
 const asRecord = (input: unknown): Record<string, unknown> =>
   (typeof input === 'object' && input !== null ? { ...(input as Record<string, unknown>) } : {});
@@ -42,6 +54,24 @@ const reminderSummary = (r: Reminder): string => {
 
 const eventSummary = (e: Event): string =>
   `${e.date} · ${e.category}${e.title ? ` — ${e.title}` : ''}${e.mileage > 0 ? ` (${e.mileage} km)` : ''}`;
+
+// Executor-side validation for the read tools. These are NOT contract schemas (the read
+// tools never write), just a guard so a wrong-typed input fails loudly instead of silently
+// coercing into an empty, falsely-confident result (e.g. {limit:'many'} -> NaN -> slice(0,
+// NaN) -> "No matching entries").
+const ReadFiltersSchema = z.object({
+  category: EventCategorySchema.optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD').optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD').optional(),
+  text: z.string().optional(),
+  limit: z.number().int().min(1).optional(),
+});
+
+// update_car's summary must only ever name fields the car contract actually accepts —
+// Object.keys(defined(input)) alone would include unknown keys the model sent (or the model
+// trying ownerId/carId overrides), which Zod strips silently on a passthrough-free object
+// schema. Derived from the schema's own shape so this can't drift from CreateCarSchema.
+const CAR_FIELD_NAMES = new Set(Object.keys(CreateCarSchema.shape));
 
 // Executes the chat model's tool calls against the repositories. ownerId/carId always come
 // from the authorized request context — NEVER from tool input — so the model can at most
@@ -61,11 +91,20 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
   }
 
   private action(kind: ChatActionKind, summary: string, entityId?: string): ChatAction {
-    return { id: this.deps.newId(), kind, status: 'done', summary, entityId };
+    return { id: this.deps.newId(), kind, status: 'done', summary: clamp(summary), entityId };
   }
 
   private pending(kind: ChatActionKind, target: 'reminder' | 'event', entityId: string, summary: string): ChatAction {
-    return { id: this.deps.newId(), kind, status: 'pending', summary, entityId, pending: { target, entityId } };
+    return { id: this.deps.newId(), kind, status: 'pending', summary: clamp(summary), entityId, pending: { target, entityId } };
+  }
+
+  // The car snapshot the executor was built with (deps.car) is captured once per turn, but
+  // a round's tool calls run concurrently and a car-touching write is a full PUT. Re-reading
+  // here means every write in the turn is based on the CURRENT stored car, not a snapshot
+  // that a sibling call in the same round (or an earlier round) may have already moved past.
+  // A null return means the car was deleted mid-turn by another request.
+  private async loadCurrentCar(): Promise<Car | null> {
+    return this.deps.cars.getById(this.deps.ownerId, this.deps.carId);
   }
 
   private async dispatch(call: ChatToolCall): Promise<ChatToolOutcome> {
@@ -75,6 +114,11 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
     switch (call.name) {
       case 'create_reminder': {
         const existing = await this.deps.reminders.listByCar(ownerId, carId);
+        // Bounded, low-stakes race: concurrent create_reminder calls within the SAME
+        // Promise.all round can each read `existing` before any of them writes, so a
+        // burst can overshoot MAX_REMINDERS_PER_CAR by a few. Not worth locking for —
+        // it's capped by the round's tool-call count, and the REST route enforces the
+        // same cap independently for form users, so the data can't run away unbounded.
         if (existing.length >= MAX_REMINDERS_PER_CAR) {
           return fail(`This car already has the maximum of ${MAX_REMINDERS_PER_CAR} reminders.`);
         }
@@ -117,7 +161,9 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
         const created = await this.deps.events.create(
           createEvent(ownerId, carId, parsed, { newId: this.deps.newId }),
         );
-        const bumped = bumpCarMileage(this.deps.car, created.mileage);
+        const car = await this.loadCurrentCar();
+        if (!car) return fail('This car no longer exists.');
+        const bumped = bumpCarMileage(car, created.mileage);
         if (bumped) await this.deps.cars.update(ownerId, carId, bumped);
         const summary = eventSummary(created);
         return ok(`Logged: ${summary}. id=${created.id}`,
@@ -132,7 +178,9 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
         const { id: _i, carId: _c, ownerId: _o, createdAt: _cr, updatedAt: _u, ...fields } = current;
         const parsed = CreateEventSchema.parse({ ...fields, ...defined(rest) });
         const updated = await this.deps.events.update(ownerId, carId, id, parsed);
-        const bumped = bumpCarMileage(this.deps.car, updated.mileage);
+        const car = await this.loadCurrentCar();
+        if (!car) return fail('This car no longer exists.');
+        const bumped = bumpCarMileage(car, updated.mileage);
         if (bumped) await this.deps.cars.update(ownerId, carId, bumped);
         const summary = eventSummary(updated);
         return ok(`Updated: ${summary}.`, this.action('update_event', summary, id));
@@ -153,21 +201,27 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
       case 'update_car': {
         const fields = defined(input);
         if (Object.keys(fields).length === 0) return fail('No car fields were given to change.');
-        const { id: _i, ownerId: _o, createdAt: _c, updatedAt: _u, shared: _s, ...current } = this.deps.car;
+        const car = await this.loadCurrentCar();
+        if (!car) return fail('This car no longer exists.');
+        // Odometer-lowering via update_car is intentionally allowed here (owner correcting
+        // a typo) — bumpCarMileage's monotonicity guard is for event-derived readings only.
+        const { id: _i, ownerId: _o, createdAt: _c, updatedAt: _u, shared: _s, ...current } = car;
         const parsed = CreateCarSchema.parse({ ...current, ...fields });
+        // Build the summary only from keys the car contract actually accepts — Zod silently
+        // drops unknown keys (and rejects an ownerId/carId override attempt via extra keys
+        // being ignored, since parsed above is built from `current` + `fields` merged into
+        // the exact CreateCarSchema shape), so a summary built from the raw input keys could
+        // name fields that never changed anything.
+        const changedKeys = Object.keys(fields).filter((k) => CAR_FIELD_NAMES.has(k));
+        if (changedKeys.length === 0) return fail('No car fields were given to change.');
         const updated = await this.deps.cars.update(ownerId, carId, parsed);
-        const summary = `Updated ${Object.keys(fields).join(', ')} on ${updated.make} ${updated.model}`;
+        const summary = `Updated ${changedKeys.join(', ')} on ${updated.make} ${updated.model}`;
         return ok(`${summary}.`, this.action('update_car', summary, carId));
       }
 
       case 'search_events': {
-        const found = searchEvents(this.deps.timeline, {
-          category: input.category as Event['category'] | undefined,
-          from: input.from as string | undefined,
-          to: input.to as string | undefined,
-          text: input.text as string | undefined,
-          limit: input.limit as number | undefined,
-        });
+        const parsedInput = ReadFiltersSchema.parse(defined(input));
+        const found = searchEvents(this.deps.timeline, parsedInput);
         if (found.length === 0) return ok('No matching entries in the full history.');
         const lines = found.map((e) => {
           const cost = e.cost > 0 ? ` · ${e.cost} ${e.currency}` : '';
@@ -178,11 +232,8 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
       }
 
       case 'sum_spend': {
-        const { totals, count } = sumSpend(this.deps.timeline, {
-          category: input.category as Event['category'] | undefined,
-          from: input.from as string | undefined,
-          to: input.to as string | undefined,
-        });
+        const { category, from, to } = ReadFiltersSchema.parse(defined(input));
+        const { totals, count } = sumSpend(this.deps.timeline, { category, from, to });
         if (count === 0) return ok('No entries match, so nothing was spent on that.');
         const parts = totals.map((t) => `${t.total} ${t.currency}`).join(' + ');
         return ok(`${parts} across ${count} entr${count === 1 ? 'y' : 'ies'}.`);

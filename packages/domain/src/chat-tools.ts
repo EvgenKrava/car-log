@@ -132,7 +132,7 @@ export const CHAT_TOOLS: ChatToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: EVENT_FIELDS,
-      required: ['date', 'mileage', 'category'],
+      required: ['date', 'mileage', 'category', 'cost'],
     },
   },
   {

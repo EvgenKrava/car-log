@@ -197,18 +197,159 @@ describe('DomainChatToolExecutor', () => {
   });
 
   it('cannot reach another owner entity', async () => {
-    const other = new InMemoryReminderRepository();
+    // The foreign row lives in the SAME `reminders` instance the executor holds (finding 2:
+    // the original version of this test wrote it into a separate InMemoryReminderRepository,
+    // which made the lookup fail for a trivial reason — the executor never even looked at
+    // the right store — rather than because of real owner scoping). A reviewer confirmed
+    // that with the foreign row in a separate instance, a mutant executor that trusts
+    // input.ownerId over deps.ownerId still passed all 15 tests. See the report for the
+    // before/after evidence of applying and reverting that mutant against this version.
     const foreign: Reminder = {
       id: '44444444-4444-4444-8444-444444444444', carId: CAR_ID, ownerId: 'someone-else',
       title: 'Not yours', category: 'other', dueMileage: 1, notes: undefined,
       createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z',
     };
-    await other.create(foreign);
-    // Our executor is scoped to OWNER, so the id resolves to nothing.
+    await reminders.create(foreign);
+    // Our executor is scoped to OWNER, so the id resolves to nothing — even though the
+    // model could try to smuggle a different ownerId in the tool input.
     const out = await build().execute({
-      id: 't1', name: 'update_reminder', input: { id: foreign.id, dueMileage: 2 },
+      id: 't1', name: 'update_reminder',
+      input: { id: foreign.id, ownerId: 'someone-else', dueMileage: 2 },
     });
     expect(out.isError).toBe(true);
     expect(out.content.toLowerCase()).toContain('no reminder');
+    expect((await reminders.getById('someone-else', CAR_ID, foreign.id))!.dueMileage).toBe(1); // untouched
+  });
+
+  describe('finding 1: stale car snapshot across calls in a turn', () => {
+    it('does not let a later, lower-mileage event drop the odometer back down', async () => {
+      const executor = build();
+      const first = await executor.execute({
+        id: 't1', name: 'create_event',
+        input: { date: '2026-08-01', mileage: 95000, category: 'oil_change', cost: 100 },
+      });
+      expect(first.isError).toBe(false);
+      expect((await cars.getById(OWNER, CAR_ID))!.mileage).toBe(95000);
+
+      // A second car-touching call on the SAME executor instance — deps.car is still the
+      // 90000 snapshot captured at construction. Without a fresh read, bumpCarMileage(stale
+      // 90000, 92000) says "bump" and the stored 95000 would be overwritten with 92000.
+      const second = await executor.execute({
+        id: 't2', name: 'create_event',
+        input: { date: '2026-08-02', mileage: 92000, category: 'other', cost: 0 },
+      });
+      expect(second.isError).toBe(false);
+      expect((await cars.getById(OWNER, CAR_ID))!.mileage).toBe(95000); // must NOT drop to 92000
+    });
+
+    it('does not let a car-touching create_event revert an update_car made earlier in the turn', async () => {
+      const executor = build();
+      const renamed = await executor.execute({
+        id: 't1', name: 'update_car', input: { nickname: 'Renamed' },
+      });
+      expect(renamed.isError).toBe(false);
+      expect((await cars.getById(OWNER, CAR_ID))!.nickname).toBe('Renamed');
+
+      const logged = await executor.execute({
+        id: 't2', name: 'create_event',
+        input: { date: '2026-08-02', mileage: 91000, category: 'other', cost: 0 },
+      });
+      expect(logged.isError).toBe(false);
+      // The stale deps.car snapshot has nickname 'Wolfie' — rebuilding the car from it would
+      // revert the rename that just happened.
+      expect((await cars.getById(OWNER, CAR_ID))!.nickname).toBe('Renamed');
+    });
+
+    it('does not let a second update_car in one turn revert the first', async () => {
+      const executor = build();
+      await executor.execute({ id: 't1', name: 'update_car', input: { nickname: 'First' } });
+      const out = await executor.execute({ id: 't2', name: 'update_car', input: { licensePlate: 'AA1234BB' } });
+      expect(out.isError).toBe(false);
+      const stored = await cars.getById(OWNER, CAR_ID);
+      expect(stored!.nickname).toBe('First'); // must not revert to 'Wolfie'
+      expect(stored!.licensePlate).toBe('AA1234BB');
+    });
+  });
+
+  describe('finding 4: read tools validate their inputs instead of silently coercing', () => {
+    it('rejects a non-numeric limit as an error instead of reporting an empty result', async () => {
+      const timeline: Event[] = [{
+        id: 'e1', carId: CAR_ID, ownerId: OWNER, date: '2020-01-01', category: 'other',
+        mileage: 1, cost: 1, currency: 'UAH', title: 'x', notes: undefined, works: [],
+        createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z',
+      }];
+      const out = await build(timeline).execute({
+        id: 't1', name: 'search_events', input: { limit: 'many' },
+      });
+      expect(out.isError).toBe(true);
+      expect(out.content).not.toContain('No matching entries'); // must not fabricate an empty result
+    });
+
+    it('rejects a bogus category as an error instead of reporting an empty result', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'search_events', input: { category: 'bogus_cat' },
+      });
+      expect(out.isError).toBe(true);
+      expect(out.content).not.toContain('No matching entries');
+    });
+
+    it('rejects a bogus category for sum_spend as an error too', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'sum_spend', input: { category: 'bogus_cat' },
+      });
+      expect(out.isError).toBe(true);
+    });
+  });
+
+  describe('finding 5: null from the model means "not provided"', () => {
+    it('create_reminder succeeds when an optional field is explicitly null', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'create_reminder',
+        input: { title: 'Oil', category: 'oil_change', dueMileage: 100000, notes: null },
+      });
+      expect(out.isError).toBe(false);
+      const stored = await reminders.listByCar(OWNER, CAR_ID);
+      expect(stored[0]!.notes).toBeUndefined();
+    });
+  });
+
+  describe('finding 6: update_car summary only names fields that actually changed', () => {
+    it('rejects an update_car where every key is unknown, without fabricating a summary', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'update_car', input: { ownerId: 'EVIL', bogus: 1 },
+      });
+      expect(out.isError).toBe(true);
+      expect(out.content).not.toContain('ownerId');
+      expect(out.content).not.toContain('bogus');
+      expect(out.action).toBeUndefined();
+      const stored = await cars.getById(OWNER, CAR_ID);
+      expect(stored!.ownerId).toBe(OWNER); // unchanged — the model cannot override ownerId
+    });
+
+    it('succeeds on a mixed input and mentions only the real, changed field', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'update_car', input: { bogus: 1, mileage: 95000 },
+      });
+      expect(out.isError).toBe(false);
+      expect(out.action!.summary).toContain('mileage');
+      expect(out.action!.summary).not.toContain('bogus');
+      expect((await cars.getById(OWNER, CAR_ID))!.mileage).toBe(95000);
+    });
+  });
+
+  describe('finding 8: the summary is clamped to the ChatActionSchema cap', () => {
+    it('keeps an adversarially long update_car summary within 200 chars', async () => {
+      const longMake = 'A'.repeat(60);
+      const longModel = 'B'.repeat(60);
+      const out = await build().execute({
+        id: 't1', name: 'update_car',
+        input: {
+          make: longMake, model: longModel, nickname: 'N', licensePlate: 'P',
+          vin: '1HGCM82633A004352', engineVolume: 2, fuelType: 'petrol', year: 2020,
+        },
+      });
+      expect(out.isError).toBe(false);
+      expect(out.action!.summary.length).toBeLessThanOrEqual(200);
+    });
   });
 });
