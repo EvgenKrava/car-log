@@ -18,6 +18,11 @@ const toRow = (s: ChatSessionRecord): Row => ({ ...s, PK: pk(s.ownerId), SK: sk(
 const toSession = (row: Record<string, unknown>): ChatSessionRecord => {
   const { PK, SK, ttl, ...session } = row as Row;
   void PK; void SK; void ttl;
+  // Sessions carry a 7-day TTL, so rows written before `actions` existed on StoredChatMessage
+  // can still be read back for up to 7 days after that field shipped. Those rows have no
+  // `actions` key at all — the Zod `.default([])` only helps parse(), which this boundary
+  // doesn't call — so normalize it here to keep the runtime value matching the declared type.
+  session.messages = session.messages.map((message) => ({ ...message, actions: message.actions ?? [] }));
   return session;
 };
 
