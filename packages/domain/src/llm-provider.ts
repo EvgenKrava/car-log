@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@carlog/contracts';
+import type { ChatToolCall, ChatToolDefinition } from './chat-tools';
 
 export type ExtractionContext = {
   car: { make: string; model: string; year?: number };
@@ -28,6 +28,19 @@ export type CarChatContext = {
 // adapter fetches these from S3; the domain/provider never touches storage.
 export type ChatAttachment = { base64: string; mediaType: string };
 
+// One entry per model round, plus the tool results between rounds. The assistant entry
+// carries `raw` — the provider's own content blocks, echoed back UNCHANGED on the next
+// round (Bedrock rejects modified thinking blocks). The domain forwards it, never reads it.
+export type ChatTurnEntry =
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; raw: unknown }
+  | { role: 'tool_results'; results: ChatToolResult[] };
+
+export type ChatToolResult = { id: string; content: string; isError: boolean };
+
+// The outcome of ONE model call in the tool loop. `toolCalls` empty ⇒ the turn is done.
+export type ChatTurnResult = { text: string; toolCalls: ChatToolCall[]; raw: unknown };
+
 export interface LlmProvider {
   // Returns the model's raw structured output as unknown JSON. The extractEvents
   // use-case validates it against the contract schema — the provider is NOT
@@ -35,8 +48,14 @@ export interface LlmProvider {
   extractEvents(text: string, ctx: ExtractionContext): Promise<unknown>;
   // Vision: read a maintenance document (image or PDF) and return raw structured output.
   extractEventsFromDocument(base64: string, mediaType: string, ctx: ExtractionContext): Promise<unknown>;
-  // Answer the latest user message grounded in the car's own data. `messages` is the full
-  // conversation so far (ending in a user turn); `attachments` are the current turn's decoded
-  // files (image/PDF) to analyze, or `[]`. Returns the assistant's reply text.
-  chat(messages: ChatMessage[], context: CarChatContext, attachments: ChatAttachment[]): Promise<string>;
+  // ONE model call in the chat tool loop. `transcript` is the conversation so far plus any
+  // prior rounds of this turn; `attachments` are the current turn's decoded files (first
+  // round only); `tools` is [] on the final forced-text round. Loop policy lives in the
+  // domain use-case, not here.
+  chatTurn(
+    transcript: ChatTurnEntry[],
+    context: CarChatContext,
+    attachments: ChatAttachment[],
+    tools: ChatToolDefinition[],
+  ): Promise<ChatTurnResult>;
 }
