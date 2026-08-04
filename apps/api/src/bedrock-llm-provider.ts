@@ -1,7 +1,18 @@
 import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
-import type { ChatMessage } from '@carlog/contracts';
-import type { LlmProvider, ExtractionContext, CarChatContext, ChatAttachment } from '@carlog/domain';
+import type {
+  LlmProvider, ExtractionContext, CarChatContext, ChatAttachment,
+  ChatTurnEntry, ChatTurnResult, ChatToolDefinition,
+} from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
+
+// The Bedrock SDK's own entry point exports only the client classes (verified via
+// `node -e "console.log(Object.keys(require('@anthropic-ai/bedrock-sdk')))"` →
+// ['default', 'AnthropicBedrockMantle', 'BaseAnthropic', 'AnthropicBedrock']) — no
+// ContentBlockParam, and no re-exported subpath for it either. `@anthropic-ai/sdk` (which
+// does define it) is only a transitive dependency of this package, not a direct one, so
+// its subpath types are not resolvable from our own source files. This local alias is the
+// documented fallback for that gap — never widen `raw` to `any` instead.
+type ContentBlockParam = Record<string, unknown>;
 
 // Bare on-demand foundation-model id. The Bedrock-enabled account (677276119483) that
 // issued our bearer token does NOT have the `global.`/`us.` cross-region inference
@@ -111,26 +122,26 @@ function prompt(text: string, ctx: ExtractionContext): string {
   return [instructions(ctx, 'free-form text'), '', 'TEXT:', text].join('\n');
 }
 
-// Extensibility seam for the chat feature. Register a { definition, handler } here to
-// give the chat model a tool (web search, deeper history lookups, ...). v1 ships none, so
-// chat() is a single model call. When the first tool is added: pass these definitions to
-// `create` and wrap the call in the standard `stop_reason === 'tool_use'` loop (see
-// extractEvents for the request shape) — nothing outside this method changes.
-type ChatTool = {
-  definition: { name: string; description: string; input_schema: Record<string, unknown> };
-  handler: (input: unknown) => Promise<string>;
-};
-const CHAT_TOOLS: ChatTool[] = [];
-
 // Serialize the car's grounding data into a system prompt. The instructions keep the
 // model honest: answer only from these records, and admit gaps rather than invent.
-function chatSystem(ctx: CarChatContext): string {
+function chatSystem(ctx: CarChatContext, today: string): string {
   const c = ctx.car;
   const lines = [
-    'You are CarLog, an assistant for ONE specific vehicle. Answer the owner using ONLY the',
-    'car data provided below. If the data does not contain the answer, say so plainly — never',
-    'invent service records, dates, prices, mileage, or specifications. Be concise and practical;',
-    'reply in plain text (no markdown tables). Keep every amount in the currency it is stored in.',
+    'You are CarLog, an assistant for ONE specific vehicle. You can both answer questions',
+    'about it and change its records using the provided tools.',
+    '',
+    `Today is ${today}.`,
+    '',
+    'RULES:',
+    '- When the owner asks you to record, schedule, change, or correct something, USE THE',
+    '  TOOLS to do it. Do not just describe what you would do.',
+    '- NEVER invent a mileage, date, cost, or part number. If a required field is missing and',
+    '  cannot be derived from the records below, ask ONE short question instead of guessing.',
+    '- When the owner says "now" or "today", prefer the odometer and date already on record.',
+    '- Deletions are proposed, not performed: say the deletion is awaiting their confirmation.',
+    '- Use search_events or sum_spend when the answer may lie outside the recent records below.',
+    '- After acting, state plainly what you did. Be concise; reply in plain text.',
+    '- Keep every amount in the currency it is stored in.',
     '',
     'CAR:',
     `- ${[c.year, c.make, c.model].filter(Boolean).join(' ')}${c.nickname ? ` ("${c.nickname}")` : ''}`,
@@ -237,48 +248,89 @@ export class BedrockLlmProvider implements LlmProvider {
     return toolUse && 'input' in toolUse ? toolUse.input : null;
   }
 
-  async chat(messages: ChatMessage[], context: CarChatContext, attachments: ChatAttachment[]): Promise<string> {
-    // v1 ships no tools. If one is ever registered without wiring the tool-use loop,
-    // fail loudly rather than silently ignoring it.
-    if (CHAT_TOOLS.length > 0) {
-      throw new Error('chat tools registered but the tool-use loop is not wired');
-    }
-    // Attach the current turn's files (image/PDF) to the LAST user message as vision blocks,
-    // mirroring extractEventsFromDocument. Prior turns are plain text (their analysis already
-    // lives in the assistant replies) — re-sending old bytes each turn would blow the cap.
-    const lastIdx = messages.length - 1;
-    const convo = messages.map((m, i) => {
-      if (i === lastIdx && attachments.length > 0) {
+  // One model call in the domain's chat tool loop. Maps the neutral transcript onto
+  // Bedrock content blocks and maps the response back. Loop policy (round count, time
+  // budget) lives in the domain use-case — this method makes exactly one call.
+  async chatTurn(
+    transcript: ChatTurnEntry[],
+    context: CarChatContext,
+    attachments: ChatAttachment[],
+    tools: ChatToolDefinition[],
+  ): Promise<ChatTurnResult> {
+    // Attach the current turn's files to the LAST user entry as vision blocks, mirroring
+    // extractEventsFromDocument. Earlier turns stay plain text — their analysis already
+    // lives in the assistant replies, and re-sending bytes would blow the cap.
+    const lastUserIdx = transcript.reduce(
+      (found, entry, i) => (entry.role === 'user' ? i : found), -1,
+    );
+    const messages = transcript.map((entry, i) => {
+      if (entry.role === 'assistant') {
+        // `raw` is this adapter's own content array from a previous round of the CURRENT
+        // turn, echoed back UNCHANGED — Bedrock rejects modified thinking blocks.
+        return { role: 'assistant' as const, content: entry.raw as ContentBlockParam[] };
+      }
+      if (entry.role === 'assistant_text') {
+        // A stored assistant reply replayed from conversation history — text only, no
+        // provider `raw` to echo since it was persisted in DynamoDB, not produced in an
+        // in-flight round of this turn.
+        return { role: 'assistant' as const, content: entry.content };
+      }
+      if (entry.role === 'tool_results') {
+        return {
+          role: 'user' as const,
+          content: entry.results.map((r) => ({
+            type: 'tool_result' as const,
+            tool_use_id: r.id,
+            content: r.content,
+            is_error: r.isError,
+          })),
+        };
+      }
+      if (i === lastUserIdx && attachments.length > 0) {
         const blocks = attachments.map((a) => a.mediaType === 'application/pdf'
           ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: a.base64 } }
           : { type: 'image' as const, source: { type: 'base64' as const, media_type: a.mediaType as 'image/jpeg' | 'image/png' | 'image/webp', data: a.base64 } });
-        return { role: m.role, content: [...blocks, { type: 'text' as const, text: m.content }] };
+        return { role: 'user' as const, content: [...blocks, { type: 'text' as const, text: entry.content }] };
       }
-      return { role: m.role, content: m.content };
+      return { role: 'user' as const, content: entry.content };
     });
+
+    // `tools`/`messages` are built from the domain's neutral shapes (`inputSchema` is a plain
+    // `Record<string, unknown>`; `messages` from the local ContentBlockParam alias — see the
+    // comment atop this file). Both are structurally compatible with the SDK's own param
+    // types but not the literal types TS infers here, so bridge via the SDK's own parameter
+    // type — no `any`.
+    type CreateParams = Parameters<typeof this.client.messages.create>[0];
+    const bedrockTools = tools.length > 0
+      ? tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema })) as unknown as NonNullable<CreateParams['tools']>
+      : undefined;
+    const bedrockMessages = messages as unknown as CreateParams['messages'];
+
     let res;
     try {
       res = await this.client.messages.create({
         model: MODEL,
-        // Adaptive thinking shares this budget with the reply, so keep headroom above a
-        // short answer to avoid truncating after a bit of reasoning.
-        max_tokens: 2048,
+        // Headroom above a short answer: adaptive thinking shares this budget with the
+        // reply and any tool_use blocks.
+        max_tokens: 4096,
         thinking: { type: 'adaptive' },
-        // Chat is a single conversational reply, not deep reasoning — 'low' keeps it well
-        // inside the ~29s Lambda / 30s API Gateway cap.
+        // 'low' keeps each round well inside the ~29s Lambda / 30s API Gateway cap; a
+        // tool turn makes several of these calls back to back.
         output_config: { effort: 'low' },
-        system: chatSystem(context),
-        messages: convo,
+        system: chatSystem(context, new Date().toISOString().slice(0, 10)),
+        ...(bedrockTools ? { tools: bedrockTools } : {}),
+        messages: bedrockMessages,
       });
     } catch (err) {
       const e = err as Error;
       console.error('Bedrock chat failed', e.name, e.message);
       throw new LlmUnavailableError();
     }
-    const text = res.content
-      .map((c) => ('text' in c ? c.text : ''))
-      .join('')
-      .trim();
-    return text || 'Sorry — I could not produce an answer from this car\'s records.';
+
+    const text = res.content.map((c) => ('text' in c ? c.text : '')).join('').trim();
+    const toolCalls = res.content
+      .filter((c): c is Extract<typeof c, { type: 'tool_use' }> => c.type === 'tool_use')
+      .map((c) => ({ id: c.id, name: c.name, input: c.input }));
+    return { text, toolCalls, raw: res.content };
   }
 }
