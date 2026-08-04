@@ -17,11 +17,39 @@ export const ChatAttachmentViewSchema = AttachmentRefSchema.extend({
   url: z.string().url(),
 });
 
+// A side effect the assistant performed (or proposed) during a turn. Persisted on the
+// assistant message so a reload never loses a pending confirmation.
+export const ChatActionKindSchema = z.enum([
+  'create_reminder', 'update_reminder', 'delete_reminder',
+  'create_event', 'update_event', 'delete_event', 'update_car',
+]);
+
+export const ChatActionStatusSchema = z.enum(['done', 'pending', 'declined', 'failed']);
+
+// What a pending (unconfirmed) delete would remove, once the owner confirms.
+export const PendingDeleteSchema = z.object({
+  target: z.enum(['reminder', 'event']),
+  entityId: z.string().uuid(),
+});
+
+export const ChatActionSchema = z.object({
+  id: z.string().uuid(),
+  kind: ChatActionKindSchema,
+  status: ChatActionStatusSchema,
+  // Built by the executor from the entity's own stored fields — the same untranslated
+  // data the History/Reminders tabs show. The UI localizes only the labels around it.
+  summary: z.string().max(200),
+  entityId: z.string().uuid().optional(),
+  pending: PendingDeleteSchema.optional(),
+});
+
 // One conversation turn as persisted. `attachments` are refs (keys); the client owns nothing.
 export const StoredChatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().max(4000),
   attachments: z.array(AttachmentRefSchema).max(4).default([]),
+  // .default([]) keeps sessions written before this feature parseable — no migration.
+  actions: z.array(ChatActionSchema).max(10).default([]),
   createdAt: z.string().datetime(),
 });
 
@@ -78,6 +106,10 @@ export const ChatAttachmentPresignResponseSchema = z.object({
 
 export type AttachmentRef = z.infer<typeof AttachmentRefSchema>;
 export type ChatAttachmentView = z.infer<typeof ChatAttachmentViewSchema>;
+export type ChatActionKind = z.infer<typeof ChatActionKindSchema>;
+export type ChatActionStatus = z.infer<typeof ChatActionStatusSchema>;
+export type PendingDelete = z.infer<typeof PendingDeleteSchema>;
+export type ChatAction = z.infer<typeof ChatActionSchema>;
 export type StoredChatMessage = z.infer<typeof StoredChatMessageSchema>;
 export type ChatMessageView = z.infer<typeof ChatMessageViewSchema>;
 export type ChatSession = z.infer<typeof ChatSessionSchema>;

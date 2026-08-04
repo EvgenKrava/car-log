@@ -103,7 +103,8 @@ export function ChatConversation() {
               {messages.map((m, i) => <ChatBubble key={i} {...m} />)}
               {pending ? (
                 <ChatBubble role="user" content={pending.content} createdAt=""
-                  attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))} />
+                  attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))}
+                  actions={[]} />
               ) : null}
             </Stack>
           )}

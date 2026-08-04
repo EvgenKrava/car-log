@@ -29,8 +29,9 @@ async function toSessionView(session: ChatSessionRecord, storage: PhotoStorage):
   const messages: ChatMessageView[] = await Promise.all(session.messages.map(async (m) => ({
     role: m.role,
     content: m.content,
-    createdAt: m.createdAt,
     attachments: await Promise.all(m.attachments.map(async (a) => ({ ...a, url: await storage.presignGet(a.key) }))),
+    actions: m.actions,
+    createdAt: m.createdAt,
   })));
   return {
     id: session.id, carId: session.carId, ownerId: session.ownerId, title: session.title,
@@ -121,7 +122,7 @@ export async function handleChatRoute(
       return ok(400, { error: 'ValidationError', message: 'invalid attachment key' });
     }
 
-    const userMsg: StoredChatMessage = { role: 'user', content: req.content, attachments: req.attachments, createdAt: nowIso() };
+    const userMsg: StoredChatMessage = { role: 'user', content: req.content, attachments: req.attachments, actions: [], createdAt: nowIso() };
     const withUser = appendMessage(session, userMsg, nowIso());
 
     const [events, reminders] = await Promise.all([
@@ -142,7 +143,7 @@ export async function handleChatRoute(
     }));
 
     const reply = await chatAboutCar(llmMessages, deps.llm, context, attachments);
-    const assistantMsg: StoredChatMessage = { role: 'assistant', content: reply, attachments: [], createdAt: nowIso() };
+    const assistantMsg: StoredChatMessage = { role: 'assistant', content: reply, attachments: [], actions: [], createdAt: nowIso() };
     const saved = await deps.sessions.save(appendMessage(withUser, assistantMsg, nowIso()));
     return ok(200, { reply, session: await toSessionView(saved, deps.storage) });
   }
