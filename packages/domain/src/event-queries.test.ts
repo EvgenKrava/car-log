@@ -41,6 +41,60 @@ describe('searchEvents', () => {
     expect(searchEvents(all, { text: 'front pads' }).map((e) => e.id)).toEqual(['c']);
   });
 
+  it('matches text in work.description only', () => {
+    const withDesc = ev({
+      id: 'f', date: '2026-01-02',
+      works: [{ description: 'Replace cabin filter', parts: [] }],
+    });
+    const all = [...timeline, withDesc];
+    expect(searchEvents(all, { text: 'cabin filter' }).map((e) => e.id)).toEqual(['f']);
+  });
+
+  it('matches text in part.brand only', () => {
+    const withBrand = ev({
+      id: 'g', date: '2026-01-03',
+      works: [{ description: '', parts: [{ name: 'filter', brand: 'MANN-FILTER', partNumber: '', quantity: 1, notes: '' }] }],
+    });
+    const all = [...timeline, withBrand];
+    expect(searchEvents(all, { text: 'mann-filter' }).map((e) => e.id)).toEqual(['g']);
+  });
+
+  it('matches text in part.partNumber only', () => {
+    const withPartNum = ev({
+      id: 'h', date: '2026-01-04',
+      works: [{ description: '', parts: [{ name: '', brand: '', partNumber: 'CUK-2643', quantity: 1, notes: '' }] }],
+    });
+    const all = [...timeline, withPartNum];
+    expect(searchEvents(all, { text: 'cuk-2643' }).map((e) => e.id)).toEqual(['h']);
+  });
+
+  it('matches text in part.notes only', () => {
+    const withNotes = ev({
+      id: 'i', date: '2026-01-05',
+      works: [{ description: '', parts: [{ name: '', brand: '', partNumber: '', quantity: 1, notes: 'OEM original part' }] }],
+    });
+    const all = [...timeline, withNotes];
+    expect(searchEvents(all, { text: 'oem original' }).map((e) => e.id)).toEqual(['i']);
+  });
+
+  it('does not mutate the input array', () => {
+    const withSort = ev({
+      id: 'j', date: '2024-06-15', category: 'oil_change',
+      works: [{ description: 'filter change', parts: [] }],
+    });
+    const mutable = [...timeline, withSort];
+    const originalIds = mutable.map((e) => e.id);
+
+    searchEvents(mutable, { category: 'oil_change' });
+
+    expect(mutable.map((e) => e.id)).toEqual(originalIds);
+  });
+
+  it('returns a different array reference than the input', () => {
+    const result = searchEvents(timeline, {});
+    expect(result).not.toBe(timeline);
+  });
+
   it('applies the default limit and clamps an oversized one', () => {
     const many = Array.from({ length: 80 }, (_, i) =>
       ev({ id: `x${i}`, date: `2020-01-${String((i % 28) + 1).padStart(2, '0')}` }));
