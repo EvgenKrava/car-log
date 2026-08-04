@@ -4,6 +4,7 @@ export { newId, nowIso } from './id';
 export * from './storage';
 export * from './event';
 export * from './event-repository';
+export * from './event-queries';
 export * from './proof-repository';
 export * from './llm-provider';
 export { extractEvents, extractEventsFromDocument, ExtractionFailedError } from './extract-events';
