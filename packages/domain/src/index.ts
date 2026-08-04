@@ -11,7 +11,7 @@ export * from './chat-tools';
 export { extractEvents, extractEventsFromDocument, ExtractionFailedError } from './extract-events';
 export {
   chatAboutCar, buildCarChatContext, ChatTurnInterruptedError,
-  MAX_CONTEXT_EVENTS, MAX_MODEL_CALLS, TURN_BUDGET_MS, MIN_ROUND_BUDGET_MS,
+  MAX_CONTEXT_EVENTS, MAX_MODEL_CALLS, TURN_BUDGET_MS, MIN_ROUND_BUDGET_MS, MAX_REPLY_CHARS,
   type ChatTurnOutput, type ChatAboutCarDeps,
 } from './chat-about-car';
 export { newChatSession, appendMessage, deriveTitle, SESSION_MESSAGE_CAP, type ChatSessionRecord } from './chat-session';

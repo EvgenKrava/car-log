@@ -5,7 +5,7 @@ import type { ChatToolExecutor, ChatToolCall, ChatToolOutcome } from './chat-too
 import { CHAT_TOOLS } from './chat-tools';
 import {
   buildCarChatContext, chatAboutCar, ChatTurnInterruptedError, MAX_CONTEXT_EVENTS,
-  MAX_MODEL_CALLS, TURN_BUDGET_MS, MIN_ROUND_BUDGET_MS,
+  MAX_MODEL_CALLS, TURN_BUDGET_MS, MIN_ROUND_BUDGET_MS, MAX_REPLY_CHARS,
 } from './chat-about-car';
 
 const car: Car = {
@@ -117,6 +117,23 @@ describe('chatAboutCar', () => {
     expect(offered).toEqual([CHAT_TOOLS.length]); // tools offered on the first round
   });
 
+  it('replays a stored assistant message as assistant_text, not as a user turn', async () => {
+    const history: ChatMessage[] = [
+      { role: 'user', content: 'Remind me to change the oil' },
+      { role: 'assistant', content: 'I have created a reminder for the oil change at 100000 km.' },
+      { role: 'user', content: 'Actually, make it 120000 km' },
+    ];
+    const { llm } = scripted([text('Updated the reminder to 120000 km.')]);
+    await chatAboutCar(history, llm, ctx, executor({ content: 'ok', isError: false }));
+    const firstCallTranscript = vi.mocked(llm.chatTurn).mock.calls[0]![0];
+    expect(firstCallTranscript).toContainEqual({
+      role: 'assistant_text',
+      content: 'I have created a reminder for the oil change at 100000 km.',
+    });
+    expect(firstCallTranscript.some((e) => e.role === 'user' && 'content' in e
+      && e.content === 'I have created a reminder for the oil change at 100000 km.')).toBe(false);
+  });
+
   it('executes a tool call, then returns the follow-up text and the action', async () => {
     const { llm } = scripted([call('t1', 'create_reminder'), text('Done — reminder created.')]);
     const exec = executor({ content: 'Created reminder', isError: false, action });
@@ -152,6 +169,27 @@ describe('chatAboutCar', () => {
     const resultEntries = secondCallTranscript.filter(isResults);
     expect(resultEntries).toHaveLength(1);
     expect(resultEntries[0]!.results).toHaveLength(2);
+    // Each result must be correlated back to the tool call that produced it — a mismatched
+    // id here is a Bedrock 400 (unmatched tool_use_id) in production.
+    expect(resultEntries[0]!.results.map((r) => r.id)).toEqual(['t1', 't2']);
+    // The assistant entry that carried the tool_use blocks must precede the tool_results
+    // entry that answers them — Bedrock 400s if tool_result appears before its tool_use.
+    const isAssistant = (e: ChatTurnEntry): boolean => e.role === 'assistant';
+    const assistantIndex = secondCallTranscript.findIndex(isAssistant);
+    const resultsIndex = secondCallTranscript.findIndex(isResults);
+    expect(assistantIndex).toBeGreaterThanOrEqual(0);
+    expect(assistantIndex).toBeLessThan(resultsIndex);
+  });
+
+  it('propagates isError from a failed tool into the fed-back result', async () => {
+    const { llm } = scripted([call('t1', 'create_reminder'), text('Handled the error.')]);
+    const exec: ChatToolExecutor = { execute: async () => ({ content: 'Invalid input', isError: true }) };
+    await chatAboutCar(userTurn, llm, ctx, exec);
+    const secondCallTranscript = vi.mocked(llm.chatTurn).mock.calls[1]![0];
+    const isResults = (e: ChatTurnEntry): e is Extract<ChatTurnEntry, { role: 'tool_results' }> =>
+      e.role === 'tool_results';
+    const resultEntries = secondCallTranscript.filter(isResults);
+    expect(resultEntries[0]!.results[0]!.isError).toBe(true);
   });
 
   it('echoes the provider raw assistant content back unchanged', async () => {
@@ -234,6 +272,62 @@ describe('chatAboutCar', () => {
     const out = await chatAboutCar(userTurn, llm, ctx, executor({ content: 'ok', isError: false, action }));
     expect(out.reply).toContain('Oil change — 259500 km');
     expect(out.actions).toEqual([action]);
+  });
+
+  it('clamps a reply assembled from multiple rounds to the contract cap', async () => {
+    // Each round's text alone is under the cap, but three joined with '\n\n' exceed it —
+    // exactly the shape that would otherwise pass the repository's cast-not-parse write
+    // and then permanently break `ChatSessionSchema.parse` on every subsequent read.
+    const round = (n: number): ChatTurnResult => ({
+      text: `${n}`.repeat(1900), toolCalls: n < 2 ? [{ id: `t${n}`, name: 'create_reminder', input: {} }] : [], raw: {},
+    });
+    const { llm } = scripted([round(0), round(1), round(2)]);
+    const out = await chatAboutCar(userTurn, llm, ctx, executor({ content: 'ok', isError: false }));
+    expect(out.reply.length).toBeLessThanOrEqual(MAX_REPLY_CHARS);
+  });
+
+  it('does not execute tool calls returned on a tool-free final round', async () => {
+    // A provider that misbehaves on the forced-text-only final round (offered 0 tools)
+    // must not have its tool calls executed — there is no further round to narrate them,
+    // so executing would commit writes the user never sees.
+    const misbehaving: ChatTurnResult = {
+      text: 'Doing it anyway.',
+      toolCalls: [{ id: 'rogue', name: 'create_reminder', input: {} }],
+      raw: {},
+    };
+    const keepCalling = () => call('t', 'create_reminder');
+    const { llm } = scripted([keepCalling(), keepCalling(), misbehaving]);
+    const exec = executor({ content: 'ok', isError: false });
+    const out = await chatAboutCar(userTurn, llm, ctx, exec);
+    expect(out.reply).toBe('Doing it anyway.');
+    // Rounds 0 and 1 (tools offered) legitimately executed their calls; the final
+    // tool-free round's 'rogue' call must NOT have reached the executor.
+    expect(exec.calls.map((c) => c.id)).not.toContain('rogue');
+    expect(exec.calls).toHaveLength(2);
+  });
+
+  it('falls through to the fallback reply when two empty action summaries would join to just "\\n"', async () => {
+    // Two actions with empty summaries join with '\n' to the single truthy string '\n',
+    // which must NOT bypass the fallback.
+    const emptyAction: ChatAction = { ...action, summary: '' };
+    const two: ChatTurnResult = {
+      text: '', raw: {},
+      toolCalls: [
+        { id: 't1', name: 'create_reminder', input: {} },
+        { id: 't2', name: 'create_reminder', input: {} },
+      ],
+    };
+    let call2 = 0;
+    const exec: ChatToolExecutor = {
+      execute: async () => {
+        call2 += 1;
+        return { content: 'ok', isError: false, action: emptyAction };
+      },
+    };
+    const { llm } = scripted([two, text('')]);
+    const out = await chatAboutCar(userTurn, llm, ctx, exec);
+    expect(call2).toBe(2);
+    expect(out.reply).toBe('Sorry — I could not produce an answer from this car\'s records.');
   });
 
   it('rejects an empty history', async () => {

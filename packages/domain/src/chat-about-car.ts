@@ -68,6 +68,24 @@ export type ChatAboutCarDeps = { now?: () => number };
 
 const FALLBACK_REPLY = 'Sorry — I could not produce an answer from this car\'s records.';
 
+// Mirrors the contract's `StoredChatMessage.content` cap (`z.string().max(4000)` in
+// packages/contracts/src/chat.ts). The repository writes without re-validating, so an
+// over-long reply would persist successfully but then fail `ChatSessionSchema.parse` on
+// every subsequent read — permanently breaking the session in the UI with no recovery.
+export const MAX_REPLY_CHARS = 4000;
+
+// Clamp to the contract limit, preferring a whitespace boundary so we don't cut mid-word.
+// Correctness of the `<= MAX_REPLY_CHARS` bound matters more than where exactly it cuts.
+function clampReply(reply: string): string {
+  if (reply.length <= MAX_REPLY_CHARS) return reply;
+  const truncated = reply.slice(0, MAX_REPLY_CHARS);
+  const lastSpace = truncated.lastIndexOf(' ');
+  // Only trim to the space if that still leaves a reasonably-sized reply — otherwise a
+  // reply with no whitespace near the boundary would get needlessly short.
+  if (lastSpace > MAX_REPLY_CHARS - 200) return truncated.slice(0, lastSpace);
+  return truncated;
+}
+
 // Answer the latest user message, letting the model call tools to read and change this
 // car's data. Bounded by MAX_MODEL_CALLS and TURN_BUDGET_MS: when either runs out the
 // final call is made with no tools, so the model must answer in text.
@@ -85,7 +103,14 @@ export async function chatAboutCar(
   const now = deps.now ?? Date.now;
   const startedAt = now();
 
-  const transcript: ChatTurnEntry[] = messages.map((m) => ({ role: 'user', content: m.content }));
+  // Preserve each stored message's real role: a stored assistant reply becomes an
+  // `assistant_text` entry (history, not part of an in-flight round), never a user turn —
+  // otherwise the model reads its own prior words as something the owner said.
+  const transcript: ChatTurnEntry[] = messages.map((m) => (
+    m.role === 'assistant'
+      ? { role: 'assistant_text', content: m.content }
+      : { role: 'user', content: m.content }
+  ));
   const texts: string[] = [];
   const actions: ChatAction[] = [];
 
@@ -106,13 +131,18 @@ export async function chatAboutCar(
     } catch (err) {
       // Nothing committed yet ⇒ let the provider error surface as the usual 503.
       if (actions.length === 0) throw err;
-      throw new ChatTurnInterruptedError(actions, err);
+      // Copy out — never hand the caller the live array the loop accumulates into.
+      throw new ChatTurnInterruptedError([...actions], err);
     }
 
     if (result.text.trim() !== '') texts.push(result.text.trim());
     transcript.push({ role: 'assistant', raw: result.raw });
 
     if (result.toolCalls.length === 0) break;
+    // A tool-free round's only job is to produce the final text. If a provider returns
+    // tool calls anyway on such a round, executing them would commit writes the loop can
+    // never narrate back to the user (there is no further round to report the outcome).
+    if (tools.length === 0) break;
 
     // Execute this round's calls concurrently, then return ALL results in ONE entry:
     // splitting them across entries trains the model out of parallel tool use.
@@ -128,10 +158,12 @@ export async function chatAboutCar(
     transcript.push({ role: 'tool_results', results });
   }
 
-  const reply = texts.join('\n\n').trim()
-    || actions.map((a) => a.summary).join('\n')
-    || FALLBACK_REPLY;
-  return { reply, actions };
+  const reply = clampReply(
+    texts.join('\n\n').trim()
+      || actions.map((a) => a.summary).join('\n').trim()
+      || FALLBACK_REPLY,
+  );
+  return { reply, actions: [...actions] };
 }
 
 // Thrown when a round fails AFTER earlier rounds already committed writes. Carries what

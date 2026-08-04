@@ -28,11 +28,15 @@ export type CarChatContext = {
 // adapter fetches these from S3; the domain/provider never touches storage.
 export type ChatAttachment = { base64: string; mediaType: string };
 
-// One entry per model round, plus the tool results between rounds. The assistant entry
-// carries `raw` — the provider's own content blocks, echoed back UNCHANGED on the next
-// round (Bedrock rejects modified thinking blocks). The domain forwards it, never reads it.
+// One entry per model round, plus the tool results between rounds. There are two distinct
+// assistant variants: `assistant` carries `raw` — the provider's own content blocks from a
+// round of THIS turn, echoed back UNCHANGED on the next round (Bedrock rejects modified
+// thinking blocks); the domain forwards it, never reads it. `assistant_text` is a stored
+// assistant reply replayed from history — text only, no provider `raw` to echo since it
+// was never part of an in-flight round.
 export type ChatTurnEntry =
   | { role: 'user'; content: string }
+  | { role: 'assistant_text'; content: string }
   | { role: 'assistant'; raw: unknown }
   | { role: 'tool_results'; results: ChatToolResult[] };
 
