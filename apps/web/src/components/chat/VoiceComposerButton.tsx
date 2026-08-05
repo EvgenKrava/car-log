@@ -1,8 +1,24 @@
 import { useTranslation } from 'react-i18next';
-import { IconButton, Stack, Typography } from '@mui/material';
+import { Box, IconButton, Stack, Typography } from '@mui/material';
+import type { SxProps, Theme } from '@mui/material';
 import MicNoneIcon from '@mui/icons-material/MicNone';
 import StopCircleIcon from '@mui/icons-material/StopCircle';
 import SendIcon from '@mui/icons-material/Send';
+
+// @mui/utils isn't a direct dependency of this package (only @mui/material and
+// @mui/icons-material are), so its `visuallyHidden` export doesn't resolve here. Same
+// clip-rect recipe, kept local.
+const visuallyHidden: SxProps<Theme> = {
+  border: 0,
+  clip: 'rect(0 0 0 0)',
+  height: '1px',
+  margin: '-1px',
+  overflow: 'hidden',
+  padding: 0,
+  position: 'absolute',
+  whiteSpace: 'nowrap',
+  width: '1px',
+};
 
 type Props = {
   supported: boolean;
@@ -25,7 +41,10 @@ export function VoiceComposerButton({ supported, listening, seconds, canSend, se
   if (listening) {
     return (
       <Stack direction="row" spacing={0.5} alignItems="center">
-        <Typography variant="caption" color="error" aria-live="polite" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+        {/* Announced once when dictation starts, rather than putting aria-live on the
+            ticking timer below, which would re-announce every second — an ARIA anti-pattern. */}
+        <Box sx={visuallyHidden} role="status" aria-live="polite">{t('chat:voiceListening')}</Box>
+        <Typography variant="caption" color="error" sx={{ fontVariantNumeric: 'tabular-nums' }}>
           {mmss(seconds)}
         </Typography>
         <IconButton color="error" onClick={onStop} aria-label={t('chat:voiceStop')} aria-pressed

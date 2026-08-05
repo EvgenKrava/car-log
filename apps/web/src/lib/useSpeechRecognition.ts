@@ -49,7 +49,6 @@ export function useSpeechRecognition() {
   // iOS Safari ends recognition after a short silence. While the user has not tapped
   // stop, restart so dictation doesn't die mid-sentence.
   const wantListening = useRef(false);
-  const lang = useRef('en-US');
 
   const stop = useCallback(() => {
     wantListening.current = false;
@@ -57,16 +56,23 @@ export function useSpeechRecognition() {
     recognizer.current?.stop();
   }, []);
 
-  const reset = useCallback(() => {
-    finalText.current = '';
-    setTranscript('');
-    setError(null);
-  }, []);
-
   const start = useCallback((language: string) => {
     const Ctor = recognizerCtor();
     if (!Ctor) return;
-    lang.current = language;
+
+    // A recognizer may already be live (e.g. stop() was tapped, then start() again before
+    // the first recognizer's graceful onend fired). Silence it immediately by detaching its
+    // handlers and aborting, rather than leaving it running until its own onend arrives —
+    // the identity checks below are a second line of defense in case any of its callbacks
+    // are already queued.
+    const prev = recognizer.current;
+    if (prev) {
+      prev.onresult = null;
+      prev.onerror = null;
+      prev.onend = null;
+      prev.abort();
+    }
+
     setError(null);
     finalText.current = '';
     setTranscript('');
@@ -78,6 +84,7 @@ export function useSpeechRecognition() {
     rec.interimResults = true;
 
     rec.onresult = (e) => {
+      if (recognizer.current !== rec) return; // superseded — do not write into the new session
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i += 1) {
         const result = e.results[i]!;
@@ -89,6 +96,7 @@ export function useSpeechRecognition() {
     };
 
     rec.onerror = (e) => {
+      if (recognizer.current !== rec) return; // superseded — not our session anymore
       if (e.error === 'no-speech' || e.error === 'aborted') return; // the restart covers these
       const denied = e.error === 'not-allowed' || e.error === 'service-not-allowed';
       setError(denied ? 'denied' : 'failed');
@@ -97,6 +105,7 @@ export function useSpeechRecognition() {
     };
 
     rec.onend = () => {
+      if (recognizer.current !== rec) return; // superseded — a newer recognizer owns the mic now
       if (!wantListening.current) { setListening(false); return; }
       try {
         rec.start(); // silence-triggered end: keep going
@@ -129,5 +138,5 @@ export function useSpeechRecognition() {
     }
   }, []);
 
-  return { supported, listening, transcript, error, start, stop, reset };
+  return { supported, listening, transcript, error, start, stop };
 }

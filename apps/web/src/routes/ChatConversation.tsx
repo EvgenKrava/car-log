@@ -161,14 +161,17 @@ export function ChatConversation() {
           <TextField fullWidth size="small" multiline maxRows={5} value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-            placeholder={t('chat:placeholder')} aria-label={t('chat:placeholder')} />
+            placeholder={t('chat:placeholder')} aria-label={t('chat:placeholder')}
+            // While dictating, the streaming transcript is the single writer of `input`;
+            // read-only (not disabled) keeps focus and full-color text, just blocks typed edits.
+            InputProps={{ readOnly: speech.listening }} />
           <VoiceComposerButton
             supported={speech.supported}
             listening={speech.listening}
             seconds={seconds}
             canSend={Boolean(input.trim()) || files.length > 0}
             sending={post.isPending}
-            onStart={() => { speech.reset(); speech.start(i18n.language.startsWith('uk') ? 'uk-UA' : 'en-US'); }}
+            onStart={() => speech.start(i18n.language.startsWith('uk') ? 'uk-UA' : 'en-US')}
             onStop={() => speech.stop()}
           />
         </Box>
