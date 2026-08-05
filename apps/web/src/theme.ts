@@ -55,6 +55,9 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
         },
       },
       MuiCssBaseline: {
+        // This clamp is CSS-only, so visuals are instant, but MUI's Transition
+        // components (e.g. Slide/Grow here) still run their full JS timeout before
+        // firing onExited — the unmount is delayed even though nothing visibly moves.
         styleOverrides: `
           @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {

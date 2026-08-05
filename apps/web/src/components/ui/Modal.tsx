@@ -1,4 +1,7 @@
-import { forwardRef, type FormEventHandler, type ReactElement, type ReactNode, type Ref } from 'react';
+import {
+  forwardRef, useRef,
+  type FormEventHandler, type ReactElement, type ReactNode, type Ref,
+} from 'react';
 import {
   Dialog, DialogActions, DialogContent, DialogTitle,
   Grow, Slide, useMediaQuery, useTheme,
@@ -85,8 +88,14 @@ export function Modal({
 
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
+  // Freeze the breakpoint choice while open: flipping TransitionComponent identity
+  // mid-open (rotation across `sm`) remounts the dialog subtree and loses form state.
+  const frozenIsPhone = useRef(isPhone);
+  if (!open) frozenIsPhone.current = isPhone;
   // `plain` (lightbox) keeps the default Fade; a slide-up would fight its gestures.
-  const TransitionComponent = plain ? undefined : isPhone ? SheetTransition : DesktopTransition;
+  const TransitionComponent = plain
+    ? undefined
+    : frozenIsPhone.current ? SheetTransition : DesktopTransition;
 
   const body = (
     <>

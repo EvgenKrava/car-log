@@ -1,21 +1,10 @@
-import { forwardRef, type ReactElement } from 'react';
-import { List, ListItemButton, ListItemIcon, ListItemText, Slide } from '@mui/material';
-import type { TransitionProps } from '@mui/material/transitions';
+import { List, ListItemButton, ListItemIcon, ListItemText } from '@mui/material';
 import DocumentScannerIcon from '@mui/icons-material/DocumentScanner';
 import TextSnippetIcon from '@mui/icons-material/TextSnippet';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import type { SvgIconComponent } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { Modal } from './ui/Modal';
-
-// Slide the sheet up from the bottom into place (on every breakpoint), reinforcing
-// the bottom-sheet feel the mobile theme already gives.
-const SlideUp = forwardRef(function SlideUp(
-  props: TransitionProps & { children: ReactElement },
-  ref: React.Ref<unknown>,
-) {
-  return <Slide direction="up" ref={ref} {...props} />;
-});
 
 type Option = { key: string; icon: SvgIconComponent; label: string; onSelect: () => void };
 
@@ -45,7 +34,6 @@ export function AddRecordSheet({
       title={t('event:addRecordTitle')}
       maxWidth="xs"
       contentSx={{ p: 0 }}
-      dialogProps={{ TransitionComponent: SlideUp }}
     >
       <List sx={{ py: 0 }}>
         {options.map(({ key, icon: Icon, label, onSelect }) => (
