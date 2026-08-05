@@ -257,4 +257,52 @@ describe('chat action confirm/decline', () => {
     expect(saved!.messages.some((m) => m.role === 'user' && m.content === 'how are things?')).toBe(true);
     expect(saved!.messages.some((m) => m.role === 'assistant' && m.content === 'Here is what I found.')).toBe(true);
   });
+
+  it('a full message turn that completes entirely inside a confirm\'s own round-trips is not clobbered by that confirm\'s save (Finding 5, reverse direction)', async () => {
+    // Mirror of the race above, in the other direction: the confirm route reads the
+    // session, then does its own network round-trips (getById + delete against the
+    // reminders repo) before it writes back. If an ENTIRE message turn (read -> provider
+    // -> re-read -> save) fits inside that window, the confirm's final save must not
+    // clobber the fresh turn with its own stale pre-delete snapshot. Gate `getById` on the
+    // reminders fake so the confirm route is suspended right after its first `loadSession()`
+    // but before it touches the entity; run a full message turn to completion while
+    // suspended; then release.
+    await seedSession(pendingAction);
+
+    let releaseGetById!: () => void;
+    const gate = new Promise<void>((resolve) => { releaseGetById = resolve; });
+    const originalGetById = reminders.getById.bind(reminders);
+    vi.spyOn(reminders, 'getById').mockImplementation(async (...args) => {
+      await gate;
+      return originalGetById(...args);
+    });
+
+    const confirmPromise = handleChatRoute(
+      deps, post(`/cars/${CAR_ID}/chat/sessions/${SID}/actions/${AID}/confirm`), OWNER, CAR_ID,
+    );
+
+    // The full message turn (InMemoryLlmProvider resolves immediately) runs to completion
+    // WHILE the confirm route is still suspended inside its reminders.getById call.
+    const messageRes = await handleChatRoute(
+      deps,
+      { ...post(`/cars/${CAR_ID}/chat/sessions/${SID}/messages`), body: { content: 'how are things?' } },
+      OWNER, CAR_ID,
+    );
+    expect(messageRes?.statusCode).toBe(200);
+
+    releaseGetById();
+    const confirmRes = await confirmPromise;
+    expect(confirmRes?.statusCode).toBe(200);
+    expect(await reminders.getById(OWNER, CAR_ID, RID)).toBeNull(); // the delete really happened
+
+    const saved = await sessions.getById(OWNER, CAR_ID, SID);
+    // The confirm's status flip must have survived.
+    const confirmedAction = saved!.messages
+      .flatMap((m) => m.actions).find((a) => a.id === AID);
+    expect(confirmedAction?.status).toBe('done');
+    // And the new turn's user + assistant messages must also be present — not dropped by
+    // the confirm's save.
+    expect(saved!.messages.some((m) => m.role === 'user' && m.content === 'how are things?')).toBe(true);
+    expect(saved!.messages.some((m) => m.role === 'assistant')).toBe(true);
+  });
 });

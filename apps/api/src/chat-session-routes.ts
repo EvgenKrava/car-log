@@ -220,10 +220,29 @@ export async function handleChatRoute(
       next = { ...action, status: 'done' };
     }
 
-    const messages = session.messages.map((m, i) => (i === msgIdx
+    // Re-read rather than rewrite `session`: a full message turn (read -> provider call,
+    // up to ~26s -> re-read -> save) can complete entirely inside this route's own delete
+    // round-trips above, and saving off the pre-delete snapshot would silently drop that
+    // turn's new user+assistant messages. Mirror of the messages route's re-read/graft fix.
+    const freshSession = await loadSession();
+    // The session vanished entirely while we were mutating the entity — nothing left to
+    // attach the status flip to; the entity delete already happened, so 404 is honest here
+    // (same as the initial read would have produced had it raced the same way).
+    if (!freshSession) return ok(404, { error: 'NotFound', message: 'session not found' });
+
+    const freshMsgIdx = freshSession.messages.findIndex((m) => m.actions.some((a) => a.id === aid));
+    if (freshMsgIdx < 0) {
+      // The action's carrying message fell off the fresh record (e.g. a concurrent turn's
+      // SESSION_MESSAGE_CAP slice dropped it while we were deleting). The entity operation
+      // already happened and must not be undone — save nothing extra, just hand back the
+      // fresh view; there is simply no action row left to flip.
+      return ok(200, await toSessionView(freshSession, deps.storage));
+    }
+
+    const messages = freshSession.messages.map((m, i) => (i === freshMsgIdx
       ? { ...m, actions: m.actions.map((a) => (a.id === aid ? next : a)) }
       : m));
-    const saved = await deps.sessions.save({ ...session, messages, updatedAt: nowIso() });
+    const saved = await deps.sessions.save({ ...freshSession, messages, updatedAt: nowIso() });
     return ok(200, await toSessionView(saved, deps.storage));
   }
 
