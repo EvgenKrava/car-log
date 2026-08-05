@@ -37,7 +37,9 @@ const fail = (content: string): ChatToolOutcome => ({ content, isError: true });
 // unknown tool name are absent here, so a throw from those still produces NO action —
 // there is nothing for a 'failed' row to represent for a read, and an unrecognized name
 // isn't a real write attempt at all.
-const WRITE_TOOL_KINDS: Partial<Record<string, ChatActionKind>> = {
+// Null prototype: a throw before dispatch()'s switch consults this map in the catch, and a
+// bare literal would resolve prototype keys ('constructor', 'toString') to functions.
+const WRITE_TOOL_KINDS: Partial<Record<string, ChatActionKind>> = Object.assign(Object.create(null), {
   create_reminder: 'create_reminder',
   update_reminder: 'update_reminder',
   delete_reminder: 'delete_reminder',
@@ -45,7 +47,7 @@ const WRITE_TOOL_KINDS: Partial<Record<string, ChatActionKind>> = {
   update_event: 'update_event',
   delete_event: 'delete_event',
   update_car: 'update_car',
-};
+});
 
 // Zod messages are what the model reads to correct itself, so surface the path too.
 const zodMessage = (err: ZodError): string =>
@@ -113,7 +115,9 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
   }
 
   private action(kind: ChatActionKind, summary: string, entityId?: string): ChatAction {
-    return { id: this.deps.newId(), kind, status: 'done', summary: clamp(summary), entityId };
+    // Same guard as pending(): a malformed entityId (e.g. a legacy non-uuid row id) must
+    // fail HERE as a tool error, not persist and brick the session on the next read.
+    return ChatActionSchema.parse({ id: this.deps.newId(), kind, status: 'done', summary: clamp(summary), entityId });
   }
 
   // Validate the built action against the contract schema before handing it back to the
