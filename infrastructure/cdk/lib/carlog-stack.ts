@@ -199,6 +199,8 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/chat/sessions', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/messages', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/actions/{aid}/confirm', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/actions/{aid}/decline', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/chat/attachments/presign', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });

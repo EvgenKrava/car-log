@@ -8,7 +8,7 @@ const valid = { date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_c
 const providerReturning = (...outputs: unknown[]): LlmProvider => {
   const fn = vi.fn();
   outputs.forEach((o) => fn.mockResolvedValueOnce(o));
-  return { extractEvents: fn, extractEventsFromDocument: vi.fn(), chat: vi.fn() };
+  return { extractEvents: fn, extractEventsFromDocument: vi.fn(), chatTurn: vi.fn() };
 };
 
 describe('extractEvents', () => {
@@ -65,7 +65,7 @@ const docProvider = (...outputs: unknown[]): LlmProvider => {
   const fn = vi.fn();
   outputs.forEach((o) => fn.mockResolvedValueOnce(o));
   // extractEvents unused in these tests but required by the interface
-  return { extractEvents: vi.fn(), extractEventsFromDocument: fn, chat: vi.fn() };
+  return { extractEvents: vi.fn(), extractEventsFromDocument: fn, chatTurn: vi.fn() };
 };
 
 describe('extractEventsFromDocument', () => {

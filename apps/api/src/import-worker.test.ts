@@ -80,7 +80,7 @@ describe('runImportJob', () => {
         return result;
       },
       extractEventsFromDocument: async () => ({ events: [] }),
-      chat: async () => '',
+      chatTurn: async () => ({ text: '', toolCalls: [], raw: null }),
     };
     const line = 'x'.padEnd(9000, 'y');
     const text = `${line}\n${line}`; // 2 chunks
@@ -121,7 +121,7 @@ describe('runImportJob', () => {
     const counting = {
       extractEvents: async () => { calls++; return { events: [valid] }; },
       extractEventsFromDocument: async () => ({ events: [] }),
-      chat: async () => '',
+      chatTurn: async () => ({ text: '', toolCalls: [], raw: null }),
     };
     await runImportJob(deps(null, { llm: counting, remainingMs: budget }), { jobType: 'import', ownerId: OWNER, carId, jobId: job.id });
     const done = await jobs.get(OWNER, carId, job.id);

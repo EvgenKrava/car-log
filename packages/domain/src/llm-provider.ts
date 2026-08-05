@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@carlog/contracts';
+import type { ChatToolCall, ChatToolDefinition } from './chat-tools';
 
 export type ExtractionContext = {
   car: { make: string; model: string; year?: number };
@@ -9,7 +9,9 @@ export type ExtractionContext = {
 };
 
 // Sanitized snapshot of one car handed to the chat model as grounding context.
-// Deliberately carries NO owner identifiers — only the car's own facts + timeline.
+// Deliberately carries NO owner or car identifiers — but event/reminder ids ARE included
+// on purpose, so the model can address them with the update/delete tools (which require
+// an id sourced "from the ... listed in the context" per their tool descriptions).
 export type CarChatContext = {
   car: {
     make: string; model: string; year?: number; nickname?: string;
@@ -17,16 +19,33 @@ export type CarChatContext = {
     vin?: string; licensePlate?: string;
   };
   events: {
-    date: string; category: string; mileage: number; cost: number; currency: string;
+    id: string; date: string; category: string; mileage: number; cost: number; currency: string;
     title?: string; notes?: string;
     works: { description: string; parts: { name: string; brand?: string; partNumber?: string; quantity: number; notes?: string }[] }[];
   }[];
-  reminders: { title: string; category: string; dueDate?: string; dueMileage?: number; notes?: string }[];
+  reminders: { id: string; title: string; category: string; dueDate?: string; dueMileage?: number; notes?: string }[];
 };
 
 // A decoded attachment for the current chat turn — base64 bytes + its MIME type. The API
 // adapter fetches these from S3; the domain/provider never touches storage.
 export type ChatAttachment = { base64: string; mediaType: string };
+
+// One entry per model round, plus the tool results between rounds. There are two distinct
+// assistant variants: `assistant` carries `raw` — the provider's own content blocks from a
+// round of THIS turn, echoed back UNCHANGED on the next round (Bedrock rejects modified
+// thinking blocks); the domain forwards it, never reads it. `assistant_text` is a stored
+// assistant reply replayed from history — text only, no provider `raw` to echo since it
+// was never part of an in-flight round.
+export type ChatTurnEntry =
+  | { role: 'user'; content: string }
+  | { role: 'assistant_text'; content: string }
+  | { role: 'assistant'; raw: unknown }
+  | { role: 'tool_results'; results: ChatToolResult[] };
+
+export type ChatToolResult = { id: string; content: string; isError: boolean };
+
+// The outcome of ONE model call in the tool loop. `toolCalls` empty ⇒ the turn is done.
+export type ChatTurnResult = { text: string; toolCalls: ChatToolCall[]; raw: unknown };
 
 export interface LlmProvider {
   // Returns the model's raw structured output as unknown JSON. The extractEvents
@@ -35,8 +54,14 @@ export interface LlmProvider {
   extractEvents(text: string, ctx: ExtractionContext): Promise<unknown>;
   // Vision: read a maintenance document (image or PDF) and return raw structured output.
   extractEventsFromDocument(base64: string, mediaType: string, ctx: ExtractionContext): Promise<unknown>;
-  // Answer the latest user message grounded in the car's own data. `messages` is the full
-  // conversation so far (ending in a user turn); `attachments` are the current turn's decoded
-  // files (image/PDF) to analyze, or `[]`. Returns the assistant's reply text.
-  chat(messages: ChatMessage[], context: CarChatContext, attachments: ChatAttachment[]): Promise<string>;
+  // ONE model call in the chat tool loop. `transcript` is the conversation so far plus any
+  // prior rounds of this turn; `attachments` are the current turn's decoded files (first
+  // round only); `tools` is [] on the final forced-text round. Loop policy lives in the
+  // domain use-case, not here.
+  chatTurn(
+    transcript: ChatTurnEntry[],
+    context: CarChatContext,
+    attachments: ChatAttachment[],
+    tools: ChatToolDefinition[],
+  ): Promise<ChatTurnResult>;
 }

@@ -1,13 +1,17 @@
 import {
   PostMessageRequestSchema, RenameSessionRequestSchema, ChatAttachmentPresignRequestSchema,
-  maxScanSize, type ChatSession, type ChatMessageView, type StoredChatMessage,
+  maxScanSize, type ChatSession, type ChatMessageView, type StoredChatMessage, type ChatAction,
 } from '@carlog/contracts';
 import {
-  CarNotFoundError, chatAboutCar, buildCarChatContext, newChatSession, appendMessage, nowIso,
+  CarNotFoundError, chatAboutCar, ChatTurnInterruptedError, buildCarChatContext, clampReply,
+  newChatSession, appendMessage, nowIso,
   type CarRepository, type EventRepository, type ReminderRepository, type LlmProvider,
   type ChatSessionRepository, type ChatSessionRecord, type ChatAttachment, type PhotoStorage,
+  type ProofRepository,
 } from '@carlog/domain';
 import type { Car } from '@carlog/contracts';
+import { DomainChatToolExecutor } from './chat-tool-executor';
+import { deleteEventCascade } from './event-delete';
 import { ok, type ApiResult } from './errors';
 import type { ApiEvent } from './router';
 
@@ -15,6 +19,7 @@ export type ChatDeps = {
   cars: CarRepository;
   events: EventRepository;
   reminders: ReminderRepository;
+  proofs: ProofRepository;   // needed to cascade a confirmed event delete
   sessions: ChatSessionRepository;
   storage: PhotoStorage;
   llm: LlmProvider;
@@ -29,8 +34,9 @@ async function toSessionView(session: ChatSessionRecord, storage: PhotoStorage):
   const messages: ChatMessageView[] = await Promise.all(session.messages.map(async (m) => ({
     role: m.role,
     content: m.content,
-    createdAt: m.createdAt,
     attachments: await Promise.all(m.attachments.map(async (a) => ({ ...a, url: await storage.presignGet(a.key) }))),
+    actions: m.actions,
+    createdAt: m.createdAt,
   })));
   return {
     id: session.id, carId: session.carId, ownerId: session.ownerId, title: session.title,
@@ -121,7 +127,7 @@ export async function handleChatRoute(
       return ok(400, { error: 'ValidationError', message: 'invalid attachment key' });
     }
 
-    const userMsg: StoredChatMessage = { role: 'user', content: req.content, attachments: req.attachments, createdAt: nowIso() };
+    const userMsg: StoredChatMessage = { role: 'user', content: req.content, attachments: req.attachments, actions: [], createdAt: nowIso() };
     const withUser = appendMessage(session, userMsg, nowIso());
 
     const [events, reminders] = await Promise.all([
@@ -141,10 +147,103 @@ export async function handleChatRoute(
       role: m.role, content: renderForModel(m, i === withUser.messages.length - 1),
     }));
 
-    const reply = await chatAboutCar(llmMessages, deps.llm, context, attachments);
-    const assistantMsg: StoredChatMessage = { role: 'assistant', content: reply, attachments: [], createdAt: nowIso() };
-    const saved = await deps.sessions.save(appendMessage(withUser, assistantMsg, nowIso()));
+    const executor = new DomainChatToolExecutor({
+      cars: deps.cars, events: deps.events, reminders: deps.reminders,
+      car, timeline: events, ownerId, carId, newId: deps.newId,
+    });
+    // A provider failure AFTER a write already committed must not 503 away the record of
+    // it — persist what happened so the user (and the next turn) can see it.
+    let reply: string;
+    let actions: ChatAction[];
+    try {
+      ({ reply, actions } = await chatAboutCar(llmMessages, deps.llm, context, executor, attachments));
+    } catch (err) {
+      if (!(err instanceof ChatTurnInterruptedError)) throw err;
+      actions = err.actions;
+      // Same contract-cap invariant as the domain's own fallback reply (chatAboutCar) —
+      // the domain already bounds err.actions to MAX_TURN_ACTIONS, but clamp the joined
+      // text here too rather than relying solely on that upstream bound.
+      reply = clampReply(err.actions.map((a) => a.summary).join('\n'));
+      console.error('chat turn interrupted after committing changes', err.cause);
+    }
+    const assistantMsg: StoredChatMessage = {
+      role: 'assistant', content: reply, attachments: [], actions, createdAt: nowIso(),
+    };
+
+    // Re-read rather than reuse `withUser`: a confirm/decline on an earlier pending action
+    // can land while the provider call above was in flight (up to TURN_BUDGET_MS ~26s).
+    // Saving off the pre-turn snapshot would silently overwrite that status flip back to
+    // "pending". Grafting this turn's two new messages onto a fresh read instead means the
+    // save carries both the concurrent confirm and this turn. If the session was deleted
+    // mid-turn, 404 — same as the initial read would have produced.
+    const freshSession = await loadSession();
+    if (!freshSession) return ok(404, { error: 'NotFound', message: 'session not found' });
+    const withFreshUser = appendMessage(freshSession, userMsg, nowIso());
+    const saved = await deps.sessions.save(appendMessage(withFreshUser, assistantMsg, nowIso()));
     return ok(200, { reply, session: await toSessionView(saved, deps.storage) });
+  }
+
+  // POST /chat/sessions/{sid}/actions/{aid}/confirm | /decline
+  const aid = pathParams.aid;
+  if (aid && method === 'POST'
+      && (path === `${sessionPath}/actions/${aid}/confirm` || path === `${sessionPath}/actions/${aid}/decline`)) {
+    const confirm = path.endsWith('/confirm');
+    const session = await loadSession();
+    if (!session) return ok(404, { error: 'NotFound', message: 'session not found' });
+
+    const msgIdx = session.messages.findIndex((m) => m.actions.some((a) => a.id === aid));
+    const action = msgIdx >= 0 ? session.messages[msgIdx]!.actions.find((a) => a.id === aid) : undefined;
+    if (!action) return ok(404, { error: 'NotFound', message: 'action not found' });
+    // Only a pending action can be resolved — this makes confirm idempotent-safe rather
+    // than deleting twice on a double tap.
+    if (action.status !== 'pending' || !action.pending) {
+      return ok(409, { error: 'Conflict', message: 'action is already resolved' });
+    }
+
+    let next: ChatAction;
+    if (!confirm) {
+      next = { ...action, status: 'declined' };
+    } else {
+      const { target, entityId } = action.pending;
+      if (target === 'reminder') {
+        const existing = await deps.reminders.getById(ownerId, carId, entityId);
+        if (!existing) return ok(404, { error: 'NotFound', message: 'reminder not found' });
+        await deps.reminders.delete(ownerId, carId, entityId);
+      } else {
+        const existing = await deps.events.getById(ownerId, carId, entityId);
+        if (!existing) return ok(404, { error: 'NotFound', message: 'event not found' });
+        await deleteEventCascade(
+          { events: deps.events, proofs: deps.proofs, storage: deps.storage },
+          ownerId, carId, entityId,
+        );
+      }
+      next = { ...action, status: 'done' };
+    }
+
+    // Re-read rather than rewrite `session`: a full message turn (read -> provider call,
+    // up to ~26s -> re-read -> save) can complete entirely inside this route's own delete
+    // round-trips above, and saving off the pre-delete snapshot would silently drop that
+    // turn's new user+assistant messages. Mirror of the messages route's re-read/graft fix.
+    const freshSession = await loadSession();
+    // The session vanished entirely while we were mutating the entity — nothing left to
+    // attach the status flip to; the entity delete already happened, so 404 is honest here
+    // (same as the initial read would have produced had it raced the same way).
+    if (!freshSession) return ok(404, { error: 'NotFound', message: 'session not found' });
+
+    const freshMsgIdx = freshSession.messages.findIndex((m) => m.actions.some((a) => a.id === aid));
+    if (freshMsgIdx < 0) {
+      // The action's carrying message fell off the fresh record (e.g. a concurrent turn's
+      // SESSION_MESSAGE_CAP slice dropped it while we were deleting). The entity operation
+      // already happened and must not be undone — save nothing extra, just hand back the
+      // fresh view; there is simply no action row left to flip.
+      return ok(200, await toSessionView(freshSession, deps.storage));
+    }
+
+    const messages = freshSession.messages.map((m, i) => (i === freshMsgIdx
+      ? { ...m, actions: m.actions.map((a) => (a.id === aid ? next : a)) }
+      : m));
+    const saved = await deps.sessions.save({ ...freshSession, messages, updatedAt: nowIso() });
+    return ok(200, await toSessionView(saved, deps.storage));
   }
 
   return null;

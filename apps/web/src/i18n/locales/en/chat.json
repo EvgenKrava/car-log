@@ -17,5 +17,17 @@
   "rename": "Rename",
   "renameTitle": "Rename chat",
   "deleteTitle": "Delete chat",
-  "deleteConfirm": "Delete this chat? This can't be undone."
+  "deleteConfirm": "Delete this chat? This can't be undone.",
+  "actionDone": "Applied",
+  "actionPending": "Needs your confirmation",
+  "actionDeclined": "Dismissed",
+  "actionFailed": "Didn't go through",
+  "actionConfirm": "Confirm",
+  "actionDismiss": "Dismiss",
+  "actionError": "Couldn't apply that. Please try again.",
+  "voiceStart": "Dictate a message",
+  "voiceStop": "Stop dictation",
+  "voiceListening": "Listening…",
+  "voiceDenied": "Microphone access was denied. Allow it in your browser settings to dictate.",
+  "suggestionRemind": "Remind me to change the oil in 10 000 km"
 }

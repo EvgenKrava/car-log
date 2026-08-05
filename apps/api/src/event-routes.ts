@@ -5,6 +5,7 @@ import {
 } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
 import { proofKey, assertProofUnderCap } from './event-key';
+import { deleteEventCascade } from './event-delete';
 import type { ApiEvent } from './router';
 
 export type EventDeps = {
@@ -123,17 +124,7 @@ export async function handleEventRoute(
   }
   if (eventId && path === `${base}/${eventId}` && method === 'DELETE') {
     await requireCar(deps, ownerId, carId);
-    // Cascade: delete proof objects + rows first, then the event — so an interrupted
-    // delete never leaves proof rows under a missing event, and the whole op is
-    // safe to retry (S3 DeleteObject is idempotent). Narrow window: if proofs.delete
-    // throws after a successful deleteObject, that one S3 object is orphaned; a retry
-    // of the whole delete cleans it up.
-    const proofs = await deps.proofs.listByEvent(ownerId, carId, eventId);
-    for (const p of proofs) {
-      await deps.storage.deleteObject(proofKey(ownerId, carId, eventId, p.id));
-      await deps.proofs.delete(ownerId, carId, eventId, p.id);
-    }
-    await deps.events.delete(ownerId, carId, eventId);
+    await deleteEventCascade(deps, ownerId, carId, eventId);
     return ok(204, null);
   }
   return null;

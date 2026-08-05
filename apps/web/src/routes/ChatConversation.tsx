@@ -4,24 +4,26 @@ import { useTranslation } from 'react-i18next';
 import { Alert, Box, Chip, CircularProgress, Container, IconButton, Stack, TextField, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import SendIcon from '@mui/icons-material/Send';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ChatBubble } from '../components/chat/ChatBubble';
-import { useChatSession, useCreateChatSession, usePostChatMessage } from '../queries';
+import { VoiceComposerButton } from '../components/chat/VoiceComposerButton';
+import { useSpeechRecognition } from '../lib/useSpeechRecognition';
+import { useChatSession, useCreateChatSession, usePostChatMessage, useResolveChatAction } from '../queries';
 
 const MAX_ATTACH = 4;
 const ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf';
 
 export function ChatConversation() {
-  const { t } = useTranslation(['chat', 'common']);
+  const { t, i18n } = useTranslation(['chat', 'common']);
   const { id = '', sid = '' } = useParams();
   const navigate = useNavigate();
 
   const session = useChatSession(id, sid);
   const post = usePostChatMessage(id);
   const createSession = useCreateChatSession(id);
+  const resolve = useResolveChatAction(id);
 
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -29,6 +31,20 @@ export function ChatConversation() {
   const [attachError, setAttachError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const speech = useSpeechRecognition();
+  const [seconds, setSeconds] = useState(0);
+
+  // Stream the live transcript into the editable field, so it can be corrected before sending.
+  useEffect(() => {
+    if (speech.listening && speech.transcript) setInput(speech.transcript);
+  }, [speech.listening, speech.transcript]);
+
+  useEffect(() => {
+    if (!speech.listening) { setSeconds(0); return; }
+    const timer = window.setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [speech.listening]);
 
   const backToList = () => navigate(`/cars/${id}?tab=chat`);
 
@@ -54,6 +70,7 @@ export function ChatConversation() {
   const send = async () => {
     const text = input.trim();
     if ((!text && files.length === 0) || post.isPending) return;
+    if (speech.listening) speech.stop();
     const sentFiles = files;
     const rawInput = input;
     setPending({ content: text, names: sentFiles.map((f) => f.name) });
@@ -74,7 +91,7 @@ export function ChatConversation() {
     navigate(`/cars/${id}/chat/${s.id}`);
   };
 
-  const suggestions = [t('chat:suggestionSpend'), t('chat:suggestionDue'), t('chat:suggestionSummary')];
+  const suggestions = [t('chat:suggestionRemind'), t('chat:suggestionSpend'), t('chat:suggestionDue'), t('chat:suggestionSummary')];
 
   return (
     <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
@@ -100,9 +117,13 @@ export function ChatConversation() {
             </Stack>
           ) : (
             <Stack spacing={2}>
-              {messages.map((m, i) => <ChatBubble key={i} {...m} />)}
+              {messages.map((m, i) => (
+                <ChatBubble key={i} {...m}
+                  resolving={resolve.isPending}
+                  onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
+              ))}
               {pending ? (
-                <ChatBubble role="user" content={pending.content} createdAt=""
+                <ChatBubble role="user" content={pending.content} createdAt="" actions={[]}
                   attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))} />
               ) : null}
             </Stack>
@@ -116,7 +137,13 @@ export function ChatConversation() {
         </Box>
 
         {post.isError ? <Alert severity="error" sx={{ mb: 1 }}>{t('chat:error')}</Alert> : null}
+        {resolve.isError ? <Alert severity="error" sx={{ mb: 1 }}>{t('chat:actionError')}</Alert> : null}
         {attachError ? <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setAttachError(null)}>{attachError}</Alert> : null}
+        {speech.error ? (
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            {speech.error === 'denied' ? t('chat:voiceDenied') : t('chat:error')}
+          </Alert>
+        ) : null}
 
         {files.length > 0 ? (
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1, mb: 1 }}>
@@ -134,9 +161,19 @@ export function ChatConversation() {
           <TextField fullWidth size="small" multiline maxRows={5} value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-            placeholder={t('chat:placeholder')} aria-label={t('chat:placeholder')} />
-          <IconButton type="submit" color="primary" aria-label={t('chat:send')}
-            disabled={(!input.trim() && files.length === 0) || post.isPending}><SendIcon /></IconButton>
+            placeholder={t('chat:placeholder')} aria-label={t('chat:placeholder')}
+            // While dictating, the streaming transcript is the single writer of `input`;
+            // read-only (not disabled) keeps focus and full-color text, just blocks typed edits.
+            InputProps={{ readOnly: speech.listening }} />
+          <VoiceComposerButton
+            supported={speech.supported}
+            listening={speech.listening}
+            seconds={seconds}
+            canSend={Boolean(input.trim()) || files.length > 0}
+            sending={post.isPending}
+            onStart={() => speech.start(i18n.language.startsWith('uk') ? 'uk-UA' : 'en-US')}
+            onStop={() => speech.stop()}
+          />
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', mt: 0.5 }}>{t('chat:disclaimer')}</Typography>
       </Container>

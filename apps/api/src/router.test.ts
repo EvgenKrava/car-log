@@ -169,9 +169,17 @@ describe('route', () => {
     it('deleting an event cascade-deletes its proofs', async () => {
       const carId = await makeCar('u1');
       const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events`, ownerId: 'u1', pathParams: { id: carId }, body: ev })).body);
-      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id }, body: { proofId: '88888888-8888-8888-8888-888888888888', contentType: 'application/pdf', size: 1024 } });
+      const proofId = '88888888-8888-8888-8888-888888888888';
+      await route(deps, { ...base, method: 'POST', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id }, body: { proofId, contentType: 'application/pdf', size: 1024 } });
+      // Spy on the storage fake so the assertion doesn't rest solely on the 404 the event's
+      // own absence would produce (that 404 comes from requireEvent, not from proof cleanup,
+      // so it passes even with the proof-deletion block removed from deleteEventCascade).
+      const deleteObjectSpy = vi.fn().mockResolvedValue(undefined);
+      deps.storage = { ...storage, deleteObject: deleteObjectSpy };
       const del = await route(deps, { ...base, method: 'DELETE', path: `/cars/${carId}/events/${created.id}`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id } });
       expect(del.statusCode).toBe(204);
+      expect(deleteObjectSpy).toHaveBeenCalledWith(expect.stringContaining(proofId));
+      expect(await deps.proofs.listByEvent('u1', carId, created.id)).toEqual([]);
       const proofs = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/events/${created.id}/proofs`, ownerId: 'u1', pathParams: { id: carId, eventId: created.id } });
       // event is gone -> requireEvent throws 404
       expect(proofs.statusCode).toBe(404);

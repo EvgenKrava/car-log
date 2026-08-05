@@ -5,7 +5,7 @@ import { appendMessage, deriveTitle, newChatSession, SESSION_MESSAGE_CAP } from 
 const now = '2026-08-03T00:00:00.000Z';
 const later = '2026-08-03T01:00:00.000Z';
 const userMsg = (content: string, attachments: StoredChatMessage['attachments'] = []): StoredChatMessage =>
-  ({ role: 'user', content, attachments, createdAt: now });
+  ({ role: 'user', content, attachments, actions: [], createdAt: now });
 
 describe('deriveTitle', () => {
   it('trims, collapses whitespace, and clips long text', () => {

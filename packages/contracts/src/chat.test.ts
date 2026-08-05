@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PostMessageRequestSchema, ChatAttachmentPresignRequestSchema } from './chat';
+import {
+  PostMessageRequestSchema,
+  ChatAttachmentPresignRequestSchema,
+  ChatActionSchema,
+  StoredChatMessageSchema,
+} from './chat';
 
 const attach = { key: 'chat/u/c/a.jpg', contentType: 'image/jpeg' as const, size: 1000 };
 
@@ -27,5 +32,56 @@ describe('ChatAttachmentPresignRequestSchema', () => {
   it('rejects an oversize image (over the image cap) and heic', () => {
     expect(ChatAttachmentPresignRequestSchema.safeParse({ contentType: 'image/jpeg', size: 6_000_000 }).success).toBe(false);
     expect(ChatAttachmentPresignRequestSchema.safeParse({ contentType: 'image/heic', size: 1000 }).success).toBe(false);
+  });
+});
+
+describe('ChatActionSchema', () => {
+  it('accepts a completed write action', () => {
+    const parsed = ChatActionSchema.parse({
+      id: '11111111-1111-4111-8111-111111111111',
+      kind: 'create_reminder',
+      status: 'done',
+      summary: 'Oil change — due at 259500 km',
+      entityId: '22222222-2222-4222-8222-222222222222',
+    });
+    expect(parsed.kind).toBe('create_reminder');
+    expect(parsed.pending).toBeUndefined();
+  });
+
+  it('accepts a pending delete carrying its target', () => {
+    const parsed = ChatActionSchema.parse({
+      id: '11111111-1111-4111-8111-111111111111',
+      kind: 'delete_reminder',
+      status: 'pending',
+      summary: 'Delete reminder "Oil change"',
+      pending: { target: 'reminder', entityId: '22222222-2222-4222-8222-222222222222' },
+    });
+    expect(parsed.pending?.target).toBe('reminder');
+  });
+
+  it('rejects an unknown kind and an unknown status', () => {
+    const base = { id: '11111111-1111-4111-8111-111111111111', summary: 'x' };
+    expect(() => ChatActionSchema.parse({ ...base, kind: 'drop_table', status: 'done' })).toThrow();
+    expect(() => ChatActionSchema.parse({ ...base, kind: 'create_event', status: 'maybe' })).toThrow();
+  });
+});
+
+describe('StoredChatMessageSchema actions', () => {
+  it('defaults actions to [] so already-stored messages stay parseable', () => {
+    const parsed = StoredChatMessageSchema.parse({
+      role: 'assistant', content: 'hi', createdAt: '2026-08-04T10:00:00.000Z',
+    });
+    expect(parsed.actions).toEqual([]);
+  });
+
+  it('caps actions at 10', () => {
+    const action = {
+      id: '11111111-1111-4111-8111-111111111111',
+      kind: 'create_reminder', status: 'done', summary: 's',
+    };
+    expect(() => StoredChatMessageSchema.parse({
+      role: 'assistant', content: 'hi', createdAt: '2026-08-04T10:00:00.000Z',
+      actions: Array.from({ length: 11 }, () => action),
+    })).toThrow();
   });
 });
