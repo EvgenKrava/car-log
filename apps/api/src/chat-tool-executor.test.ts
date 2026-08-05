@@ -1,5 +1,6 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import type { Car, Event, Reminder } from '@carlog/contracts';
+import { ChatActionSchema } from '@carlog/contracts';
 import { InMemoryCarRepository } from './in-memory-car-repository';
 import { InMemoryEventRepository } from './in-memory-event-repository';
 import { InMemoryReminderRepository } from './in-memory-reminder-repository';
@@ -111,6 +112,34 @@ describe('DomainChatToolExecutor', () => {
     expect(out.action?.status).toBe('pending');
     expect(out.action?.pending).toEqual({ target: 'reminder', entityId: rid });
     expect(await reminders.getById(OWNER, CAR_ID, rid)).not.toBeNull(); // still there
+  });
+
+  describe('finding 2: a pending action is validated before it can persist', () => {
+    it('produces a pending action that itself parses against ChatActionSchema', async () => {
+      const created = await build().execute({
+        id: 't1', name: 'create_reminder',
+        input: { title: 'Doomed', category: 'other', dueMileage: 100000 },
+      });
+      const rid = created.action!.entityId!;
+      const out = await build().execute({ id: 't2', name: 'delete_reminder', input: { id: rid } });
+      expect(() => ChatActionSchema.parse(out.action)).not.toThrow();
+    });
+
+    it('reports not-found (never a thrown/uncaught error) for a non-uuid delete_reminder id', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'delete_reminder', input: { id: 'oil_change' },
+      });
+      expect(out.isError).toBe(true);
+      expect(out.content.toLowerCase()).toContain('no reminder');
+    });
+
+    it('reports not-found for a non-uuid delete_event id', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'delete_event', input: { id: 'oil_change' },
+      });
+      expect(out.isError).toBe(true);
+      expect(out.content.toLowerCase()).toContain('no timeline entry');
+    });
   });
 
   it('creates an event and bumps the car odometer', async () => {
@@ -350,6 +379,37 @@ describe('DomainChatToolExecutor', () => {
       });
       expect(out.isError).toBe(false);
       expect(out.action!.summary.length).toBeLessThanOrEqual(200);
+    });
+  });
+
+  describe('review fix: a non-Zod tool failure produces a visible failed action', () => {
+    it('yields isError and a failed action when a write tool throws mid-dispatch', async () => {
+      vi.spyOn(reminders, 'listByCar').mockRejectedValueOnce(new Error('dynamo unavailable'));
+      const out = await build().execute({
+        id: 't1', name: 'create_reminder',
+        input: { title: 'Oil change', category: 'oil_change', dueMileage: 100000 },
+      });
+      expect(out.isError).toBe(true);
+      expect(out.action).toBeDefined();
+      expect(out.action!.status).toBe('failed');
+      expect(out.action!.kind).toBe('create_reminder');
+      expect(out.action!.summary).toContain('create_reminder');
+      expect(() => ChatActionSchema.parse(out.action)).not.toThrow();
+    });
+
+    it('yields no action for a Zod validation failure (the model can retry within the turn)', async () => {
+      const out = await build().execute({
+        id: 't1', name: 'create_reminder',
+        input: { title: 'No target', category: 'other' }, // neither dueDate nor dueMileage
+      });
+      expect(out.isError).toBe(true);
+      expect(out.action).toBeUndefined();
+    });
+
+    it('yields no action for an unknown tool name', async () => {
+      const out = await build().execute({ id: 't1', name: 'drop_database', input: {} });
+      expect(out.isError).toBe(true);
+      expect(out.action).toBeUndefined();
     });
   });
 });

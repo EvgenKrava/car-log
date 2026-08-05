@@ -1,6 +1,6 @@
 import { z, ZodError } from 'zod';
 import {
-  CreateReminderSchema, CreateEventSchema, CreateCarSchema, EventCategorySchema,
+  CreateReminderSchema, CreateEventSchema, CreateCarSchema, EventCategorySchema, ChatActionSchema,
   MAX_REMINDERS_PER_CAR, type Car, type Event, type Reminder, type ChatAction, type ChatActionKind,
 } from '@carlog/contracts';
 import {
@@ -32,6 +32,20 @@ const clamp = (summary: string): string =>
 
 const ok = (content: string, action?: ChatAction): ChatToolOutcome => ({ content, isError: false, action });
 const fail = (content: string): ChatToolOutcome => ({ content, isError: true });
+
+// Only WRITE tools map to a ChatActionKind. Read tools (search_events, sum_spend) and any
+// unknown tool name are absent here, so a throw from those still produces NO action —
+// there is nothing for a 'failed' row to represent for a read, and an unrecognized name
+// isn't a real write attempt at all.
+const WRITE_TOOL_KINDS: Partial<Record<string, ChatActionKind>> = {
+  create_reminder: 'create_reminder',
+  update_reminder: 'update_reminder',
+  delete_reminder: 'delete_reminder',
+  create_event: 'create_event',
+  update_event: 'update_event',
+  delete_event: 'delete_event',
+  update_car: 'update_car',
+};
 
 // Zod messages are what the model reads to correct itself, so surface the path too.
 const zodMessage = (err: ZodError): string =>
@@ -83,10 +97,18 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
     try {
       return await this.dispatch(call);
     } catch (err) {
+      // A ZodError means the model sent bad input — it can retry within the same turn with
+      // corrected input, potentially several times. Producing a 'failed' action row for
+      // each retry would spam the UI with rows for something that never really happened, so
+      // these deliberately produce NO action — only the non-Zod branch below does.
       if (err instanceof ZodError) return fail(`Invalid input: ${zodMessage(err)}`);
       // One failed tool must not fail the whole turn — report it so the model can adapt.
       console.error('chat tool failed', call.name, err);
-      return fail('That operation failed. Tell the owner it did not go through.');
+      const kind = WRITE_TOOL_KINDS[call.name];
+      const action = kind
+        ? { id: this.deps.newId(), kind, status: 'failed' as const, summary: clamp(`Could not apply ${call.name}`) }
+        : undefined;
+      return { content: 'That operation failed. Tell the owner it did not go through.', isError: true, action };
     }
   }
 
@@ -94,8 +116,18 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
     return { id: this.deps.newId(), kind, status: 'done', summary: clamp(summary), entityId };
   }
 
+  // Validate the built action against the contract schema before handing it back to the
+  // caller. `entityId` here is a tool-provided id that already passed an owner-scoped
+  // `getById` lookup, so it is a real uuid today — but that invariant is easy to break by a
+  // future caller, and an unvalidated non-uuid id would persist via the repository's
+  // cast-not-parse write, then fail `ChatSessionSchema.parse` on every subsequent read of
+  // the session (the brick-the-session class). A ZodError here propagates up through
+  // `dispatch()` to `execute()`'s existing ZodError branch, which reports a tool error
+  // instead of throwing.
   private pending(kind: ChatActionKind, target: 'reminder' | 'event', entityId: string, summary: string): ChatAction {
-    return { id: this.deps.newId(), kind, status: 'pending', summary: clamp(summary), entityId, pending: { target, entityId } };
+    return ChatActionSchema.parse({
+      id: this.deps.newId(), kind, status: 'pending', summary: clamp(summary), entityId, pending: { target, entityId },
+    });
   }
 
   // The car snapshot the executor was built with (deps.car) is captured once per turn, but
@@ -226,7 +258,7 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
         const lines = found.map((e) => {
           const cost = e.cost > 0 ? ` · ${e.cost} ${e.currency}` : '';
           const works = e.works.map((w) => w.description).join(', ');
-          return `- ${eventSummary(e)}${cost}${works ? ` · ${works}` : ''}`;
+          return `- ${eventSummary(e)}${cost}${works ? ` · ${works}` : ''} [id=${e.id}]`;
         });
         return ok(`${found.length} matching entries (newest first):\n${lines.join('\n')}`);
       }

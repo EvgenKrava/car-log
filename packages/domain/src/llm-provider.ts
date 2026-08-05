@@ -9,7 +9,9 @@ export type ExtractionContext = {
 };
 
 // Sanitized snapshot of one car handed to the chat model as grounding context.
-// Deliberately carries NO owner identifiers — only the car's own facts + timeline.
+// Deliberately carries NO owner or car identifiers — but event/reminder ids ARE included
+// on purpose, so the model can address them with the update/delete tools (which require
+// an id sourced "from the ... listed in the context" per their tool descriptions).
 export type CarChatContext = {
   car: {
     make: string; model: string; year?: number; nickname?: string;
@@ -17,11 +19,11 @@ export type CarChatContext = {
     vin?: string; licensePlate?: string;
   };
   events: {
-    date: string; category: string; mileage: number; cost: number; currency: string;
+    id: string; date: string; category: string; mileage: number; cost: number; currency: string;
     title?: string; notes?: string;
     works: { description: string; parts: { name: string; brand?: string; partNumber?: string; quantity: number; notes?: string }[] }[];
   }[];
-  reminders: { title: string; category: string; dueDate?: string; dueMileage?: number; notes?: string }[];
+  reminders: { id: string; title: string; category: string; dueDate?: string; dueMileage?: number; notes?: string }[];
 };
 
 // A decoded attachment for the current chat turn — base64 bytes + its MIME type. The API

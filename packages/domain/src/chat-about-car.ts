@@ -10,8 +10,11 @@ import { CHAT_TOOLS, type ChatToolExecutor, type ChatToolDefinition } from './ch
 export const MAX_CONTEXT_EVENTS = 60;
 
 // Build the grounding context for the chat from a car and its records. Pure and
-// SDK-free; the guard against leaking owner fields lives here (only the car's own
-// facts are copied — never ownerId, ids, or timestamps).
+// SDK-free; the guard against leaking identifiers lives here — the car's own identifiers
+// and ownerId stay out entirely. Event and reminder ids ARE deliberately included: the
+// model must be able to address a specific entity with the update/delete tools, and the
+// executor's owner-scoped `getById` rejects any id that doesn't actually belong to this
+// car/owner, so exposing these ids carries no cross-tenant risk.
 export function buildCarChatContext(car: Car, events: Event[], reminders: Reminder[]): CarChatContext {
   return {
     car: {
@@ -29,6 +32,7 @@ export function buildCarChatContext(car: Car, events: Event[], reminders: Remind
       .sort((a, b) => (a.date < b.date ? 1 : -1)) // newest first
       .slice(0, MAX_CONTEXT_EVENTS)
       .map((e) => ({
+        id: e.id,
         date: e.date,
         category: e.category,
         mileage: e.mileage,
@@ -48,6 +52,7 @@ export function buildCarChatContext(car: Car, events: Event[], reminders: Remind
         })),
       })),
     reminders: reminders.map((r) => ({
+      id: r.id,
       title: r.title,
       category: r.category,
       dueDate: r.dueDate,

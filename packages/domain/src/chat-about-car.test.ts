@@ -62,13 +62,24 @@ describe('buildCarChatContext', () => {
     expect(ctx.events.some((e) => e.title === 'ev0')).toBe(false); // oldest dropped
   });
 
-  it('never leaks owner identifiers or internal ids', () => {
+  it('exposes entity ids for tool use but never owner or car identifiers', () => {
     const ctx = buildCarChatContext(car, events, reminders);
     const json = JSON.stringify(ctx);
+    // Owner and car identifiers must never reach the model.
     expect(json).not.toContain('owner-secret');
     expect(json).not.toContain('car-1');
-    expect(json).not.toContain('"id"');
     expect(json).not.toContain('ownerId');
+    // Event and reminder ids ARE deliberately included — the update/delete tools require
+    // one, and their descriptions say it must come from the context.
+    expect(json).toContain('"e1"');
+    expect(json).toContain('"e2"');
+    expect(json).toContain('"r1"');
+  });
+
+  it('copies the event and reminder ids through from the source entities', () => {
+    const ctx = buildCarChatContext(car, events, reminders);
+    expect(ctx.events.map((e) => e.id).sort()).toEqual(['e1', 'e2']);
+    expect(ctx.reminders[0]!.id).toBe('r1');
   });
 });
 

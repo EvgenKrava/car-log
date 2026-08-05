@@ -160,7 +160,7 @@ function chatSystem(ctx: CarChatContext, today: string): string {
       e.mileage > 0 ? `${e.mileage} km` : null,
       e.cost > 0 ? `${e.cost} ${e.currency}` : null,
     ].filter(Boolean).join(' · ');
-    lines.push(`- ${head}${e.title ? ` — ${e.title}` : ''}`);
+    lines.push(`- ${head}${e.title ? ` — ${e.title}` : ''} [id=${e.id}]`);
     if (e.notes) lines.push(`    note: ${e.notes}`);
     for (const w of e.works) {
       const parts = w.parts
@@ -175,7 +175,7 @@ function chatSystem(ctx: CarChatContext, today: string): string {
   for (const r of ctx.reminders) {
     const due = [r.dueDate ? `by ${r.dueDate}` : null, r.dueMileage ? `at ${r.dueMileage} km` : null]
       .filter(Boolean).join(' / ');
-    lines.push(`- ${r.title} (${r.category})${due ? ` — due ${due}` : ''}${r.notes ? ` — ${r.notes}` : ''}`);
+    lines.push(`- ${r.title} (${r.category})${due ? ` — due ${due}` : ''}${r.notes ? ` — ${r.notes}` : ''} [id=${r.id}]`);
   }
 
   return lines.join('\n');
