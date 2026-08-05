@@ -1,13 +1,17 @@
 import {
   PostMessageRequestSchema, RenameSessionRequestSchema, ChatAttachmentPresignRequestSchema,
-  maxScanSize, type ChatSession, type ChatMessageView, type StoredChatMessage,
+  maxScanSize, type ChatSession, type ChatMessageView, type StoredChatMessage, type ChatAction,
 } from '@carlog/contracts';
 import {
-  CarNotFoundError, chatAboutCar, buildCarChatContext, newChatSession, appendMessage, nowIso,
+  CarNotFoundError, chatAboutCar, ChatTurnInterruptedError, buildCarChatContext,
+  newChatSession, appendMessage, nowIso,
   type CarRepository, type EventRepository, type ReminderRepository, type LlmProvider,
   type ChatSessionRepository, type ChatSessionRecord, type ChatAttachment, type PhotoStorage,
+  type ProofRepository,
 } from '@carlog/domain';
 import type { Car } from '@carlog/contracts';
+import { DomainChatToolExecutor } from './chat-tool-executor';
+import { deleteEventCascade } from './event-delete';
 import { ok, type ApiResult } from './errors';
 import type { ApiEvent } from './router';
 
@@ -15,6 +19,7 @@ export type ChatDeps = {
   cars: CarRepository;
   events: EventRepository;
   reminders: ReminderRepository;
+  proofs: ProofRepository;   // needed to cascade a confirmed event delete
   sessions: ChatSessionRepository;
   storage: PhotoStorage;
   llm: LlmProvider;
@@ -142,10 +147,71 @@ export async function handleChatRoute(
       role: m.role, content: renderForModel(m, i === withUser.messages.length - 1),
     }));
 
-    const reply = await chatAboutCar(llmMessages, deps.llm, context, attachments);
-    const assistantMsg: StoredChatMessage = { role: 'assistant', content: reply, attachments: [], actions: [], createdAt: nowIso() };
+    const executor = new DomainChatToolExecutor({
+      cars: deps.cars, events: deps.events, reminders: deps.reminders,
+      car, timeline: events, ownerId, carId, newId: deps.newId,
+    });
+    // A provider failure AFTER a write already committed must not 503 away the record of
+    // it — persist what happened so the user (and the next turn) can see it.
+    let reply: string;
+    let actions: ChatAction[];
+    try {
+      ({ reply, actions } = await chatAboutCar(llmMessages, deps.llm, context, executor, attachments));
+    } catch (err) {
+      if (!(err instanceof ChatTurnInterruptedError)) throw err;
+      actions = err.actions;
+      reply = err.actions.map((a) => a.summary).join('\n');
+      console.error('chat turn interrupted after committing changes', err.cause);
+    }
+    const assistantMsg: StoredChatMessage = {
+      role: 'assistant', content: reply, attachments: [], actions, createdAt: nowIso(),
+    };
     const saved = await deps.sessions.save(appendMessage(withUser, assistantMsg, nowIso()));
     return ok(200, { reply, session: await toSessionView(saved, deps.storage) });
+  }
+
+  // POST /chat/sessions/{sid}/actions/{aid}/confirm | /decline
+  const aid = pathParams.aid;
+  if (aid && method === 'POST'
+      && (path === `${sessionPath}/actions/${aid}/confirm` || path === `${sessionPath}/actions/${aid}/decline`)) {
+    const confirm = path.endsWith('/confirm');
+    const session = await loadSession();
+    if (!session) return ok(404, { error: 'NotFound', message: 'session not found' });
+
+    const msgIdx = session.messages.findIndex((m) => m.actions.some((a) => a.id === aid));
+    const action = msgIdx >= 0 ? session.messages[msgIdx]!.actions.find((a) => a.id === aid) : undefined;
+    if (!action) return ok(404, { error: 'NotFound', message: 'action not found' });
+    // Only a pending action can be resolved — this makes confirm idempotent-safe rather
+    // than deleting twice on a double tap.
+    if (action.status !== 'pending' || !action.pending) {
+      return ok(409, { error: 'Conflict', message: 'action is already resolved' });
+    }
+
+    let next: ChatAction;
+    if (!confirm) {
+      next = { ...action, status: 'declined' };
+    } else {
+      const { target, entityId } = action.pending;
+      if (target === 'reminder') {
+        const existing = await deps.reminders.getById(ownerId, carId, entityId);
+        if (!existing) return ok(404, { error: 'NotFound', message: 'reminder not found' });
+        await deps.reminders.delete(ownerId, carId, entityId);
+      } else {
+        const existing = await deps.events.getById(ownerId, carId, entityId);
+        if (!existing) return ok(404, { error: 'NotFound', message: 'event not found' });
+        await deleteEventCascade(
+          { events: deps.events, proofs: deps.proofs, storage: deps.storage },
+          ownerId, carId, entityId,
+        );
+      }
+      next = { ...action, status: 'done' };
+    }
+
+    const messages = session.messages.map((m, i) => (i === msgIdx
+      ? { ...m, actions: m.actions.map((a) => (a.id === aid ? next : a)) }
+      : m));
+    const saved = await deps.sessions.save({ ...session, messages, updatedAt: nowIso() });
+    return ok(200, await toSessionView(saved, deps.storage));
   }
 
   return null;

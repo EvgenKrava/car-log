@@ -95,6 +95,7 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
       const result = await handleChatRoute(
         {
           cars: deps.cars, events: deps.events, reminders: deps.reminders, sessions: deps.sessions,
+          proofs: deps.proofs,
           storage: deps.storage, llm: deps.llm, loadS3Base64: deps.loadScanBase64, newId: deps.newId,
         },
         event, ownerId, id,
