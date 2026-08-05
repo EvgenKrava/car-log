@@ -48,5 +48,13 @@ Soft indigo accent (#5B5BD6) paired with generous whitespace, subtle shadows, an
   - Small: `0 1px 2px rgba(16,24,40,0.06), 0 1px 3px rgba(16,24,40,0.10)`
   - Medium: `0 4px 12px rgba(16,24,40,0.08), 0 2px 6px rgba(16,24,40,0.06)`
 
+### Motion
+- **Durations**: 150ms (fast — hovers, fades), 220ms (base — sheets, dialogs, list items), 320ms (slow — page-level)
+- **Easings**: `cubic-bezier(0.2, 0, 0, 1)` standard (decelerate — things arriving), `cubic-bezier(0.4, 0, 1, 1)` exit (accelerate — things leaving)
+- **Only `transform` and `opacity` animate** (Collapse for list removal is the sanctioned exception)
+- **Motion marks user-initiated appearance** — opening, adding, sending. Data refetches never animate.
+- **`prefers-reduced-motion: reduce` disables everything** (global clamp in MuiCssBaseline)
+- Phone bottom sheets slide up from the bottom edge; desktop dialogs use a quick Grow. Never a bare Fade for a sheet.
+
 ## Inspiration
 Linear, Stripe Dashboard, Notion — clean, modern SaaS aesthetics with attention to detail.

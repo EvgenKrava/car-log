@@ -53,9 +53,10 @@ export function useBottomSheetDismiss(
     startY.current = null;
     node.style.transition = 'transform 0.2s ease';
     if (delta.current > DISMISS_THRESHOLD_PX && onDismiss) {
-      // Animate off-screen, then close. The Dialog unmounts the paper on close, so the
-      // inline transform is discarded and a reopened sheet starts clean.
-      node.style.transform = 'translateY(100%)';
+      // Hand the remaining travel to the Dialog's Slide exit: clear our inline
+      // transform/transition so the transition component owns the paper again.
+      node.style.transition = '';
+      node.style.transform = '';
       onDismiss();
     } else {
       node.style.transform = '';

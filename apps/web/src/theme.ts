@@ -54,6 +54,17 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
           },
         },
       },
+      MuiCssBaseline: {
+        styleOverrides: `
+          @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+              animation-duration: 0.01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: 0.01ms !important;
+            }
+          }
+        `,
+      },
       MuiDialog: {
         styleOverrides: {
           // On phones, dialogs become bottom sheets (Telegram/iOS style): anchored to the
