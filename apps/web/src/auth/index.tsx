@@ -9,6 +9,7 @@ import {
 import { Hub } from 'aws-amplify/utils';
 import { configureAmplify } from './amplify';
 import { refreshDelayMs } from './token-refresh';
+import { isFederatedPayload } from './federation';
 
 configureAmplify();
 
@@ -20,6 +21,8 @@ type AuthValue = {
   accessToken?: string;
   isAdmin: boolean;
   groups: string[];
+  // True for federated (Google) identities, which have no Cognito password.
+  isFederated: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
@@ -37,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState<string | undefined>();
   const [accessToken, setAccessToken] = useState<string | undefined>();
   const [groups, setGroups] = useState<string[]>([]);
+  const [isFederated, setIsFederated] = useState(false);
 
   // Proactive-refresh timer. Cognito access tokens expire (~1h); we re-run refresh()
   // shortly before expiry so the cached token never goes stale. fetchAuthSession()
@@ -73,16 +77,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(raw)) for (const g of raw) merged.add(String(g));
         }
         setGroups([...merged]);
+        // Fail closed: if the ID token is absent this cycle (Amplify types it as
+        // possibly undefined), don't overwrite isFederated with a derived `false` —
+        // keep the last known value. Hiding the row for one refresh cycle is
+        // harmless; showing it to a federated user is a dead-end error.
+        const idPayload = session.tokens?.idToken?.payload as Record<string, unknown> | undefined;
+        if (idPayload !== undefined) {
+          setIsFederated(isFederatedPayload(idPayload));
+        }
         setStatus('authenticated');
         scheduleRefresh(token);
       } else {
         clearRefreshTimer();
         setGroups([]);
+        setIsFederated(false);
         setStatus('unauthenticated');
       }
     } catch {
       clearRefreshTimer();
       setGroups([]);
+      setIsFederated(false);
       setStatus('unauthenticated');
     }
   }, [scheduleRefresh, clearRefreshTimer]);
@@ -121,15 +135,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const value = useMemo<AuthValue>(() => ({
-    status, email, accessToken, groups, isAdmin: groups.includes('admin'), refresh,
+    status, email, accessToken, groups, isFederated, isAdmin: groups.includes('admin'), refresh,
     signIn: async (e, p) => { await awsSignIn({ username: e, password: p }); await refresh(); },
     signUp: async (e, p) => { await awsSignUp({ username: e, password: p, options: { userAttributes: { email: e } } }); },
     confirmSignUp: async (e, c) => { await awsConfirmSignUp({ username: e, confirmationCode: c }); },
     resendCode: async (e) => { await resendSignUpCode({ username: e }); },
     forgotPassword: async (e) => { await resetPassword({ username: e }); },
     confirmForgotPassword: async (e, c, p) => { await confirmResetPassword({ username: e, confirmationCode: c, newPassword: p }); },
-    signOut: async () => { clearRefreshTimer(); await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); setGroups([]); },
-  }), [status, email, accessToken, groups, refresh, clearRefreshTimer]);
+    signOut: async () => { clearRefreshTimer(); await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); setGroups([]); setIsFederated(false); },
+  }), [status, email, accessToken, groups, isFederated, refresh, clearRefreshTimer]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

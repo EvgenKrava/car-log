@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,10 +12,12 @@ import TuneIcon from '@mui/icons-material/Tune';
 import InstallMobileIcon from '@mui/icons-material/InstallMobile';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import LogoutIcon from '@mui/icons-material/Logout';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useAuth } from '../auth';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useThemeMode, type ThemeMode } from '../lib/theme-mode';
+import { ChangePasswordDialog } from '../components/ChangePasswordDialog';
 
 // A setting row: label on the left, control on the right; stacks on phones so
 // the toggle groups never overflow at 360px.
@@ -64,10 +67,11 @@ const THEME_OPTIONS: { value: ThemeMode; icon: React.ReactNode; labelKey: string
 ];
 
 export function Profile() {
-  const { t, i18n } = useTranslation(['common']);
-  const { email, signOut } = useAuth();
+  const { t, i18n } = useTranslation(['common', 'auth']);
+  const { email, signOut, isFederated } = useAuth();
   const navigate = useNavigate();
   const { mode, setMode } = useThemeMode();
+  const [pwOpen, setPwOpen] = useState(false);
   const lang: 'en' | 'uk' = i18n.language.startsWith('uk') ? 'uk' : 'en';
   const initial = (email?.[0] ?? '?').toUpperCase();
 
@@ -177,6 +181,26 @@ export function Profile() {
               />
             </CardContent>
           </Card>
+
+          {!isFederated && (
+            <>
+              <Card>
+                <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+                  <SectionTitle icon={<VerifiedIcon sx={{ fontSize: 18 }} />} title={t('common:account')} />
+                  <SettingRow
+                    label={t('auth:changePassword')}
+                    control={
+                      <Button variant="outlined" size="small" startIcon={<LockOutlinedIcon sx={{ fontSize: 18 }} />}
+                        onClick={() => setPwOpen(true)}>
+                        {t('auth:changePassword')}
+                      </Button>
+                    }
+                  />
+                </CardContent>
+              </Card>
+              <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
+            </>
+          )}
 
           {/* Sign out gets its own quiet, full-width action instead of hiding
               in the header menu only. */}
