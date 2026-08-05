@@ -6,6 +6,13 @@ export function isFederatedPayload(payload: Record<string, unknown> | undefined)
   const identities = payload?.identities;
   if (identities === undefined || identities === null) return false;
   if (Array.isArray(identities)) return identities.length > 0;
-  if (typeof identities === 'string') return identities.length > 2; // '[]' is not federated
+  if (typeof identities === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(identities);
+      return Array.isArray(parsed) ? parsed.length > 0 : Boolean(parsed);
+    } catch {
+      return true; // unparseable but present — fail closed (treat as federated)
+    }
+  }
   return true;
 }

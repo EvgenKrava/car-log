@@ -17,4 +17,14 @@ describe('isFederatedPayload', () => {
   it('is false for an empty identities array', () => {
     expect(isFederatedPayload({ identities: [] })).toBe(false);
   });
+
+  it('parses stringified identities explicitly rather than by length heuristic', () => {
+    expect(isFederatedPayload({ identities: '[]' })).toBe(false);
+    expect(isFederatedPayload({ identities: '[ ]' })).toBe(false);
+    expect(isFederatedPayload({ identities: 'not-json' })).toBe(true); // unparseable — fail closed
+  });
+
+  it('is true for a non-array, non-string identities value (fail closed)', () => {
+    expect(isFederatedPayload({ identities: { providerName: 'Google' } })).toBe(true);
+  });
 });

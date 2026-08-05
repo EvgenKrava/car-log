@@ -77,7 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(raw)) for (const g of raw) merged.add(String(g));
         }
         setGroups([...merged]);
-        setIsFederated(isFederatedPayload(session.tokens?.idToken?.payload as Record<string, unknown> | undefined));
+        // Fail closed: if the ID token is absent this cycle (Amplify types it as
+        // possibly undefined), don't overwrite isFederated with a derived `false` —
+        // keep the last known value. Hiding the row for one refresh cycle is
+        // harmless; showing it to a federated user is a dead-end error.
+        const idPayload = session.tokens?.idToken?.payload as Record<string, unknown> | undefined;
+        if (idPayload !== undefined) {
+          setIsFederated(isFederatedPayload(idPayload));
+        }
         setStatus('authenticated');
         scheduleRefresh(token);
       } else {

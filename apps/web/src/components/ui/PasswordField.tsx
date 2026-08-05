@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 type PasswordFieldProps = Pick<
   TextFieldProps,
-  'label' | 'value' | 'onChange' | 'error' | 'helperText' | 'autoComplete' | 'fullWidth'
+  'label' | 'value' | 'onChange' | 'error' | 'helperText' | 'autoComplete' | 'fullWidth' | 'disabled'
 >;
 
 export function PasswordField(props: PasswordFieldProps) {

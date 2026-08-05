@@ -55,13 +55,18 @@ export function ChangePasswordDialog({ open, onClose }: Props) {
       <Modal
         open={open} onClose={busy ? undefined : close} title={t('auth:changePassword')}
         onSubmit={(e) => { e.preventDefault(); void submit(); }}
-        actions={<Button type="submit" variant="contained" disabled={!canSave}>{t('common:save')}</Button>}
+        actions={
+          <>
+            <Button onClick={close} disabled={busy}>{t('common:cancel')}</Button>
+            <Button type="submit" variant="contained" disabled={!canSave}>{t('common:save')}</Button>
+          </>
+        }
       >
         <Stack spacing={2} sx={{ pt: 0.5 }}>
           {errorKey ? <Alert severity="error">{t(errorKey)}</Alert> : null}
-          <PasswordField label={t('auth:currentPassword')} value={current}
+          <PasswordField label={t('auth:currentPassword')} value={current} disabled={busy}
             onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" fullWidth />
-          <PasswordField label={t('auth:newPassword')} value={next}
+          <PasswordField label={t('auth:newPassword')} value={next} disabled={busy}
             onChange={(e) => setNext(e.target.value)} autoComplete="new-password" fullWidth />
           <PasswordChecklist password={next} />
         </Stack>

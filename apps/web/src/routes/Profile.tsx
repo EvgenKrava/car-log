@@ -182,22 +182,25 @@ export function Profile() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-              <SectionTitle icon={<VerifiedIcon sx={{ fontSize: 18 }} />} title={t('common:account')} />
-              {!isFederated && (
-                <SettingRow
-                  label={t('auth:changePassword')}
-                  control={
-                    <Button variant="outlined" size="small" startIcon={<LockOutlinedIcon sx={{ fontSize: 18 }} />}
-                      onClick={() => setPwOpen(true)}>
-                      {t('auth:changePassword')}
-                    </Button>
-                  }
-                />
-              )}
-            </CardContent>
-          </Card>
+          {!isFederated && (
+            <>
+              <Card>
+                <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+                  <SectionTitle icon={<VerifiedIcon sx={{ fontSize: 18 }} />} title={t('common:account')} />
+                  <SettingRow
+                    label={t('auth:changePassword')}
+                    control={
+                      <Button variant="outlined" size="small" startIcon={<LockOutlinedIcon sx={{ fontSize: 18 }} />}
+                        onClick={() => setPwOpen(true)}>
+                        {t('auth:changePassword')}
+                      </Button>
+                    }
+                  />
+                </CardContent>
+              </Card>
+              <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
+            </>
+          )}
 
           {/* Sign out gets its own quiet, full-width action instead of hiding
               in the header menu only. */}
@@ -212,7 +215,6 @@ export function Profile() {
           </Button>
         </Stack>
       </Container>
-      <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
     </AppShell>
   );
 }
