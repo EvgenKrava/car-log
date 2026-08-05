@@ -5,6 +5,7 @@ import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessageView, ChatAttachmentView } from '@carlog/contracts';
+import { ChatActions } from './ChatActions';
 
 // Map GitHub-flavored markdown to the app's MUI typography so Claude's replies (lists,
 // bold, headings, the odd code span) render cleanly instead of as raw `- ` / `**…**`.
@@ -61,7 +62,12 @@ function AttachmentView({ a }: { a: ChatAttachmentView }) {
   );
 }
 
-export function ChatBubble({ role, content, attachments }: ChatMessageView) {
+type ChatBubbleProps = ChatMessageView & {
+  onResolveAction?: (actionId: string, confirm: boolean) => void;
+  resolving?: boolean;
+};
+
+export function ChatBubble({ role, content, attachments, actions, onResolveAction, resolving }: ChatBubbleProps) {
   const attachmentStack = attachments.length > 0 ? (
     <Stack spacing={0.5} sx={{ alignItems: role === 'user' ? 'flex-end' : 'flex-start', mb: content ? 0.75 : 0 }}>
       {attachments.map((a) => <AttachmentView key={a.key} a={a} />)}
@@ -82,6 +88,9 @@ export function ChatBubble({ role, content, attachments }: ChatMessageView) {
         <Box sx={{ minWidth: 0, flexGrow: 1, pt: 0.25 }}>
           {attachmentStack}
           {content ? <Markdown remarkPlugins={[remarkGfm]} components={md}>{content}</Markdown> : null}
+          {actions.length > 0 && onResolveAction ? (
+            <ChatActions actions={actions} onResolve={onResolveAction} busy={resolving ?? false} />
+          ) : null}
         </Box>
       </Stack>
     );

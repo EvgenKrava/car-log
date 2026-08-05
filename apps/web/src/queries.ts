@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, uploadChatAttachment, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
 import { prepareScanFile } from './lib/prepare-scan';
 
 export function useCars() {
@@ -308,6 +308,26 @@ export function usePostChatMessage(carId: string) {
     onSuccess: (res, { sid }) => {
       qc.setQueryData(chatSessionKey(carId, sid), res.session);
       void qc.invalidateQueries({ queryKey: chatSessionsKey(carId) });
+      // A turn may have created/updated events, reminders, or the car's odometer.
+      const changed = res.session.messages.at(-1)?.actions.some((a) => a.status === 'done') ?? false;
+      if (changed) {
+        invalidateEventsAndCar(qc, carId);
+        void qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] });
+      }
+    },
+  });
+}
+
+// Confirming a delete changes events/reminders server-side, so refresh those views too.
+export function useResolveChatAction(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sid, aid, confirm }: { sid: string; aid: string; confirm: boolean }) =>
+      resolveChatAction(token, carId, sid, aid, confirm),
+    onSuccess: (session, { sid }) => {
+      qc.setQueryData(chatSessionKey(carId, sid), session);
+      invalidateEventsAndCar(qc, carId);
+      void qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] });
     },
   });
 }

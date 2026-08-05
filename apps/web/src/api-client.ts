@@ -174,6 +174,18 @@ export const postChatMessage = (
 ): Promise<PostMessageResponse> =>
   request(token, `${chatBase(carId)}/sessions/${sid}/messages`, PostMessageResponseSchema, { method: 'POST', body: JSON.stringify(input) });
 
+// Resolve a pending action (a proposed delete) the assistant attached to a message.
+// The server performs the delete and flips the action status, returning the new session.
+export const resolveChatAction = (
+  token: string, carId: string, sid: string, aid: string, confirm: boolean,
+): Promise<ChatSession> =>
+  request(
+    token,
+    `${chatBase(carId)}/sessions/${sid}/actions/${aid}/${confirm ? 'confirm' : 'decline'}`,
+    ChatSessionSchema,
+    { method: 'POST' },
+  );
+
 // Presign + upload one already-prepared (downscaled) file, returning its attachment ref.
 export async function uploadChatAttachment(token: string, carId: string, file: File): Promise<AttachmentRef> {
   const contentType = file.type as ScanDocContentType;

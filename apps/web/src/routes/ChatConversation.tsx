@@ -9,7 +9,7 @@ import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ChatBubble } from '../components/chat/ChatBubble';
-import { useChatSession, useCreateChatSession, usePostChatMessage } from '../queries';
+import { useChatSession, useCreateChatSession, usePostChatMessage, useResolveChatAction } from '../queries';
 
 const MAX_ATTACH = 4;
 const ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf';
@@ -22,6 +22,7 @@ export function ChatConversation() {
   const session = useChatSession(id, sid);
   const post = usePostChatMessage(id);
   const createSession = useCreateChatSession(id);
+  const resolve = useResolveChatAction(id);
 
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -74,7 +75,7 @@ export function ChatConversation() {
     navigate(`/cars/${id}/chat/${s.id}`);
   };
 
-  const suggestions = [t('chat:suggestionSpend'), t('chat:suggestionDue'), t('chat:suggestionSummary')];
+  const suggestions = [t('chat:suggestionRemind'), t('chat:suggestionSpend'), t('chat:suggestionDue'), t('chat:suggestionSummary')];
 
   return (
     <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
@@ -100,11 +101,14 @@ export function ChatConversation() {
             </Stack>
           ) : (
             <Stack spacing={2}>
-              {messages.map((m, i) => <ChatBubble key={i} {...m} />)}
+              {messages.map((m, i) => (
+                <ChatBubble key={i} {...m}
+                  resolving={resolve.isPending}
+                  onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
+              ))}
               {pending ? (
-                <ChatBubble role="user" content={pending.content} createdAt=""
-                  attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))}
-                  actions={[]} />
+                <ChatBubble role="user" content={pending.content} createdAt="" actions={[]}
+                  attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))} />
               ) : null}
             </Stack>
           )}
@@ -117,6 +121,7 @@ export function ChatConversation() {
         </Box>
 
         {post.isError ? <Alert severity="error" sx={{ mb: 1 }}>{t('chat:error')}</Alert> : null}
+        {resolve.isError ? <Alert severity="error" sx={{ mb: 1 }}>{t('chat:actionError')}</Alert> : null}
         {attachError ? <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setAttachError(null)}>{attachError}</Alert> : null}
 
         {files.length > 0 ? (
