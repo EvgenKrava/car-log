@@ -76,7 +76,9 @@ export const MAX_REPLY_CHARS = 4000;
 
 // Clamp to the contract limit, preferring a whitespace boundary so we don't cut mid-word.
 // Correctness of the `<= MAX_REPLY_CHARS` bound matters more than where exactly it cuts.
-function clampReply(reply: string): string {
+// Exported so callers building their own fallback reply (e.g. the route's
+// interrupted-turn fallback) inherit the same contract-cap safety net.
+export function clampReply(reply: string): string {
   if (reply.length <= MAX_REPLY_CHARS) return reply;
   const truncated = reply.slice(0, MAX_REPLY_CHARS);
   const lastSpace = truncated.lastIndexOf(' ');
@@ -85,6 +87,14 @@ function clampReply(reply: string): string {
   if (lastSpace > MAX_REPLY_CHARS - 200) return truncated.slice(0, lastSpace);
   return truncated;
 }
+
+// Mirrors the contract's `StoredChatMessage.actions` cap (`z.array(ChatActionSchema).max(10)`
+// in packages/contracts/src/chat.ts). A round's tool calls execute concurrently and the loop
+// runs multiple rounds, so a single turn can commit more than 10 actions (e.g. "log all 12
+// services from my service book"). The repository writes without re-validating, so an
+// over-cap actions array would persist successfully but then fail `ChatSessionSchema.parse`
+// on every subsequent read — permanently breaking the session in the UI with no recovery.
+export const MAX_TURN_ACTIONS = 10;
 
 // Answer the latest user message, letting the model call tools to read and change this
 // car's data. Bounded by MAX_MODEL_CALLS and TURN_BUDGET_MS: when either runs out the
@@ -131,8 +141,9 @@ export async function chatAboutCar(
     } catch (err) {
       // Nothing committed yet ⇒ let the provider error surface as the usual 503.
       if (actions.length === 0) throw err;
-      // Copy out — never hand the caller the live array the loop accumulates into.
-      throw new ChatTurnInterruptedError([...actions], err);
+      // Copy out (never hand the caller the live array the loop accumulates into) and slice
+      // to the contract cap — see MAX_TURN_ACTIONS above.
+      throw new ChatTurnInterruptedError(actions.slice(0, MAX_TURN_ACTIONS), err);
     }
 
     if (result.text.trim() !== '') texts.push(result.text.trim());
@@ -158,12 +169,16 @@ export async function chatAboutCar(
     transcript.push({ role: 'tool_results', results });
   }
 
+  // The reply text narrates whatever the model said, independent of how many actions are
+  // kept below — slicing the array never drops the narration, only the structured records
+  // of actions past the contract cap (they still happened; only the pinned/confirm-card
+  // metadata beyond the 10th is not persisted).
   const reply = clampReply(
     texts.join('\n\n').trim()
       || actions.map((a) => a.summary).join('\n').trim()
       || FALLBACK_REPLY,
   );
-  return { reply, actions: [...actions] };
+  return { reply, actions: actions.slice(0, MAX_TURN_ACTIONS) };
 }
 
 // Thrown when a round fails AFTER earlier rounds already committed writes. Carries what

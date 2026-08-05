@@ -5,7 +5,7 @@ import type { ChatToolExecutor, ChatToolCall, ChatToolOutcome } from './chat-too
 import { CHAT_TOOLS } from './chat-tools';
 import {
   buildCarChatContext, chatAboutCar, ChatTurnInterruptedError, MAX_CONTEXT_EVENTS,
-  MAX_MODEL_CALLS, TURN_BUDGET_MS, MIN_ROUND_BUDGET_MS, MAX_REPLY_CHARS,
+  MAX_MODEL_CALLS, TURN_BUDGET_MS, MIN_ROUND_BUDGET_MS, MAX_REPLY_CHARS, MAX_TURN_ACTIONS,
 } from './chat-about-car';
 
 const car: Car = {
@@ -254,6 +254,64 @@ describe('chatAboutCar', () => {
     expect(err).toBeInstanceOf(ChatTurnInterruptedError);
     expect((err as ChatTurnInterruptedError).actions).toEqual([action]);
     expect((err as ChatTurnInterruptedError).cause).toBe(boom);
+  });
+
+  it(`returns exactly ${MAX_TURN_ACTIONS} actions when a turn commits more than ${MAX_TURN_ACTIONS} (contract cap backstop)`, async () => {
+    // Two rounds of 6 parallel tool calls each = 12 committed actions, more than the
+    // contract's StoredChatMessageSchema.actions cap of 10 — exactly the "log all 12
+    // services from my service book" scenario the finding describes.
+    const manyCalls = (n: number, prefix: string): ChatTurnResult => ({
+      text: '', raw: {},
+      toolCalls: Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}`, name: 'create_reminder', input: {} })),
+    });
+    const { llm } = scripted([manyCalls(6, 'a'), manyCalls(6, 'b'), text('Logged everything.')]);
+    let counter = 0;
+    const exec: ChatToolExecutor = {
+      execute: async () => {
+        counter += 1;
+        return {
+          content: 'ok', isError: false,
+          action: { id: `act-${counter}`, kind: 'create_reminder', status: 'done', summary: `Action ${counter}` },
+        };
+      },
+    };
+    const out = await chatAboutCar(userTurn, llm, ctx, exec);
+    expect(counter).toBe(12); // all 12 calls really executed — nothing was skipped
+    expect(out.actions).toHaveLength(MAX_TURN_ACTIONS);
+    expect(out.actions.map((a) => a.summary)).toEqual(
+      Array.from({ length: MAX_TURN_ACTIONS }, (_, i) => `Action ${i + 1}`),
+    );
+    // The narration is preserved in full — only the structured actions array is truncated.
+    expect(out.reply).toBe('Logged everything.');
+  });
+
+  it(`caps the interrupted-turn actions at ${MAX_TURN_ACTIONS} too, when more than that were committed before the failing round`, async () => {
+    const manyCalls = (n: number, prefix: string): ChatTurnResult => ({
+      text: '', raw: {},
+      toolCalls: Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}`, name: 'create_reminder', input: {} })),
+    });
+    const boom = new Error('bedrock exploded');
+    let counter = 0;
+    const llm: LlmProvider = {
+      extractEvents: vi.fn(),
+      extractEventsFromDocument: vi.fn(),
+      chatTurn: vi.fn()
+        .mockResolvedValueOnce(manyCalls(6, 'a'))
+        .mockResolvedValueOnce(manyCalls(6, 'b'))
+        .mockRejectedValueOnce(boom),
+    };
+    const exec: ChatToolExecutor = {
+      execute: async () => {
+        counter += 1;
+        return {
+          content: 'ok', isError: false,
+          action: { id: `act-${counter}`, kind: 'create_reminder', status: 'done', summary: `Action ${counter}` },
+        };
+      },
+    };
+    const err = await chatAboutCar(userTurn, llm, ctx, exec).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ChatTurnInterruptedError);
+    expect((err as ChatTurnInterruptedError).actions).toHaveLength(MAX_TURN_ACTIONS);
   });
 
   it('lets a first-round failure surface unchanged (nothing was committed)', async () => {

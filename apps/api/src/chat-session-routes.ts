@@ -3,7 +3,7 @@ import {
   maxScanSize, type ChatSession, type ChatMessageView, type StoredChatMessage, type ChatAction,
 } from '@carlog/contracts';
 import {
-  CarNotFoundError, chatAboutCar, ChatTurnInterruptedError, buildCarChatContext,
+  CarNotFoundError, chatAboutCar, ChatTurnInterruptedError, buildCarChatContext, clampReply,
   newChatSession, appendMessage, nowIso,
   type CarRepository, type EventRepository, type ReminderRepository, type LlmProvider,
   type ChatSessionRepository, type ChatSessionRecord, type ChatAttachment, type PhotoStorage,
@@ -160,13 +160,26 @@ export async function handleChatRoute(
     } catch (err) {
       if (!(err instanceof ChatTurnInterruptedError)) throw err;
       actions = err.actions;
-      reply = err.actions.map((a) => a.summary).join('\n');
+      // Same contract-cap invariant as the domain's own fallback reply (chatAboutCar) —
+      // the domain already bounds err.actions to MAX_TURN_ACTIONS, but clamp the joined
+      // text here too rather than relying solely on that upstream bound.
+      reply = clampReply(err.actions.map((a) => a.summary).join('\n'));
       console.error('chat turn interrupted after committing changes', err.cause);
     }
     const assistantMsg: StoredChatMessage = {
       role: 'assistant', content: reply, attachments: [], actions, createdAt: nowIso(),
     };
-    const saved = await deps.sessions.save(appendMessage(withUser, assistantMsg, nowIso()));
+
+    // Re-read rather than reuse `withUser`: a confirm/decline on an earlier pending action
+    // can land while the provider call above was in flight (up to TURN_BUDGET_MS ~26s).
+    // Saving off the pre-turn snapshot would silently overwrite that status flip back to
+    // "pending". Grafting this turn's two new messages onto a fresh read instead means the
+    // save carries both the concurrent confirm and this turn. If the session was deleted
+    // mid-turn, 404 — same as the initial read would have produced.
+    const freshSession = await loadSession();
+    if (!freshSession) return ok(404, { error: 'NotFound', message: 'session not found' });
+    const withFreshUser = appendMessage(freshSession, userMsg, nowIso());
+    const saved = await deps.sessions.save(appendMessage(withFreshUser, assistantMsg, nowIso()));
     return ok(200, { reply, session: await toSessionView(saved, deps.storage) });
   }
 
