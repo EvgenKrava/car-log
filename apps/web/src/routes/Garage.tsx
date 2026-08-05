@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Container, Fab, Grid } from '@mui/material';
+import { Button, Container, Fab, Grid, Zoom } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useCars } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
@@ -11,6 +11,8 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusView } from '../components/ui/StatusView';
 import { VehicleCard } from '../components/ui/VehicleCard';
+import { Reveal } from '../components/ui/Reveal';
+import { tokens } from '../theme/tokens';
 
 export function Garage() {
   const { t } = useTranslation(['garage', 'common']);
@@ -36,19 +38,25 @@ export function Garage() {
           <>
             <GarageAttention cars={cars} />
             <Grid container spacing={2}>
-              {cars.map((car) => (
+              {cars.map((car, i) => (
                 <Grid item xs={12} sm={6} md={4} key={car.id}>
-                  <VehicleCard car={car} onClick={() => navigate(`/cars/${car.id}`)} />
+                  <Reveal index={i}>
+                    <VehicleCard car={car} onClick={() => navigate(`/cars/${car.id}`)} />
+                  </Reveal>
                 </Grid>
               ))}
             </Grid>
           </>
         )}
       </Container>
-      <Fab color="primary" onClick={() => setOpen(true)} aria-label="Add car"
-        sx={{ position: 'fixed', bottom: 24, right: 24 }}>
-        <AddIcon />
-      </Fab>
+      <Zoom in timeout={tokens.motion.duration.base}>
+        <Fab color="primary" onClick={() => setOpen(true)} aria-label={t('garage:addCar')}
+          sx={{ position: 'fixed', bottom: 24, right: 24,
+            transition: `transform ${tokens.motion.duration.fast}ms ${tokens.motion.easing.standard}`,
+            '&:active': { transform: 'scale(0.96)' } }}>
+          <AddIcon />
+        </Fab>
+      </Zoom>
       <CarFormDialog open={open} onClose={() => setOpen(false)} mode="create" />
     </AppShell>
   );

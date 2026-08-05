@@ -7,6 +7,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Reveal } from '../components/ui/Reveal';
 import { ChatBubble } from '../components/chat/ChatBubble';
 import { VoiceComposerButton } from '../components/chat/VoiceComposerButton';
 import { useSpeechRecognition } from '../lib/useSpeechRecognition';
@@ -118,13 +119,17 @@ export function ChatConversation() {
           ) : (
             <Stack spacing={2}>
               {messages.map((m, i) => (
-                <ChatBubble key={i} {...m}
-                  resolving={resolve.isPending}
-                  onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
+                <Reveal key={i} index={Math.max(0, i - (messages.length - 10))}>
+                  <ChatBubble {...m}
+                    resolving={resolve.isPending}
+                    onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
+                </Reveal>
               ))}
               {pending ? (
-                <ChatBubble role="user" content={pending.content} createdAt="" actions={[]}
-                  attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))} />
+                <Reveal>
+                  <ChatBubble role="user" content={pending.content} createdAt="" actions={[]}
+                    attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))} />
+                </Reveal>
               ) : null}
             </Stack>
           )}
