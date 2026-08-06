@@ -6,6 +6,7 @@ import { handleReminderRoute } from './reminder-routes';
 import { handleChatRoute } from './chat-session-routes';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
+import { handleImportCarRoute } from './import-car-route';
 import { handleScanRoute } from './scan-routes';
 import { handleAdminRoute } from './admin-routes';
 import { handlePublicRoute } from './public-routes';
@@ -68,6 +69,14 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     if (path.startsWith('/import/scan')) {
       const result = await handleScanRoute(
         { cars: deps.cars, events: deps.events, storage: deps.storage, llm: deps.llm, loadScanBase64: deps.loadScanBase64, newId: deps.newId },
+        event, ownerId,
+      );
+      if (result) return result;
+    }
+
+    if (path === '/import/car') {
+      const result = await handleImportCarRoute(
+        { cars: deps.cars, events: deps.events, reminders: deps.reminders },
         event, ownerId,
       );
       if (result) return result;
