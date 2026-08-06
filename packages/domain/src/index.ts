@@ -20,3 +20,4 @@ export * from './chat-session-repository';
 export { chunkText, mergeCandidates } from './chunk-text';
 export * from './reminder';
 export * from './reminder-repository';
+export { toCarExport } from './car-export';
