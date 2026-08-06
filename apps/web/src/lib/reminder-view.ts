@@ -40,3 +40,36 @@ export function sortReminders(reminders: Reminder[], carMileage: number, today: 
     return (a.dueMileage ?? Infinity) - (b.dueMileage ?? Infinity);
   });
 }
+
+export type AnchorSource = 'date' | 'km' | null;
+
+// The Reminders card promotes ONE relative-dueness signal to a prominent anchor line.
+// When only one target is set, that's the anchor. When both are set, show whichever
+// target is driving today's status color (overdue beats due_soon beats ok); a tie
+// (both targets land in the same status) prefers date.
+export function anchorSource(
+  reminder: Pick<Reminder, 'dueDate' | 'dueMileage'>, carMileage: number, today: string,
+): AnchorSource {
+  if (reminder.dueDate === undefined && reminder.dueMileage === undefined) return null;
+  if (reminder.dueDate === undefined) return 'km';
+  if (reminder.dueMileage === undefined) return 'date';
+  const dateStatus = reminderStatus({ dueDate: reminder.dueDate, dueMileage: undefined }, carMileage, today);
+  const kmStatus = reminderStatus({ dueDate: undefined, dueMileage: reminder.dueMileage }, carMileage, today);
+  if (STATUS_RANK[dateStatus] === STATUS_RANK[kmStatus]) return 'date';
+  return STATUS_RANK[dateStatus] < STATUS_RANK[kmStatus] ? 'date' : 'km';
+}
+
+export type ReminderGroups = { overdue: Reminder[]; dueSoon: Reminder[]; later: Reminder[] };
+
+// The Reminders tab renders urgency sections; grouping reuses the sorted order so each
+// section is internally sorted (nearest first) without a second comparator.
+export function groupReminders(reminders: Reminder[], carMileage: number, today: string): ReminderGroups {
+  const groups: ReminderGroups = { overdue: [], dueSoon: [], later: [] };
+  for (const reminder of sortReminders(reminders, carMileage, today)) {
+    const status = reminderStatus(reminder, carMileage, today);
+    if (status === 'overdue') groups.overdue.push(reminder);
+    else if (status === 'due_soon') groups.dueSoon.push(reminder);
+    else groups.later.push(reminder);
+  }
+  return groups;
+}
