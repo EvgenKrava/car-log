@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Car, Event, Reminder } from '@carlog/contracts';
-import { CarExportSchema } from '@carlog/contracts';
+import { CarExportSchema, CreateCarSchema, CreateEventSchema, CreateReminderSchema } from '@carlog/contracts';
 import { toCarExport } from './car-export';
 
 const car: Car = {
@@ -64,5 +64,25 @@ describe('toCarExport', () => {
     expect(file.car.nickname).toBe('Wolfie');
     expect(file.car.vin).toBe('WVWZZZ1KZAW000001');
     expect(file.events[1]!.works[0]!.parts[0]!.quantity).toBe(5);
+  });
+
+  it('does not reorder the caller-supplied events array (sorts a defensive copy)', () => {
+    const idsBefore = events.map((e) => e.id);
+    toCarExport(car, events, reminders, AT);
+    expect(events.map((e) => e.id)).toEqual(idsBefore);
+  });
+
+  // Excess-property checking doesn't fire through the `.map()` arrows in toCarExport, and
+  // CarExportSchema.parse silently STRIPS unknown keys — so a leaked `id`/`updatedAt` would
+  // survive both the round-trip test and the by-value substring test above undetected.
+  // Assert the produced shape structurally, against the CREATE schema's own key list, so
+  // this can't rot if the create schemas grow a field.
+  it('exposes exactly the CreateCarSchema/CreateEventSchema/CreateReminderSchema fields, no more', () => {
+    const file = toCarExport(car, events, reminders, AT);
+
+    expect(Object.keys(file.car).sort()).toEqual(Object.keys(CreateCarSchema.shape).sort());
+    expect(Object.keys(file.events[0]!).sort()).toEqual(Object.keys(CreateEventSchema.shape).sort());
+    expect(Object.keys(file.reminders[0]!).sort())
+      .toEqual(Object.keys(CreateReminderSchema.innerType().shape).sort());
   });
 });

@@ -56,25 +56,43 @@ describe('POST /import/car', () => {
 
   // The route generates each event/reminder's id itself (via createEvent/createReminder)
   // before calling the repo, and tracks that generated id for cleanup — it never depends
-  // on the repo's `create` return value. So the first call's mocked return here is
-  // genuinely unused; only the second call's rejection matters.
+  // on the repo's `create` return value. The spy here calls through to the real repo for
+  // every event but the last, so the first event genuinely lands as a row — cleanup has
+  // something real to delete, and the assertions below can actually catch a broken loop.
   it('cleans up everything when an event write fails mid-import', async () => {
-    const failing = vi.spyOn(deps.events, 'create')
-      .mockResolvedValueOnce({} as never) // first event succeeds (return value unused)
-      .mockRejectedValueOnce(new Error('dynamo down'));
+    const carsCreateSpy = vi.spyOn(deps.cars, 'create');
+    const originalCreate = deps.events.create.bind(deps.events);
+    let calls = 0;
+    const failing = vi.spyOn(deps.events, 'create').mockImplementation(async (e) => {
+      calls += 1;
+      if (calls === file.events.length) throw new Error('dynamo down'); // fail on the last event
+      return originalCreate(e);
+    });
     await expect(handleImportCarRoute(deps, post(file), OWNER)).rejects.toThrow('dynamo down');
+    const createdCar = (await carsCreateSpy.mock.results[0]!.value) as Car;
     expect(await deps.cars.listByOwner(OWNER)).toHaveLength(0); // no half-imported car
+    expect(await deps.events.listByCar(OWNER, createdCar.id)).toHaveLength(0); // no orphan events
+    expect(await deps.reminders.listByCar(OWNER, createdCar.id)).toHaveLength(0); // no orphan reminders
     failing.mockRestore();
   });
 
   it('cleans up when a reminder write fails after all events succeeded', async () => {
+    const carsCreateSpy = vi.spyOn(deps.cars, 'create');
     vi.spyOn(deps.reminders, 'create').mockRejectedValueOnce(new Error('boom'));
     await expect(handleImportCarRoute(deps, post(file), OWNER)).rejects.toThrow('boom');
+    const createdCar = (await carsCreateSpy.mock.results[0]!.value) as Car;
     expect(await deps.cars.listByOwner(OWNER)).toHaveLength(0);
+    expect(await deps.events.listByCar(OWNER, createdCar.id)).toHaveLength(0); // events created before the reminder failure are also gone
+    expect(await deps.reminders.listByCar(OWNER, createdCar.id)).toHaveLength(0);
   });
 
   it('returns null for non-matching paths', async () => {
     const res = await handleImportCarRoute(deps, { ...post(file), path: '/import/jobs' }, OWNER);
+    expect(res).toBeNull();
+  });
+
+  it('returns null for a non-POST method on the matching path', async () => {
+    const res = await handleImportCarRoute(deps, { ...post(file), method: 'PUT' }, OWNER);
     expect(res).toBeNull();
   });
 });
