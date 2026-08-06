@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Container, Fab, Grid, Zoom } from '@mui/material';
+import { Button, Container, Fab, Grid } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useCars } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
@@ -40,7 +40,7 @@ export function Garage() {
             <Grid container spacing={2}>
               {cars.map((car, i) => (
                 <Grid item xs={12} sm={6} md={4} key={car.id}>
-                  <Reveal index={i}>
+                  <Reveal index={i} sx={{ height: '100%' }}>
                     <VehicleCard car={car} onClick={() => navigate(`/cars/${car.id}`)} />
                   </Reveal>
                 </Grid>
@@ -49,14 +49,17 @@ export function Garage() {
           </>
         )}
       </Container>
-      <Zoom in timeout={tokens.motion.duration.base}>
-        <Fab color="primary" onClick={() => setOpen(true)} aria-label={t('garage:addCar')}
-          sx={{ position: 'fixed', bottom: 24, right: 24,
-            transition: `transform ${tokens.motion.duration.fast}ms ${tokens.motion.easing.standard}`,
-            '&:active': { transform: 'scale(0.96)' } }}>
-          <AddIcon />
-        </Fab>
-      </Zoom>
+      <Fab color="primary" onClick={() => setOpen(true)} aria-label={t('garage:addCar')}
+        sx={{ position: 'fixed', bottom: 24, right: 24,
+          '@keyframes carlogFabIn': {
+            from: { opacity: 0, transform: 'scale(0.8)' },
+            to: { opacity: 1, transform: 'scale(1)' },
+          },
+          animation: `carlogFabIn ${tokens.motion.duration.base}ms ${tokens.motion.easing.standard}`,
+          transition: `transform ${tokens.motion.duration.fast}ms ${tokens.motion.easing.standard}`,
+          '&:active': { transform: 'scale(0.96)' } }}>
+        <AddIcon />
+      </Fab>
       <CarFormDialog open={open} onClose={() => setOpen(false)} mode="create" />
     </AppShell>
   );

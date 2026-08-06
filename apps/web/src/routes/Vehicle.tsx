@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Alert, Badge, BottomNavigation, BottomNavigationAction, Box, Button, Card, CardContent,
   Container, Fab, Fade, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack,
-  Tab, Tabs, Tooltip, Typography, Zoom,
+  Tab, Tabs, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -460,18 +460,21 @@ function VehicleDetail({ car }: { car: Car }) {
       {/* Add affordance. Desktop (no bottom bar) → a FAB; mobile → the "+" lives in
           the bottom bar as a labeled item (below). Per-tab action: history → options
           sheet, reminders → new reminder. */}
-      <Zoom in timeout={tokens.motion.duration.base}>
-        <Fab
-          color="primary"
-          aria-label={tab === 'chat' ? t('chat:newChat') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
-          onClick={triggerAdd}
-          sx={{ display: { xs: 'none', sm: 'flex' }, position: 'fixed', right: 24, bottom: 24,
-            transition: `transform ${tokens.motion.duration.fast}ms ${tokens.motion.easing.standard}`,
-            '&:active': { transform: 'scale(0.96)' } }}
-        >
-          <AddIcon />
-        </Fab>
-      </Zoom>
+      <Fab
+        color="primary"
+        aria-label={tab === 'chat' ? t('chat:newChat') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
+        onClick={triggerAdd}
+        sx={{ display: { xs: 'none', sm: 'flex' }, position: 'fixed', right: 24, bottom: 24,
+          '@keyframes carlogFabIn': {
+            from: { opacity: 0, transform: 'scale(0.8)' },
+            to: { opacity: 1, transform: 'scale(1)' },
+          },
+          animation: `carlogFabIn ${tokens.motion.duration.base}ms ${tokens.motion.easing.standard}`,
+          transition: `transform ${tokens.motion.duration.fast}ms ${tokens.motion.easing.standard}`,
+          '&:active': { transform: 'scale(0.96)' } }}
+      >
+        <AddIcon />
+      </Fab>
       <AddRecordSheet
         open={addSheetOpen}
         onClose={() => setAddSheetOpen(false)}

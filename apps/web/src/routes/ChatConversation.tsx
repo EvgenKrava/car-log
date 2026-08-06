@@ -32,6 +32,10 @@ export function ChatConversation() {
   const [attachError, setAttachError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // Stagger only the batch present at first render of THIS session; anything appended
+  // later (a message you just sent) must appear immediately — index 0 — not inherit the
+  // initial-load stagger. Keyed by sid so switching conversations re-captures the count.
+  const initialLoad = useRef<{ sid: string; count: number } | null>(null);
 
   const speech = useSpeechRecognition();
   const [seconds, setSeconds] = useState(0);
@@ -55,6 +59,10 @@ export function ChatConversation() {
   }, [session.isError]);
 
   const messages = session.data?.messages ?? [];
+  if (initialLoad.current?.sid !== sid && messages.length > 0) {
+    initialLoad.current = { sid, count: messages.length };
+  }
+  const initialCount = initialLoad.current?.sid === sid ? initialLoad.current.count : 0;
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, pending, post.isPending]);
@@ -119,7 +127,7 @@ export function ChatConversation() {
           ) : (
             <Stack spacing={2}>
               {messages.map((m, i) => (
-                <Reveal key={i} index={Math.max(0, i - (messages.length - 10))}>
+                <Reveal key={i} index={i < initialCount ? Math.max(0, i - (initialCount - 10)) : 0}>
                   <ChatBubble {...m}
                     resolving={resolve.isPending}
                     onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
