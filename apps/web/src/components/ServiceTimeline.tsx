@@ -14,6 +14,7 @@ import { EventCard } from './EventCard';
 import { EventFormDialog } from './EventFormDialog';
 import { EmptyState } from './ui/EmptyState';
 import { StatusView } from './ui/StatusView';
+import { Reveal } from './ui/Reveal';
 
 // Does an event match the free-text query? Searches the fields a user would
 // reasonably remember: title, notes, and every work description / part name.
@@ -175,19 +176,26 @@ export function ServiceTimeline({
         </Stack>
       ) : (
         <Box>
-          {groups.map(([year, list]) => (
-            <Box key={year} sx={{ mb: 2 }}>
-              {/* Year divider — a quiet marker so a long history reads as chapters. */}
-              <Typography
-                variant="overline"
-                color="text.secondary"
-                sx={{ display: 'block', fontWeight: 700, letterSpacing: '0.08em', mb: 0.5 }}
-              >
-                {year}
-              </Typography>
-              {list.map((e) => <EventCard key={e.id} carId={carId} event={e} />)}
-            </Box>
-          ))}
+          {(() => {
+            let i = 0; // continuous index across year groups, so the stagger doesn't reset per year
+            return groups.map(([year, list]) => (
+              <Box key={year} sx={{ mb: 2 }}>
+                {/* Year divider — a quiet marker so a long history reads as chapters. */}
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  sx={{ display: 'block', fontWeight: 700, letterSpacing: '0.08em', mb: 0.5 }}
+                >
+                  {year}
+                </Typography>
+                {list.map((e) => (
+                  <Reveal key={e.id} index={i++}>
+                    <EventCard carId={carId} event={e} />
+                  </Reveal>
+                ))}
+              </Box>
+            ));
+          })()}
         </Box>
       )}
       <EventFormDialog open={open} onClose={() => setOpen(false)} carId={carId} mode="create" />

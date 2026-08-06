@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Alert, Badge, BottomNavigation, BottomNavigationAction, Box, Button, Card, CardContent,
-  Container, Fab, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack,
+  Container, Fab, Fade, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack,
   Tab, Tabs, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -40,6 +40,7 @@ import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
 import { formatNumber } from '../i18n/format';
+import { tokens } from '../theme/tokens';
 
 // One of the three key facts on the hero — an icon beside a small caps label
 // and a prominent value. Icons sit in a tinted square so the row reads as a
@@ -420,28 +421,26 @@ function VehicleDetail({ car }: { car: Car }) {
 
           {/* Panels. The wrapper Box neutralises each section's built-in top
               margin so the outer Stack controls spacing. Panels render only
-              when active — TanStack Query caches keep tab switches instant. */}
-          {tab === 'history' ? (
+              when active — TanStack Query caches keep tab switches instant.
+              The Fade's `key={tab}` forces a fresh mount per switch, which is
+              what restarts the fade-in (a re-render alone wouldn't). */}
+          <Fade in key={tab} timeout={tokens.motion.duration.fast}>
             <Box sx={{ '& > *': { mt: 0 } }}>
-              <ServiceTimeline
-                carId={car.id}
-                addOpen={manualOpen}
-                onAddOpenChange={setManualOpen}
-                onScan={() => setScanOpen(true)}
-                onImport={() => setImportOpen(true)}
-              />
+              {tab === 'history' ? (
+                <ServiceTimeline
+                  carId={car.id}
+                  addOpen={manualOpen}
+                  onAddOpenChange={setManualOpen}
+                  onScan={() => setScanOpen(true)}
+                  onImport={() => setImportOpen(true)}
+                />
+              ) : tab === 'chat' ? (
+                <ChatPanel carId={car.id} />
+              ) : (
+                <RemindersSection ref={remindersRef} car={car} />
+              )}
             </Box>
-          ) : null}
-          {tab === 'chat' ? (
-            <Box sx={{ '& > *': { mt: 0 } }}>
-              <ChatPanel carId={car.id} />
-            </Box>
-          ) : null}
-          {tab === 'reminders' ? (
-            <Box sx={{ '& > *': { mt: 0 } }}>
-              <RemindersSection ref={remindersRef} car={car} />
-            </Box>
-          ) : null}
+          </Fade>
 
           {del.isError ? <Alert severity="error">{t('vehicle:deleteFailed')}</Alert> : null}
         </Stack>
@@ -465,7 +464,14 @@ function VehicleDetail({ car }: { car: Car }) {
         color="primary"
         aria-label={tab === 'chat' ? t('chat:newChat') : tab === 'reminders' ? t('reminders:add') : t('event:addRecord')}
         onClick={triggerAdd}
-        sx={{ display: { xs: 'none', sm: 'flex' }, position: 'fixed', right: 24, bottom: 24 }}
+        sx={{ display: { xs: 'none', sm: 'flex' }, position: 'fixed', right: 24, bottom: 24,
+          '@keyframes carlogFabIn': {
+            from: { opacity: 0, transform: 'scale(0.8)' },
+            to: { opacity: 1, transform: 'scale(1)' },
+          },
+          animation: `carlogFabIn ${tokens.motion.duration.base}ms ${tokens.motion.easing.standard}`,
+          transition: `transform ${tokens.motion.duration.fast}ms ${tokens.motion.easing.standard}`,
+          '&:active': { transform: 'scale(0.96)' } }}
       >
         <AddIcon />
       </Fab>

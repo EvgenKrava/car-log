@@ -54,6 +54,20 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
           },
         },
       },
+      MuiCssBaseline: {
+        // This clamp is CSS-only, so visuals are instant, but MUI's Transition
+        // components (e.g. Slide/Grow here) still run their full JS timeout before
+        // firing onExited — the unmount is delayed even though nothing visibly moves.
+        styleOverrides: `
+          @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+              animation-duration: 0.01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: 0.01ms !important;
+            }
+          }
+        `,
+      },
       MuiDialog: {
         styleOverrides: {
           // On phones, dialogs become bottom sheets (Telegram/iOS style): anchored to the

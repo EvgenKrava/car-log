@@ -53,9 +53,12 @@ export function useBottomSheetDismiss(
     startY.current = null;
     node.style.transition = 'transform 0.2s ease';
     if (delta.current > DISMISS_THRESHOLD_PX && onDismiss) {
-      // Animate off-screen, then close. The Dialog unmounts the paper on close, so the
-      // inline transform is discarded and a reopened sheet starts clean.
-      node.style.transform = 'translateY(100%)';
+      // Leave the drag transform in place: MUI's Slide computes its exit from the
+      // paper's LIVE bounding rect, so the sheet continues downward from where the
+      // finger released — one continuous motion. Only our inline transition must go,
+      // or it would race Slide's own. The paper unmounts on close, so the inline
+      // transform can't leak into a reopened sheet.
+      node.style.transition = '';
       onDismiss();
     } else {
       node.style.transform = '';

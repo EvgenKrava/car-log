@@ -39,5 +39,11 @@
   "dueInKm": "in {{count}} km",
   "overdueKm": "{{count}} km overdue",
   "badgeOverdue": "Overdue reminders",
-  "badgeDueSoon": "Reminders due soon"
+  "badgeDueSoon": "Reminders due soon",
+  "groupOverdue": "Overdue",
+  "groupDueSoon": "Due soon",
+  "groupLater": "Later",
+  "emptyTitle": "No reminders yet",
+  "emptyBody": "Get a nudge before service is due — by date, mileage, or both.",
+  "moreActions": "Reminder actions"
 }

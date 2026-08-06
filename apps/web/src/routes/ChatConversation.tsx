@@ -7,6 +7,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Reveal } from '../components/ui/Reveal';
 import { ChatBubble } from '../components/chat/ChatBubble';
 import { VoiceComposerButton } from '../components/chat/VoiceComposerButton';
 import { useSpeechRecognition } from '../lib/useSpeechRecognition';
@@ -31,6 +32,10 @@ export function ChatConversation() {
   const [attachError, setAttachError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // Stagger only the batch present at first render of THIS session; anything appended
+  // later (a message you just sent) must appear immediately — index 0 — not inherit the
+  // initial-load stagger. Keyed by sid so switching conversations re-captures the count.
+  const initialLoad = useRef<{ sid: string; count: number } | null>(null);
 
   const speech = useSpeechRecognition();
   const [seconds, setSeconds] = useState(0);
@@ -54,6 +59,10 @@ export function ChatConversation() {
   }, [session.isError]);
 
   const messages = session.data?.messages ?? [];
+  if (initialLoad.current?.sid !== sid && messages.length > 0) {
+    initialLoad.current = { sid, count: messages.length };
+  }
+  const initialCount = initialLoad.current?.sid === sid ? initialLoad.current.count : 0;
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, pending, post.isPending]);
@@ -118,13 +127,17 @@ export function ChatConversation() {
           ) : (
             <Stack spacing={2}>
               {messages.map((m, i) => (
-                <ChatBubble key={i} {...m}
-                  resolving={resolve.isPending}
-                  onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
+                <Reveal key={i} index={i < initialCount ? Math.max(0, i - (initialCount - 10)) : 0}>
+                  <ChatBubble {...m}
+                    resolving={resolve.isPending}
+                    onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
+                </Reveal>
               ))}
               {pending ? (
-                <ChatBubble role="user" content={pending.content} createdAt="" actions={[]}
-                  attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))} />
+                <Reveal>
+                  <ChatBubble role="user" content={pending.content} createdAt="" actions={[]}
+                    attachments={pending.names.map((n, i) => ({ key: `p${i}`, contentType: 'application/pdf' as const, filename: n, size: 0, url: '#' }))} />
+                </Reveal>
               ) : null}
             </Stack>
           )}
