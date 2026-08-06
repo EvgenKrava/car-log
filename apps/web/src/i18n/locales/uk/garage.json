@@ -12,5 +12,6 @@
   "importAction": "Імпортувати",
   "importBadFile": "Це не файл експорту CarLog.",
   "importNewerVersion": "Цей файл створено новішою версією CarLog.",
+  "importCorrupt": "Цей файл CarLog пошкоджено або він неповний.",
   "importFailed": "Не вдалося імпортувати. Нічого не створено — спробуйте ще раз."
 }

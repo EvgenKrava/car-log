@@ -1,0 +1,1 @@
+Open the Golf and the whole car lives on one page. The header carries the make, year, engine, and plate, while three tiles summarize what matters: the odometer at 128,400 mi, 8 records on file, and 32,950 UAH spent to date.

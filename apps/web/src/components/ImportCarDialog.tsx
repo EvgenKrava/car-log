@@ -11,7 +11,8 @@ import { formatDate } from '../i18n/format';
 type ParseResult =
   | { kind: 'ok'; file: CarExport }
   | { kind: 'badFile' }
-  | { kind: 'newerVersion' };
+  | { kind: 'newerVersion' }
+  | { kind: 'corrupt' };
 
 // Distinguish "not our file at all" from "our file, newer version" so the error
 // message can tell the user to update instead of blaming the file.
@@ -22,8 +23,11 @@ function parseExport(text: string): ParseResult {
   if (parsed.success) return { kind: 'ok', file: parsed.data };
   const looksOurs = typeof raw === 'object' && raw !== null
     && (raw as { format?: unknown }).format === CAR_EXPORT_FORMAT;
-  const newer = looksOurs && typeof (raw as { version?: unknown }).version === 'number'
-    && ((raw as { version: number }).version > 1);
+  const version = typeof (raw as { version?: unknown }).version === 'number'
+    ? (raw as { version: number }).version
+    : undefined;
+  const newer = looksOurs && typeof version === 'number' && version > 1;
+  if (looksOurs && (version === 1 || version === undefined)) return { kind: 'corrupt' };
   return newer ? { kind: 'newerVersion' } : { kind: 'badFile' };
 }
 
@@ -33,7 +37,7 @@ export function ImportCarDialog({ open, onClose }: { open: boolean; onClose: () 
   const importCar = useImportCar();
   const inputRef = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<CarExport | null>(null);
-  const [error, setError] = useState<'badFile' | 'newerVersion' | 'failed' | null>(null);
+  const [error, setError] = useState<'badFile' | 'newerVersion' | 'corrupt' | 'failed' | null>(null);
 
   const reset = () => { setPicked(null); setError(null); };
   const close = () => { reset(); onClose(); };
@@ -72,7 +76,7 @@ export function ImportCarDialog({ open, onClose }: { open: boolean; onClose: () 
       <Stack spacing={2} sx={{ pt: 0.5 }}>
         {error ? (
           <Alert severity={error === 'failed' ? 'error' : 'warning'}>
-            {t(`garage:import${error === 'badFile' ? 'BadFile' : error === 'newerVersion' ? 'NewerVersion' : 'Failed'}`)}
+            {t(`garage:import${error === 'badFile' ? 'BadFile' : error === 'newerVersion' ? 'NewerVersion' : error === 'corrupt' ? 'Corrupt' : 'Failed'}`)}
           </Alert>
         ) : null}
         <input ref={inputRef} type="file" accept="application/json,.json" hidden

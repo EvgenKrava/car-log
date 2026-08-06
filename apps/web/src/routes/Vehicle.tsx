@@ -339,7 +339,7 @@ function VehicleDetail({ car }: { car: Car }) {
                       <ListItemIcon><PublicIcon fontSize="small" /></ListItemIcon>
                       <ListItemText>{t('share:menu')}</ListItemText>
                     </MenuItem>
-                    <MenuItem onClick={() => { setMenuAnchor(null); onExport(); }}>
+                    <MenuItem onClick={() => { setMenuAnchor(null); onExport(); }} disabled={!events || !reminders}>
                       <ListItemIcon><FileDownloadOutlinedIcon fontSize="small" /></ListItemIcon>
                       <ListItemText>{t('vehicle:exportHistory')}</ListItemText>
                     </MenuItem>
