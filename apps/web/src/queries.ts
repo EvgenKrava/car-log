@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
-import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event, CarExport } from '@carlog/contracts';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, importCar, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
 import { prepareScanFile } from './lib/prepare-scan';
 
 export function useCars() {
@@ -63,6 +63,14 @@ export function useSetCarSharing() {
       void qc.invalidateQueries({ queryKey: ['cars', carId] });
       void qc.invalidateQueries({ queryKey: ['cars'] });
     },
+  });
+}
+
+export function useImportCar() {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: CarExport) => importCar(token, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cars'] }),
   });
 }
 

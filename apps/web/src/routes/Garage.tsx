@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Container, Fab, Grid } from '@mui/material';
+import { Button, Container, Fab, Grid, IconButton, Stack } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { useCars } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
+import { ImportCarDialog } from '../components/ImportCarDialog';
 import { GarageAttention } from '../components/GarageAttention';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -19,10 +21,18 @@ export function Garage() {
   const navigate = useNavigate();
   const { data: cars, isLoading, isError } = useCars();
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   return (
     <AppShell>
-      <PageHeader title={t('common:appName')} />
+      <PageHeader
+        title={t('common:appName')}
+        actions={
+          <IconButton onClick={() => setImportOpen(true)} aria-label={t('garage:importCar')} color="inherit">
+            <UploadFileOutlinedIcon />
+          </IconButton>
+        }
+      />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
           <StatusView state="loading" />
@@ -32,7 +42,12 @@ export function Garage() {
           <EmptyState
             title={t('garage:empty')}
             description={t('garage:emptyHint')}
-            action={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('garage:addCar')}</Button>}
+            action={
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('garage:addCar')}</Button>
+                <Button variant="text" startIcon={<UploadFileOutlinedIcon />} onClick={() => setImportOpen(true)}>{t('garage:importCar')}</Button>
+              </Stack>
+            }
           />
         ) : (
           <>
@@ -61,6 +76,7 @@ export function Garage() {
         <AddIcon />
       </Fab>
       <CarFormDialog open={open} onClose={() => setOpen(false)} mode="create" />
+      <ImportCarDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </AppShell>
   );
 }

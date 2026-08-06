@@ -1,1 +1,16 @@
-{ "empty": "Add your first car", "emptyHint": "Start keeping a maintenance history for every vehicle you own.", "addCar": "Add a car", "loadError": "Could not load your garage.", "attentionTitle": "Needs attention" }
+{
+  "empty": "Add your first car",
+  "emptyHint": "Start keeping a maintenance history for every vehicle you own.",
+  "addCar": "Add a car",
+  "loadError": "Could not load your garage.",
+  "attentionTitle": "Needs attention",
+  "importCar": "Import car",
+  "importTitle": "Import a car",
+  "importPick": "Choose a CarLog export file (.json)",
+  "importPreview": "{{make}} {{model}} · {{events}} records · {{reminders}} reminders",
+  "importExportedAt": "Exported {{date}}",
+  "importAction": "Import",
+  "importBadFile": "This is not a CarLog export file.",
+  "importNewerVersion": "This file was made by a newer version of CarLog.",
+  "importFailed": "Import failed. Nothing was created — try again."
+}

@@ -10,6 +10,7 @@ import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 
 import PublicIcon from '@mui/icons-material/Public';
 import HistoryIcon from '@mui/icons-material/History';
@@ -41,6 +42,8 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
 import { formatNumber } from '../i18n/format';
 import { tokens } from '../theme/tokens';
+import { buildCarExport } from '../lib/car-export';
+import { downloadJson, exportFilename } from '../lib/download-json';
 
 // One of the three key facts on the hero — an icon beside a small caps label
 // and a prominent value. Icons sit in a tinted square so the row reads as a
@@ -247,8 +250,17 @@ function VehicleDetail({ car }: { car: Car }) {
   // query feeds the History tab, so this costs nothing extra.
   const { data: events } = useEvents(car.id);
   const spent = totalSpent(events, i18n.language);
+  // Cached by RemindersTabLabel/RemindersBadgeIcon already; fetched here too so
+  // the export menu item has reminders in scope without waiting on the tab render.
+  const { data: reminders } = useReminders(car.id);
 
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
+  const onExport = () => {
+    if (!events || !reminders) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const file = buildCarExport(car, events, reminders, new Date().toISOString());
+    downloadJson(exportFilename(car.make, car.model, today), file);
+  };
 
   return (
     <AppShell>
@@ -326,6 +338,10 @@ function VehicleDetail({ car }: { car: Car }) {
                     <MenuItem onClick={() => { setMenuAnchor(null); setShareOpen(true); }}>
                       <ListItemIcon><PublicIcon fontSize="small" /></ListItemIcon>
                       <ListItemText>{t('share:menu')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem onClick={() => { setMenuAnchor(null); onExport(); }}>
+                      <ListItemIcon><FileDownloadOutlinedIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>{t('vehicle:exportHistory')}</ListItemText>
                     </MenuItem>
                     <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
                       <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
