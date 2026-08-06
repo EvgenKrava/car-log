@@ -6,7 +6,7 @@ import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { CarExportSchema, CAR_EXPORT_FORMAT, type CarExport } from '@carlog/contracts';
 import { Modal } from './ui/Modal';
 import { useImportCar } from '../queries';
-import { formatDate } from '../i18n/format';
+import { formatDate, formatNumber } from '../i18n/format';
 
 type ParseResult =
   | { kind: 'ok'; file: CarExport }
@@ -21,9 +21,11 @@ function parseExport(text: string): ParseResult {
   try { raw = JSON.parse(text); } catch { return { kind: 'badFile' }; }
   const parsed = CarExportSchema.safeParse(raw);
   if (parsed.success) return { kind: 'ok', file: parsed.data };
-  const looksOurs = typeof raw === 'object' && raw !== null
-    && (raw as { format?: unknown }).format === CAR_EXPORT_FORMAT;
-  const version = typeof (raw as { version?: unknown }).version === 'number'
+  // Nothing below may dereference `raw` unless it's a non-null object — `raw` can
+  // legitimately be `null`, a number, a string, etc. (JSON.parse('null') succeeds).
+  const isObject = typeof raw === 'object' && raw !== null;
+  const looksOurs = isObject && (raw as { format?: unknown }).format === CAR_EXPORT_FORMAT;
+  const version = isObject && typeof (raw as { version?: unknown }).version === 'number'
     ? (raw as { version: number }).version
     : undefined;
   const newer = looksOurs && typeof version === 'number' && version > 1;
@@ -95,6 +97,9 @@ export function ImportCarDialog({ open, onClose }: { open: boolean; onClose: () 
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {t('garage:importExportedAt', { date: formatDate(picked.exportedAt, i18n.language) })}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t('garage:importMileage', { km: formatNumber(picked.car.mileage, i18n.language) })}
             </Typography>
           </Stack>
         ) : null}

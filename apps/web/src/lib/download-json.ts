@@ -11,7 +11,9 @@ export function downloadJson(filename: string, data: unknown): void {
 }
 
 // carlog-<make>-<model>-<YYYY-MM-DD>.json, lowercased, non-alphanumerics dashed.
+// Unicode-aware (\p{L}\p{N}) so non-Latin makes/models (e.g. Cyrillic "ВАЗ Ока")
+// keep their letters instead of being stripped to an empty, meaningless slug.
 export function exportFilename(make: string, model: string, dateISO: string): string {
-  const slug = `${make}-${model}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `carlog-${slug}-${dateISO}.json`;
+  const slug = `${make}-${model}`.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+  return `carlog-${slug || 'car'}-${dateISO}.json`;
 }

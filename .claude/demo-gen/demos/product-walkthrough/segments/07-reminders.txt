@@ -1,1 +1,0 @@
-CarLog also keeps you ahead of maintenance. The Reminders tab shows what's due: the annual technical inspection is 21 days overdue, the engine oil and filter is due in 20 days, plus a mileage-based tire rotation.

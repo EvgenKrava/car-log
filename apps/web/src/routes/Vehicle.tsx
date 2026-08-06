@@ -222,6 +222,7 @@ function VehicleDetail({ car }: { car: Car }) {
   // The universal FAB's add-options sheet (history tab). Reminders triggers its
   // section's add action directly via this imperative handle.
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
   const remindersRef = useRef<RemindersSectionHandle>(null);
   // Active tab lives in the URL (?tab=reminders) so refresh and back/forward keep
   // the user's place; the default (history) stays out of the URL.
@@ -257,9 +258,16 @@ function VehicleDetail({ car }: { car: Car }) {
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
   const onExport = () => {
     if (!events || !reminders) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const file = buildCarExport(car, events, reminders, new Date().toISOString());
-    downloadJson(exportFilename(car.make, car.model, today), file);
+    setExportFailed(false);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const file = buildCarExport(car, events, reminders, new Date().toISOString());
+      downloadJson(exportFilename(car.make, car.model, today), file);
+    } catch {
+      // buildCarExport ends in CarExportSchema.parse, which throws for e.g. a car with
+      // more than MAX_JOB_EVENTS events — surface it instead of failing silently.
+      setExportFailed(true);
+    }
   };
 
   return (
@@ -459,6 +467,7 @@ function VehicleDetail({ car }: { car: Car }) {
           </Fade>
 
           {del.isError ? <Alert severity="error">{t('vehicle:deleteFailed')}</Alert> : null}
+          {exportFailed ? <Alert severity="error" onClose={() => setExportFailed(false)}>{t('vehicle:exportFailed')}</Alert> : null}
         </Stack>
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />

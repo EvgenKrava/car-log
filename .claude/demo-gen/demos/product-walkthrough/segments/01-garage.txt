@@ -1,1 +1,0 @@
-Meet CarLog — a digital service book that keeps the full maintenance history of every car you own in one place. This is your garage, with every vehicle on its own card: here, a Volkswagen Golf and a Mazda CX-5, each showing its year, mileage, and fuel at a glance.
