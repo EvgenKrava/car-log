@@ -36,6 +36,7 @@ import {
   type PostMessageResponse,
   type AttachmentRef,
   type ScanDocContentType,
+  type CarExport,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -112,6 +113,9 @@ export async function uploadProof(token: string, carId: string, eventId: string,
   await uploadToS3(uploadUrl, file);
   await confirmProof(token, carId, eventId, { ...input, proofId });
 }
+
+export const importCar = (token: string, file: CarExport): Promise<Car> =>
+  request(token, '/import/car', CarSchema, { method: 'POST', body: JSON.stringify(file) });
 
 export const extractEvents = (token: string, carId: string, text: string): Promise<ExtractEventsResponse> =>
   request(token, '/import/extract', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, text }) });

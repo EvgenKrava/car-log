@@ -10,6 +10,7 @@ import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 
 import PublicIcon from '@mui/icons-material/Public';
 import HistoryIcon from '@mui/icons-material/History';
@@ -41,6 +42,8 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatusView } from '../components/ui/StatusView';
 import { formatNumber } from '../i18n/format';
 import { tokens } from '../theme/tokens';
+import { buildCarExport } from '../lib/car-export';
+import { downloadJson, exportFilename } from '../lib/download-json';
 
 // One of the three key facts on the hero — an icon beside a small caps label
 // and a prominent value. Icons sit in a tinted square so the row reads as a
@@ -219,6 +222,7 @@ function VehicleDetail({ car }: { car: Car }) {
   // The universal FAB's add-options sheet (history tab). Reminders triggers its
   // section's add action directly via this imperative handle.
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
   const remindersRef = useRef<RemindersSectionHandle>(null);
   // Active tab lives in the URL (?tab=reminders) so refresh and back/forward keep
   // the user's place; the default (history) stays out of the URL.
@@ -247,8 +251,24 @@ function VehicleDetail({ car }: { car: Car }) {
   // query feeds the History tab, so this costs nothing extra.
   const { data: events } = useEvents(car.id);
   const spent = totalSpent(events, i18n.language);
+  // Cached by RemindersTabLabel/RemindersBadgeIcon already; fetched here too so
+  // the export menu item has reminders in scope without waiting on the tab render.
+  const { data: reminders } = useReminders(car.id);
 
   const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
+  const onExport = () => {
+    if (!events || !reminders) return;
+    setExportFailed(false);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const file = buildCarExport(car, events, reminders, new Date().toISOString());
+      downloadJson(exportFilename(car.make, car.model, today), file);
+    } catch {
+      // buildCarExport ends in CarExportSchema.parse, which throws for e.g. a car with
+      // more than MAX_JOB_EVENTS events — surface it instead of failing silently.
+      setExportFailed(true);
+    }
+  };
 
   return (
     <AppShell>
@@ -326,6 +346,10 @@ function VehicleDetail({ car }: { car: Car }) {
                     <MenuItem onClick={() => { setMenuAnchor(null); setShareOpen(true); }}>
                       <ListItemIcon><PublicIcon fontSize="small" /></ListItemIcon>
                       <ListItemText>{t('share:menu')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem onClick={() => { setMenuAnchor(null); onExport(); }} disabled={!events || !reminders}>
+                      <ListItemIcon><FileDownloadOutlinedIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>{t('vehicle:exportHistory')}</ListItemText>
                     </MenuItem>
                     <MenuItem onClick={() => { setMenuAnchor(null); setConfirmOpen(true); }} sx={{ color: 'error.main' }}>
                       <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
@@ -443,6 +467,7 @@ function VehicleDetail({ car }: { car: Car }) {
           </Fade>
 
           {del.isError ? <Alert severity="error">{t('vehicle:deleteFailed')}</Alert> : null}
+          {exportFailed ? <Alert severity="error" onClose={() => setExportFailed(false)}>{t('vehicle:exportFailed')}</Alert> : null}
         </Stack>
       </Container>
       <CarFormDialog open={editOpen} onClose={() => setEditOpen(false)} mode="edit" car={car} />

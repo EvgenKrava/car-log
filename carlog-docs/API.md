@@ -23,6 +23,10 @@ PUT /cars/{id}/reminders/{reminderId}
 DELETE /cars/{id}/reminders/{reminderId}
 POST /cars/{id}/reminders/{reminderId}/complete
 
+## Import
+
+POST /import/car        # recreate a car (with events + reminders) from a CarLog export file
+
 ## Attachments
 
 POST /attachments/presign
