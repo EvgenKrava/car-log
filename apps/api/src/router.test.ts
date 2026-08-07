@@ -100,6 +100,26 @@ describe('route', () => {
     expect(JSON.parse(res.body).vin).toBeUndefined();
   });
 
+  it('PUT /cars/{id} moves mileageUpdatedAt when mileage changes, but not for a nickname-only edit', async () => {
+    // Fake clock so the "moved" assertion can't pass merely by two real-clock reads
+    // landing in the same millisecond.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    try {
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: validBody })).body);
+
+      vi.setSystemTime(new Date('2026-01-02T00:00:00.000Z'));
+      const renamed = await route(deps, { ...base, method: 'PUT', path: `/cars/${created.id}`, ownerId: 'u1', pathParams: { id: created.id }, body: { ...validBody, nickname: 'Bessie' } });
+      expect(JSON.parse(renamed.body).mileageUpdatedAt).toBe(created.mileageUpdatedAt); // unchanged
+
+      vi.setSystemTime(new Date('2026-01-03T00:00:00.000Z'));
+      const bumped = await route(deps, { ...base, method: 'PUT', path: `/cars/${created.id}`, ownerId: 'u1', pathParams: { id: created.id }, body: { ...validBody, mileage: validBody.mileage + 1000 } });
+      expect(JSON.parse(bumped.body).mileageUpdatedAt).not.toBe(created.mileageUpdatedAt); // moved
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   async function makeCar(ownerId: string) {
     const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
     return JSON.parse(res.body).id as string;

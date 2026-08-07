@@ -44,3 +44,20 @@ describe('CarSchema', () => {
     expect(() => CarSchema.parse({ make: 'x', model: 'y', year: 2020, mileage: 0, fuelType: 'petrol' })).toThrow();
   });
 });
+
+describe('CarSchema mileageUpdatedAt', () => {
+  const base = {
+    id: '11111111-1111-4111-8111-111111111111', ownerId: 'o', make: 'VW', model: 'Golf',
+    year: 2018, mileage: 1000, fuelType: 'diesel',
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  it('is required on Car', () => {
+    expect(() => CarSchema.parse(base)).toThrow();
+    expect(CarSchema.parse({ ...base, mileageUpdatedAt: '2026-01-01T00:00:00.000Z' }).mileageUpdatedAt)
+      .toBe('2026-01-01T00:00:00.000Z');
+  });
+  it('is NOT accepted on CreateCarSchema (server-owned)', () => {
+    const parsed = CreateCarSchema.parse({ make: 'VW', model: 'Golf', year: 2018, mileage: 1, fuelType: 'diesel', mileageUpdatedAt: 'x' });
+    expect('mileageUpdatedAt' in parsed).toBe(false); // stripped
+  });
+});

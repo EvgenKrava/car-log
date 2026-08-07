@@ -1,5 +1,5 @@
 import { CreateCarSchema, SetSharingSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository } from '@carlog/domain';
+import { CarNotFoundError, createCar, nowIso, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handleEventRoute } from './event-routes';
 import { handleReminderRoute } from './reminder-routes';
@@ -129,7 +129,13 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
       const { shared } = SetSharingSchema.parse(body);
       return ok(200, await deps.cars.setShared(ownerId, id, shared));
     }
-    if (id && path === `/cars/${id}` && method === 'PUT') return ok(200, await deps.cars.update(ownerId, id, CreateCarSchema.parse(body)));
+    if (id && path === `/cars/${id}` && method === 'PUT') {
+      const input = CreateCarSchema.parse(body);
+      const existing = await deps.cars.getById(ownerId, id);
+      if (!existing) throw new CarNotFoundError(id);
+      const mileageUpdatedAt = input.mileage !== existing.mileage ? nowIso() : undefined;
+      return ok(200, await deps.cars.update(ownerId, id, input, mileageUpdatedAt));
+    }
     if (id && path === `/cars/${id}` && method === 'DELETE') { await deps.cars.delete(ownerId, id); return ok(204, null); }
     if (id && path === `/cars/${id}` && method === 'GET') {
       const car = await deps.cars.getById(ownerId, id);

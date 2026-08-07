@@ -4,7 +4,7 @@ import {
   MAX_REMINDERS_PER_CAR, type Car, type Event, type Reminder, type ChatAction, type ChatActionKind,
 } from '@carlog/contracts';
 import {
-  createReminder, createEvent, bumpCarMileage, searchEvents, sumSpend,
+  createReminder, createEvent, bumpCarMileage, searchEvents, sumSpend, nowIso,
   type CarRepository, type EventRepository, type ReminderRepository,
   type ChatToolExecutor, type ChatToolCall, type ChatToolOutcome,
 } from '@carlog/domain';
@@ -200,7 +200,10 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
         const car = await this.loadCurrentCar();
         if (!car) return fail('This car no longer exists.');
         const bumped = bumpCarMileage(car, created.mileage);
-        if (bumped) await this.deps.cars.update(ownerId, carId, bumped);
+        if (bumped) {
+          const { mileageUpdatedAt, ...input } = bumped;
+          await this.deps.cars.update(ownerId, carId, input, mileageUpdatedAt);
+        }
         const summary = eventSummary(created);
         return ok(`Logged: ${summary}. id=${created.id}`,
           this.action('create_event', summary, created.id));
@@ -217,7 +220,10 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
         const car = await this.loadCurrentCar();
         if (!car) return fail('This car no longer exists.');
         const bumped = bumpCarMileage(car, updated.mileage);
-        if (bumped) await this.deps.cars.update(ownerId, carId, bumped);
+        if (bumped) {
+          const { mileageUpdatedAt, ...input } = bumped;
+          await this.deps.cars.update(ownerId, carId, input, mileageUpdatedAt);
+        }
         const summary = eventSummary(updated);
         return ok(`Updated: ${summary}.`, this.action('update_event', summary, id));
       }
@@ -241,7 +247,9 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
         if (!car) return fail('This car no longer exists.');
         // Odometer-lowering via update_car is intentionally allowed here (owner correcting
         // a typo) — bumpCarMileage's monotonicity guard is for event-derived readings only.
-        const { id: _i, ownerId: _o, createdAt: _c, updatedAt: _u, shared: _s, ...current } = car;
+        const {
+          id: _i, ownerId: _o, createdAt: _c, updatedAt: _u, mileageUpdatedAt: _m, shared: _s, ...current
+        } = car;
         const parsed = CreateCarSchema.parse({ ...current, ...fields });
         // Build the summary only from keys the car contract actually accepts — Zod silently
         // drops unknown keys (and rejects an ownerId/carId override attempt via extra keys
@@ -250,7 +258,10 @@ export class DomainChatToolExecutor implements ChatToolExecutor {
         // name fields that never changed anything.
         const changedKeys = Object.keys(fields).filter((k) => CAR_FIELD_NAMES.has(k));
         if (changedKeys.length === 0) return fail('No car fields were given to change.');
-        const updated = await this.deps.cars.update(ownerId, carId, parsed);
+        // mileageUpdatedAt moves ONLY when mileage itself changed — a nickname/vin/etc.
+        // edit through this same tool must not touch it.
+        const mileageUpdatedAt = parsed.mileage !== car.mileage ? nowIso() : undefined;
+        const updated = await this.deps.cars.update(ownerId, carId, parsed, mileageUpdatedAt);
         const summary = `Updated ${changedKeys.join(', ')} on ${updated.make} ${updated.model}`;
         return ok(`${summary}.`, this.action('update_car', summary, carId));
       }
