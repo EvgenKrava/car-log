@@ -10,7 +10,7 @@ import type { EventCategory, FuelType, PublicCar, PublicEvent } from '@carlog/co
 import { usePublicCar } from '../queries';
 import { CATEGORY_META, categoryTint } from '../lib/event-category';
 import { formatDate, formatNumber } from '../i18n/format';
-import { StatusView } from '../components/ui/StatusView';
+import { VehicleHeroSkeleton, TimelineEntrySkeleton } from '../components/ui/skeletons';
 import { EmptyState } from '../components/ui/EmptyState';
 
 const FUEL_ICONS: Record<FuelType, React.ReactNode> = {
@@ -219,8 +219,11 @@ export function PublicVehicle() {
   if (isLoading) {
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-        <Container maxWidth="md">
-          <StatusView state="loading" />
+        <Container maxWidth="md" sx={{ py: { xs: 3, sm: 4 } }}>
+          <Stack spacing={{ xs: 2.5, sm: 3 }}>
+            <VehicleHeroSkeleton />
+            {[0, 1, 2].map((i) => <TimelineEntrySkeleton key={i} />)}
+          </Stack>
         </Container>
       </Box>
     );

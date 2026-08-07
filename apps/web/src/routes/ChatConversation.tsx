@@ -7,6 +7,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { PageHeader } from '../components/ui/PageHeader';
+import { ChatBubbleSkeleton } from '../components/ui/skeletons';
 import { Reveal } from '../components/ui/Reveal';
 import { ChatBubble } from '../components/chat/ChatBubble';
 import { VoiceComposerButton } from '../components/chat/VoiceComposerButton';
@@ -264,7 +265,9 @@ export function ChatConversation() {
       <Container maxWidth="md" sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', py: 2 }}>
         <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
           {session.isLoading ? (
-            <Stack alignItems="center" sx={{ py: 6 }}><CircularProgress size={22} /></Stack>
+            <Stack spacing={2}>
+              {[0, 1, 2].map((i) => <ChatBubbleSkeleton key={i} />)}
+            </Stack>
           ) : messages.length === 0 && !pending ? (
             <Stack spacing={2} alignItems="center" sx={{ textAlign: 'center', py: 4, px: 2, color: 'text.secondary' }}>
               <Box sx={{ width: 52, height: 52, borderRadius: '50%', display: 'grid', placeItems: 'center', color: 'primary.main',

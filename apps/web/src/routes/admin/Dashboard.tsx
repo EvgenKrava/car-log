@@ -16,6 +16,7 @@ import { AppShell } from '../../components/ui/AppShell';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusView } from '../../components/ui/StatusView';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { DashboardTilesSkeleton } from '../../components/ui/skeletons';
 import { CATEGORY_META, categoryTint } from '../../lib/event-category';
 import { formatDate, formatNumber } from '../../i18n/format';
 
@@ -124,7 +125,7 @@ export function Dashboard() {
       <PageHeader title={t('admin:dashboardTitle')} onBack={() => navigate('/')} />
       <Container maxWidth="sm" sx={{ py: 3 }}>
         {isLoading ? (
-          <StatusView state="loading" />
+          <DashboardTilesSkeleton />
         ) : isError || !data ? (
           <StatusView state="error" message={t('admin:dashboardLoadError')} />
         ) : (

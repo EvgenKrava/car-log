@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Box, Button, CircularProgress, IconButton, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, IconButton, Stack, TextField, Typography } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -9,6 +9,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { useChatSessions, useDeleteChatSession, useRenameChatSession } from '../queries';
 import { formatDate } from '../i18n/format';
+import { ChatSessionRowSkeleton } from './ui/skeletons';
 import { Modal } from './ui/Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -31,7 +32,9 @@ export function ChatPanel({ carId }: { carId: string }) {
   return (
     <Stack spacing={1.5}>
       {sessions.isLoading ? (
-        <Stack alignItems="center" sx={{ py: 6 }}><CircularProgress size={22} /></Stack>
+        <Stack spacing={1}>
+          {[0, 1, 2].map((i) => <ChatSessionRowSkeleton key={i} />)}
+        </Stack>
       ) : list.length === 0 ? (
         <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center', py: 5, px: 2, color: 'text.secondary' }}>
           <Box sx={{ width: 52, height: 52, borderRadius: '50%', display: 'grid', placeItems: 'center', color: 'primary.main',
