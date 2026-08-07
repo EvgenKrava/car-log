@@ -23,8 +23,18 @@ export class AwsTranscribeProvider implements TranscribeProvider {
         yield { AudioEvent: { AudioChunk: pcm.subarray(off, off + CHUNK_BYTES) } };
       }
     }
+    // Without an abort signal, losing the race below abandons the `run` promise but the
+    // underlying HTTP/2 stream keeps consuming on AWS's side — Transcribe keeps billing and
+    // holding the connection open with nothing left reading its output. Abort it the instant
+    // the timeout fires, and cancel the timer the instant `run` wins so it doesn't fire late.
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const timeout = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new TranscribeUnavailableError('transcription timed out')), CALL_TIMEOUT_MS).unref?.();
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new TranscribeUnavailableError('transcription timed out'));
+      }, CALL_TIMEOUT_MS);
+      timeoutId.unref?.();
     });
     try {
       const run = (async () => {
@@ -33,7 +43,7 @@ export class AwsTranscribeProvider implements TranscribeProvider {
           MediaEncoding: 'pcm',
           MediaSampleRateHertz: SAMPLE_RATE,
           AudioStream: audioStream(),
-        }));
+        }), { abortSignal: controller.signal });
         const parts: string[] = [];
         for await (const evt of res.TranscriptResultStream ?? []) {
           for (const r of evt.TranscriptEvent?.Transcript?.Results ?? []) {
@@ -42,7 +52,9 @@ export class AwsTranscribeProvider implements TranscribeProvider {
         }
         return parts.join(' ').trim();
       })();
-      return await Promise.race([run, timeout]);
+      const result = await Promise.race([run, timeout]);
+      if (timeoutId) clearTimeout(timeoutId);
+      return result;
     } catch (err) {
       if (err instanceof TranscribeUnavailableError) throw err;
       const e = err as Error;

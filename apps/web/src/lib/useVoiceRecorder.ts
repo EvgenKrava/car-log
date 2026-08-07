@@ -14,6 +14,11 @@ export function useVoiceRecorder() {
   const [state, setState] = useState<'idle' | 'recording' | 'encoding'>('idle');
   const [level, setLevel] = useState(0);
   const [seconds, setSeconds] = useState(0);
+  // Mirrors useSpeechRecognition's error shape so the caller can render the same
+  // denied/failed copy regardless of which voice path is active. 'denied' = the browser's
+  // permission prompt was refused (or blocked by a prior denial); 'failed' = any other
+  // getUserMedia rejection (no device, already in use, insecure context, etc).
+  const [error, setError] = useState<'denied' | 'failed' | null>(null);
 
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -62,11 +67,17 @@ export function useVoiceRecorder() {
     if (!supported || stateRef.current !== 'idle') return Promise.resolve();
     if (startInFlight.current) return startInFlight.current; // permission prompt already pending
     const myRun = ++runId.current;
+    setError(null);
     const p = (async () => {
       let media: MediaStream;
       try {
         media = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch {
+      } catch (err) {
+        // Surface denied vs. any other failure (no device, already in use, insecure
+        // context, etc) so the caller can show the right copy — previously this was
+        // swallowed silently and the mic-denied path showed nothing at all.
+        const name = (err as { name?: string }).name;
+        setError(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'failed');
         return; // denied/unavailable — stay idle; the caller sees stopAndEncode() return null
       }
       if (myRun !== runId.current) {
@@ -91,18 +102,32 @@ export function useVoiceRecorder() {
         rec.start();
         setPhase('recording');
 
-        // Live level meter (RMS of the time-domain signal per animation frame).
+        // Live level meter (RMS of the time-domain signal per animation frame). The
+        // analyser itself still runs at 60fps for a responsive meter, but `setLevel` (a
+        // React state write) is throttled to ~10/s — un-throttled, it re-rendered the
+        // whole (un-memoized) markdown chat list every frame for up to 60s, causing
+        // visible stutter on the primary device. Only commit when the value actually
+        // moved (>0.02) or 100ms elapsed, whichever first — keeps the meter responsive to
+        // real level changes while skipping the vast majority of same-ish frames.
         const ctx = new AudioContext();
         audioCtx.current = ctx;
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 512;
         ctx.createMediaStreamSource(media).connect(analyser);
         const data = new Uint8Array(analyser.fftSize);
+        let lastCommitted = 0;
+        let lastCommitAt = 0;
         const tick = () => {
           analyser.getByteTimeDomainData(data);
           let sum = 0;
           for (let i = 0; i < data.length; i += 1) { const d = (data[i]! - 128) / 128; sum += d * d; }
-          setLevel(Math.min(1, Math.sqrt(sum / data.length) * 3));
+          const next = Math.min(1, Math.sqrt(sum / data.length) * 3);
+          const now = performance.now();
+          if (Math.abs(next - lastCommitted) > 0.02 || now - lastCommitAt >= 100) {
+            lastCommitted = next;
+            lastCommitAt = now;
+            setLevel(next);
+          }
           raf.current = requestAnimationFrame(tick);
         };
         raf.current = requestAnimationFrame(tick);
@@ -143,15 +168,26 @@ export function useVoiceRecorder() {
         if (rec.state !== 'inactive') rec.stop();
       });
     const ctxForDecode = new AudioContext();
+    let decodeTimeout: ReturnType<typeof setTimeout> | undefined;
     try {
       if (!blob) return null;
-      const decoded = await ctxForDecode.decodeAudioData(await blob.arrayBuffer());
+      // A real Safari/AAC decode failure mode is HANGING rather than rejecting — with a
+      // bare await, that leaves ctxForDecode (and its audio resources) open forever,
+      // since the `finally` below never runs until the await settles. Race it against a
+      // 10s timeout instead; either way we fall through to the same `finally` cleanup and
+      // the caller sees the existing null → retry path.
+      const decode = ctxForDecode.decodeAudioData(await blob.arrayBuffer());
+      const timeout = new Promise<never>((_, reject) => {
+        decodeTimeout = setTimeout(() => reject(new Error('decode timed out')), 10_000);
+      });
+      const decoded = await Promise.race([decode, timeout]);
       const channels = Array.from({ length: decoded.numberOfChannels },
         (_, ch) => decoded.getChannelData(ch));
       return encodeWav16kMono({ channels, sampleRate: decoded.sampleRate });
     } catch {
       return null;
     } finally {
+      if (decodeTimeout) clearTimeout(decodeTimeout);
       void ctxForDecode.close();
       teardown();
       setPhase('idle');
@@ -181,5 +217,5 @@ export function useVoiceRecorder() {
     teardown();
   }, [teardown]);
 
-  return { supported, state, level, seconds, start, stopAndEncode, cancel };
+  return { supported, state, level, seconds, error, start, stopAndEncode, cancel };
 }

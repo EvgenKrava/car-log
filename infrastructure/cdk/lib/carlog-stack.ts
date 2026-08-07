@@ -153,7 +153,12 @@ export class CarLogStack extends Stack {
       // reservation is rejected. The account-wide cap of 10 already bounds concurrent
       // compute; API Gateway stage throttling (below) handles request-rate limiting.
       logRetention: RetentionDays.ONE_WEEK,
-      bundling: { format: undefined },
+      // NodejsFunction externalizes `@aws-sdk/*` by default (they're assumed present in the
+      // Lambda Node runtime), but `@aws-sdk/client-transcribe-streaming` is NOT bundled into
+      // nodejs20.x — without this it would be missing from the deployed asset entirely, and
+      // the handler's top-level import would throw Runtime.ImportModuleError on cold start,
+      // taking down every route, not just transcription.
+      bundling: { format: undefined, nodeModules: ['@aws-sdk/client-transcribe-streaming'] },
     });
     table.grantReadWriteData(fn);
     photosBucket.grantReadWrite(fn);

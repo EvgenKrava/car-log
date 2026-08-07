@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Alert, Box, Button, Chip, CircularProgress, Container, IconButton, Stack, TextField, Typography } from '@mui/material';
@@ -75,6 +75,13 @@ export function ChatConversation() {
   // once per render while `recorder.seconds` stays pinned at the cap (the hook stops
   // ticking once it auto-stops), so without this it would keep re-triggering finishRecording.
   const cappedHandledRef = useRef(false);
+  // Guards against finishRecording() being entered twice for the same clip: at the 60s cap,
+  // the auto-stop effect calls it, and if the user's pointerup for the same gesture lands in
+  // the same tick (batched), onMicPointerUp's outcome can still read 'record' before the
+  // reducer reset from the effect is committed, calling it again. The second entry's
+  // recorder.stopAndEncode() sees state already 'idle'/'encoding' and returns null, stamping
+  // "didn't catch that" over what the first call is still transcribing successfully.
+  const finishingRef = useRef(false);
 
   const voiceLang = (): 'uk-UA' | 'en-US' => (i18n.language.startsWith('uk') ? 'uk-UA' : 'en-US');
 
@@ -96,14 +103,27 @@ export function ChatConversation() {
   // Outcome `record`: stop the recorder, encode to WAV, and transcribe it. A null WAV
   // (nothing captured, or the decode/encode step failed) has no buffer to retry.
   const finishRecording = async () => {
-    const wav = await recorder.stopAndEncode();
-    if (!wav) { setVoiceNotice({ kind: 'retry', wav: null }); return; }
-    await runTranscription(wav, false);
+    if (finishingRef.current) return; // see finishingRef comment above
+    finishingRef.current = true;
+    try {
+      const wav = await recorder.stopAndEncode();
+      if (!wav) { setVoiceNotice({ kind: 'retry', wav: null }); return; }
+      await runTranscription(wav, false);
+    } finally {
+      finishingRef.current = false;
+    }
   };
 
   const onRetryVoice = () => {
     if (voiceNotice?.kind === 'retry' && voiceNotice.wav) void runTranscription(voiceNotice.wav, true);
   };
+
+  // Memoized so ChatBubble's React.memo (finding #7) actually holds — an inline arrow
+  // here would be a new prop identity on every parent re-render, including the ~10/s
+  // voice-level ticks the memo exists to filter out, defeating the memoization entirely.
+  const onResolveAction = useCallback((aid: string, confirm: boolean) => {
+    void resolve.mutateAsync({ sid, aid, confirm });
+  }, [resolve, sid]);
 
   const clearHoldTimer = () => {
     if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
@@ -262,7 +282,7 @@ export function ChatConversation() {
                 <Reveal key={i} index={i < initialCount ? Math.max(0, i - (initialCount - 10)) : 0}>
                   <ChatBubble {...m}
                     resolving={resolve.isPending}
-                    onResolveAction={(aid, confirm) => { void resolve.mutateAsync({ sid, aid, confirm }); }} />
+                    onResolveAction={onResolveAction} />
                 </Reveal>
               ))}
               {pending ? (
@@ -287,6 +307,13 @@ export function ChatConversation() {
         {speech.error ? (
           <Alert severity="warning" sx={{ mb: 1 }}>
             {speech.error === 'denied' ? t('chat:voiceDenied') : t('chat:error')}
+          </Alert>
+        ) : recorder.error ? (
+          // Hold-to-record path: getUserMedia was rejected (mic denied, or any other
+          // failure — no device, already in use, insecure context). Previously this had
+          // no wiring at all and the gesture silently produced nothing.
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            {recorder.error === 'denied' ? t('chat:voiceDenied') : t('chat:voiceRetry')}
           </Alert>
         ) : null}
         {tooLong ? (
