@@ -14,6 +14,7 @@ import { DynamoProofRepository } from './dynamo-proof-repository';
 import { DynamoReminderRepository } from './dynamo-reminder-repository';
 import { DynamoImportJobRepository } from './import-job-repository';
 import { DynamoChatSessionRepository } from './dynamo-chat-session-repository';
+import { DynamoPushSubscriptionRepository } from './push-subscription-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { AwsTranscribeProvider } from './transcribe-provider';
@@ -88,6 +89,7 @@ const deps: RouteDeps = {
   adminUsers,
   metrics,
   apiId: process.env.API_ID ?? '',
+  pushSubs: new DynamoPushSubscriptionRepository(tableName, client),
 };
 
 const isImportPayload = (e: unknown): e is ImportWorkPayload =>

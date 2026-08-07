@@ -9,6 +9,7 @@ import type { TranscribeProvider } from './transcribe-provider';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
 import { handleImportCarRoute } from './import-car-route';
+import { handlePushRoute } from './push-routes';
 import { handleScanRoute } from './scan-routes';
 import { handleAdminRoute } from './admin-routes';
 import { handlePublicRoute } from './public-routes';
@@ -16,6 +17,7 @@ import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 import type { CognitoUserAdmin } from './cognito-user-admin';
 import type { MetricsPort } from './cloudwatch-metrics';
+import type { PushSubscriptionRepository } from './push-subscription-repository';
 
 export type ApiEvent = {
   method: string;
@@ -39,6 +41,7 @@ export type RouteDeps = {
   adminUsers: CognitoUserAdmin;
   metrics: MetricsPort;
   apiId: string;
+  pushSubs: PushSubscriptionRepository;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -74,6 +77,11 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
         { cars: deps.cars, events: deps.events, storage: deps.storage, llm: deps.llm, loadScanBase64: deps.loadScanBase64, newId: deps.newId },
         event, ownerId,
       );
+      if (result) return result;
+    }
+
+    if (path === '/push/subscription') {
+      const result = await handlePushRoute({ pushSubs: deps.pushSubs }, event, ownerId);
       if (result) return result;
     }
 
