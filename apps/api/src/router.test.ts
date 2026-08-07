@@ -7,6 +7,7 @@ import { InMemoryLlmProvider } from './in-memory-llm-provider';
 import { InMemoryImportJobRepository } from './in-memory-import-job-repository';
 import { InMemoryReminderRepository } from './in-memory-reminder-repository';
 import { InMemoryChatSessionRepository } from './in-memory-chat-session-repository';
+import { InMemoryTranscribeProvider } from './in-memory-transcribe-provider';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -35,7 +36,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -46,6 +47,7 @@ beforeEach(() => {
     reminders: new InMemoryReminderRepository(),
     llm: new InMemoryLlmProvider({ events: [{ date: '2024-01-15', mileage: 45000, cost: 1200, category: 'oil_change' }] }),
     sessions: new InMemoryChatSessionRepository(),
+    transcriber: new InMemoryTranscribeProvider('stub'),
     importJobs: new InMemoryImportJobRepository(),
     enqueueImport: enqueueSpy,
     loadScanBase64: async () => 'BASE64DATA',

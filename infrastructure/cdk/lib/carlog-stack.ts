@@ -179,6 +179,9 @@ export class CarLogStack extends Stack {
     }));
     // GetMetricData has no resource-level scoping in IAM — '*' is correct/required.
     fn.addToRolePolicy(new PolicyStatement({ actions: ['cloudwatch:GetMetricData'], resources: ['*'] }));
+    // Transcribe streaming has no resource-level scoping. Action name to be
+    // live-verified at deploy (Task 4) — some SDK versions expose it differently.
+    fn.addToRolePolicy(new PolicyStatement({ actions: ['transcribe:StartStreamTranscription'], resources: ['*'] }));
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
       jwtAudience: [client.userPoolClientId],
@@ -202,6 +205,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/actions/{aid}/confirm', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/actions/{aid}/decline', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/chat/attachments/presign', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/transcribe', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/car', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });

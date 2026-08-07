@@ -4,6 +4,8 @@ import {
   ChatAttachmentPresignRequestSchema,
   ChatActionSchema,
   StoredChatMessageSchema,
+  TranscribeRequestSchema,
+  TRANSCRIBE_AUDIO_MAX_B64,
 } from './chat';
 
 const attach = { key: 'chat/u/c/a.jpg', contentType: 'image/jpeg' as const, size: 1000 };
@@ -83,5 +85,22 @@ describe('StoredChatMessageSchema actions', () => {
       role: 'assistant', content: 'hi', createdAt: '2026-08-04T10:00:00.000Z',
       actions: Array.from({ length: 11 }, () => action),
     })).toThrow();
+  });
+});
+
+describe('TranscribeRequestSchema', () => {
+  it('accepts a valid request', () => {
+    expect(TranscribeRequestSchema.safeParse({ audio: 'aGVsbG8=', language: 'uk-UA' }).success).toBe(true);
+  });
+  it('rejects empty audio', () => {
+    expect(TranscribeRequestSchema.safeParse({ audio: '', language: 'uk-UA' }).success).toBe(false);
+  });
+  it('rejects oversized audio', () => {
+    expect(TranscribeRequestSchema.safeParse({
+      audio: 'a'.repeat(TRANSCRIBE_AUDIO_MAX_B64 + 1), language: 'uk-UA',
+    }).success).toBe(false);
+  });
+  it('rejects an unknown language', () => {
+    expect(TranscribeRequestSchema.safeParse({ audio: 'aGVsbG8=', language: 'fr-FR' }).success).toBe(false);
   });
 });

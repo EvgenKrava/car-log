@@ -1,6 +1,7 @@
 import { ZodError } from 'zod';
 import { CarNotFoundError, CapExceededError, EventNotFoundError, ProofNotFoundError, ReminderNotFoundError, ExtractionFailedError } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
+import { TranscribeUnavailableError } from './transcribe-errors';
 
 
 const CORS = {
@@ -37,6 +38,9 @@ export async function withErrorHandling(fn: () => Promise<ApiResult>): Promise<A
     }
     if (err instanceof LlmUnavailableError) {
       return { statusCode: 503, headers: CORS, body: JSON.stringify({ error: 'LlmUnavailable', message: err.message }) };
+    }
+    if (err instanceof TranscribeUnavailableError) {
+      return { statusCode: 503, headers: CORS, body: JSON.stringify({ error: 'TranscribeUnavailable', message: err.message }) };
     }
     console.error('Unhandled error', err);
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'InternalError' }) };

@@ -4,6 +4,8 @@ import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handleEventRoute } from './event-routes';
 import { handleReminderRoute } from './reminder-routes';
 import { handleChatRoute } from './chat-session-routes';
+import { handleTranscribeRoute } from './transcribe-route';
+import type { TranscribeProvider } from './transcribe-provider';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
 import { handleImportCarRoute } from './import-car-route';
@@ -29,6 +31,7 @@ export type RouteDeps = {
   cars: CarRepository; storage: PhotoStorage;
   events: EventRepository; proofs: ProofRepository; reminders: ReminderRepository; llm: LlmProvider;
   sessions: ChatSessionRepository;
+  transcriber: TranscribeProvider;
   importJobs: ImportJobRepository;
   enqueueImport: (p: ImportWorkPayload) => Promise<void>;
   loadScanBase64: (key: string) => Promise<string | null>;
@@ -97,6 +100,11 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (id && path.startsWith(`/cars/${id}/reminders`)) {
       const result = await handleReminderRoute({ cars: deps.cars, reminders: deps.reminders }, event, ownerId, id);
+      if (result) return result;
+    }
+
+    if (id && path === `/cars/${id}/chat/transcribe`) {
+      const result = await handleTranscribeRoute({ cars: deps.cars, transcriber: deps.transcriber }, event, ownerId, id);
       if (result) return result;
     }
 
