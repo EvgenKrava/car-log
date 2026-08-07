@@ -13,6 +13,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { EventFormDialog } from './EventFormDialog';
 import { StatusView } from './ui/StatusView';
 import { EmptyState } from './ui/EmptyState';
+import { ReminderCardSkeleton } from './ui/skeletons';
 import { Reveal } from './ui/Reveal';
 
 export type RemindersSectionHandle = { openAdd: () => void };
@@ -46,7 +47,7 @@ export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>
     <Box sx={{ mt: 4 }}>
       <Typography variant="h6" sx={{ mb: 1 }}>{t('reminders:sectionTitle')}</Typography>
       {isLoading ? (
-        <StatusView state="loading" />
+        <StatusView state="loading" skeleton={<>{[0, 1, 2].map((i) => <ReminderCardSkeleton key={i} />)}</>} />
       ) : isError ? (
         <StatusView state="error" message={t('reminders:loadError')} />
       ) : !sections.length ? (

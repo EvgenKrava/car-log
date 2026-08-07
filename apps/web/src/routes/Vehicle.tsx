@@ -39,7 +39,7 @@ import { ServiceTimeline } from '../components/ServiceTimeline';
 import { SpendSparkline } from '../components/SpendSparkline';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
-import { StatusView } from '../components/ui/StatusView';
+import { VehicleHeroSkeleton, TimelineEntrySkeleton } from '../components/ui/skeletons';
 import { formatNumber } from '../i18n/format';
 import { tokens } from '../theme/tokens';
 import { buildCarExport } from '../lib/car-export';
@@ -616,7 +616,16 @@ export function Vehicle() {
   const navigate = useNavigate();
   const { data: car, isLoading, isError } = useCar(id);
 
-  if (isLoading) return <AppShell><StatusView state="loading" /></AppShell>;
+  if (isLoading) {
+    return (
+      <AppShell>
+        <Container maxWidth="md" sx={{ py: { xs: 3, sm: 4 } }}>
+          <VehicleHeroSkeleton />
+          {[0, 1, 2].map((i) => <TimelineEntrySkeleton key={i} />)}
+        </Container>
+      </AppShell>
+    );
+  }
   if (isError || !car) {
     return (
       <AppShell>

@@ -15,6 +15,7 @@ import { AppShell } from '../../components/ui/AppShell';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusView } from '../../components/ui/StatusView';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { UserRowSkeleton } from '../../components/ui/skeletons';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDate } from '../../i18n/format';
 
@@ -92,7 +93,9 @@ export function UserManagement() {
       <PageHeader title={t('admin:title')} onBack={() => navigate('/')} />
       <Container maxWidth="sm" sx={{ py: 3 }}>
         {isLoading ? (
-          <StatusView state="loading" />
+          <Stack spacing={1.5}>
+            {[0, 1, 2].map((i) => <UserRowSkeleton key={i} />)}
+          </Stack>
         ) : isError ? (
           <StatusView state="error" message={t('admin:loadError')} />
         ) : !data?.users.length ? (

@@ -12,6 +12,7 @@ import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StatusView } from '../components/ui/StatusView';
+import { VehicleCardSkeleton } from '../components/ui/skeletons';
 import { VehicleCard } from '../components/ui/VehicleCard';
 import { Reveal } from '../components/ui/Reveal';
 import { tokens } from '../theme/tokens';
@@ -35,7 +36,13 @@ export function Garage() {
       />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
-          <StatusView state="loading" />
+          <Grid container spacing={2}>
+            {[0, 1, 2].map((i) => (
+              <Grid item xs={12} sm={6} md={4} key={i}>
+                <VehicleCardSkeleton />
+              </Grid>
+            ))}
+          </Grid>
         ) : isError ? (
           <StatusView state="error" message={t('garage:loadError')} />
         ) : !cars?.length ? (

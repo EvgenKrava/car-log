@@ -14,6 +14,7 @@ import { EventCard } from './EventCard';
 import { EventFormDialog } from './EventFormDialog';
 import { EmptyState } from './ui/EmptyState';
 import { StatusView } from './ui/StatusView';
+import { TimelineEntrySkeleton } from './ui/skeletons';
 import { Reveal } from './ui/Reveal';
 
 // Does an event match the free-text query? Searches the fields a user would
@@ -150,7 +151,7 @@ export function ServiceTimeline({
       ) : null}
 
       {isLoading ? (
-        <StatusView state="loading" />
+        <StatusView state="loading" skeleton={<>{[0, 1, 2].map((i) => <TimelineEntrySkeleton key={i} />)}</>} />
       ) : isError ? (
         <StatusView state="error" message={t('event:loadError')} />
       ) : total === 0 ? (
