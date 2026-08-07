@@ -29,5 +29,10 @@
   "voiceStop": "Stop dictation",
   "voiceListening": "Listening…",
   "voiceDenied": "Microphone access was denied. Allow it in your browser settings to dictate.",
-  "suggestionRemind": "Remind me to change the oil in 10 000 km"
+  "suggestionRemind": "Remind me to change the oil in 10 000 km",
+  "voiceHoldHint": "Hold to record",
+  "voiceSlideCancel": "Slide to cancel",
+  "voiceTranscribing": "Transcribing…",
+  "voiceRetry": "Didn't catch that — retry",
+  "voiceTooLong": "Recording is capped at 60 seconds"
 }
