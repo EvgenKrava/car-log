@@ -42,3 +42,4 @@ POST /cars/{id}/chat/sessions/{sid}/messages
 POST /cars/{id}/chat/sessions/{sid}/actions/{aid}/confirm   # perform a proposed delete
 POST /cars/{id}/chat/sessions/{sid}/actions/{aid}/decline   # dismiss a proposed delete
 POST /cars/{id}/chat/attachments/presign
+POST /cars/{id}/chat/transcribe               # voice clip (16kHz WAV) -> text via Amazon Transcribe

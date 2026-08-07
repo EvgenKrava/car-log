@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Box, Chip, Divider, Link, Stack, Typography } from '@mui/material';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
@@ -67,7 +67,10 @@ type ChatBubbleProps = ChatMessageView & {
   resolving?: boolean;
 };
 
-export function ChatBubble({ role, content, attachments, actions, onResolveAction, resolving }: ChatBubbleProps) {
+// Memoized: this list re-renders on every voice-level tick during hold-to-record (parent
+// state changing 10x/s per finding #7) and its props are stable per message, so without
+// this every bubble — including the markdown-rendered assistant ones — re-renders in lockstep.
+export const ChatBubble = memo(function ChatBubble({ role, content, attachments, actions, onResolveAction, resolving }: ChatBubbleProps) {
   const attachmentStack = attachments.length > 0 ? (
     <Stack spacing={0.5} sx={{ alignItems: role === 'user' ? 'flex-end' : 'flex-start', mb: content ? 0.75 : 0 }}>
       {attachments.map((a) => <AttachmentView key={a.key} a={a} />)}
@@ -113,4 +116,4 @@ export function ChatBubble({ role, content, attachments, actions, onResolveActio
       </Box>
     </Box>
   );
-}
+});

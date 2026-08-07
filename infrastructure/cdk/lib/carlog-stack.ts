@@ -153,7 +153,12 @@ export class CarLogStack extends Stack {
       // reservation is rejected. The account-wide cap of 10 already bounds concurrent
       // compute; API Gateway stage throttling (below) handles request-rate limiting.
       logRetention: RetentionDays.ONE_WEEK,
-      bundling: { format: undefined },
+      // NodejsFunction externalizes `@aws-sdk/*` by default (they're assumed present in the
+      // Lambda Node runtime), but `@aws-sdk/client-transcribe-streaming` is NOT bundled into
+      // nodejs20.x — without this it would be missing from the deployed asset entirely, and
+      // the handler's top-level import would throw Runtime.ImportModuleError on cold start,
+      // taking down every route, not just transcription.
+      bundling: { format: undefined, nodeModules: ['@aws-sdk/client-transcribe-streaming'] },
     });
     table.grantReadWriteData(fn);
     photosBucket.grantReadWrite(fn);
@@ -179,6 +184,9 @@ export class CarLogStack extends Stack {
     }));
     // GetMetricData has no resource-level scoping in IAM — '*' is correct/required.
     fn.addToRolePolicy(new PolicyStatement({ actions: ['cloudwatch:GetMetricData'], resources: ['*'] }));
+    // Transcribe streaming has no resource-level scoping. Action name to be
+    // live-verified at deploy (Task 4) — some SDK versions expose it differently.
+    fn.addToRolePolicy(new PolicyStatement({ actions: ['transcribe:StartStreamTranscription'], resources: ['*'] }));
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
       jwtAudience: [client.userPoolClientId],
@@ -202,6 +210,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/actions/{aid}/confirm', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/chat/sessions/{sid}/actions/{aid}/decline', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/chat/attachments/presign', methods: [HttpMethod.POST], integration, authorizer });
+    httpApi.addRoutes({ path: '/cars/{id}/chat/transcribe', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/extract', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/car', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/import/presign', methods: [HttpMethod.POST], integration, authorizer });

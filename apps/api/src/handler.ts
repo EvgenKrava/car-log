@@ -16,6 +16,7 @@ import { DynamoImportJobRepository } from './import-job-repository';
 import { DynamoChatSessionRepository } from './dynamo-chat-session-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
+import { AwsTranscribeProvider } from './transcribe-provider';
 import { AwsCognitoUserAdmin } from './cognito-user-admin';
 import { AwsCloudWatchMetrics } from './cloudwatch-metrics';
 import { runImportJob, type ImportWorkPayload } from './import-worker';
@@ -79,6 +80,7 @@ const deps: RouteDeps = {
   reminders: new DynamoReminderRepository(tableName, client),
   llm,
   sessions: new DynamoChatSessionRepository(tableName, client),
+  transcriber: new AwsTranscribeProvider(),
   importJobs,
   enqueueImport,
   loadScanBase64,

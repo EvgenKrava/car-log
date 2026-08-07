@@ -104,6 +104,13 @@ export const ChatAttachmentPresignResponseSchema = z.object({
   uploadUrl: z.string().url(),
 });
 
+export const TRANSCRIBE_AUDIO_MAX_B64 = 2_800_000; // ~60s of 16kHz mono 16-bit WAV, base64
+export const TranscribeRequestSchema = z.object({
+  audio: z.string().min(1).max(TRANSCRIBE_AUDIO_MAX_B64), // base64 WAV
+  language: z.enum(['uk-UA', 'en-US']),
+});
+export const TranscribeResponseSchema = z.object({ text: z.string() });
+
 export type AttachmentRef = z.infer<typeof AttachmentRefSchema>;
 export type ChatAttachmentView = z.infer<typeof ChatAttachmentViewSchema>;
 export type ChatActionKind = z.infer<typeof ChatActionKindSchema>;
@@ -119,6 +126,8 @@ export type PostMessageResponse = z.infer<typeof PostMessageResponseSchema>;
 export type RenameSessionRequest = z.infer<typeof RenameSessionRequestSchema>;
 export type ChatAttachmentPresignRequest = z.infer<typeof ChatAttachmentPresignRequestSchema>;
 export type ChatAttachmentPresignResponse = z.infer<typeof ChatAttachmentPresignResponseSchema>;
+export type TranscribeRequest = z.infer<typeof TranscribeRequestSchema>;
+export type TranscribeResponse = z.infer<typeof TranscribeResponseSchema>;
 
 // The minimal message shape the LLM provider consumes (role + text). Attachments for the
 // current turn are passed to `chat()` separately as decoded bytes.

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event, CarExport } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, importCar, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, importCar, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, transcribeAudio, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
 import { prepareScanFile } from './lib/prepare-scan';
 
 export function useCars() {
@@ -323,6 +323,16 @@ export function usePostChatMessage(carId: string) {
         void qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] });
       }
     },
+  });
+}
+
+// Transcribes one recorded clip (WAV bytes, never persisted). No cache to invalidate —
+// the result is appended into the composer's text field by the caller, not stored.
+export function useTranscribe(carId: string) {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useMutation({
+    mutationFn: ({ wav, language }: { wav: ArrayBuffer; language: 'uk-UA' | 'en-US' }) =>
+      transcribeAudio(token, carId, wav, language),
   });
 }
 

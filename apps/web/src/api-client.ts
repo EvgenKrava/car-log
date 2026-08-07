@@ -31,6 +31,7 @@ import {
   ChatSessionSummarySchema,
   PostMessageResponseSchema,
   ChatAttachmentPresignResponseSchema,
+  TranscribeResponseSchema,
   type ChatSession,
   type ChatSessionSummary,
   type PostMessageResponse,
@@ -189,6 +190,24 @@ export const resolveChatAction = (
     ChatSessionSchema,
     { method: 'POST' },
   );
+
+// Sends a recorded clip (16kHz mono WAV) for server-side transcription. Audio is never
+// stored — the API decodes, transcribes via Amazon Transcribe, and discards it.
+export async function transcribeAudio(
+  token: string, carId: string, wav: ArrayBuffer, language: 'uk-UA' | 'en-US',
+): Promise<string> {
+  const bytes = new Uint8Array(wav);
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  const res = await request(
+    token, `${chatBase(carId)}/transcribe`, TranscribeResponseSchema,
+    { method: 'POST', body: JSON.stringify({ audio: btoa(bin), language }) },
+  );
+  return res.text;
+}
 
 // Presign + upload one already-prepared (downscaled) file, returning its attachment ref.
 export async function uploadChatAttachment(token: string, carId: string, file: File): Promise<AttachmentRef> {
