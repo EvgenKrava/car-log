@@ -1,11 +1,15 @@
+import { type ReactNode } from 'react';
 import { Box, CircularProgress, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
 export function StatusView({
-  state, message,
-}: { state: 'loading' | 'error'; message?: string }) {
+  state, message, skeleton,
+}: { state: 'loading' | 'error'; message?: string; skeleton?: ReactNode }) {
   const { t } = useTranslation(['common']);
   if (state === 'loading') {
+    // Content-shaped placeholder when the caller provides one; spinner fallback for
+    // operations and not-yet-upgraded consumers.
+    if (skeleton != null) return <>{skeleton}</>;
     return (
       <Box sx={{ display: 'grid', placeItems: 'center', py: 10 }}>
         <CircularProgress />

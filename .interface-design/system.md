@@ -56,5 +56,10 @@ Soft indigo accent (#5B5BD6) paired with generous whitespace, subtle shadows, an
 - **`prefers-reduced-motion: reduce` disables everything** (global clamp in MuiCssBaseline)
 - Phone bottom sheets slide up from the bottom edge; desktop dialogs use a quick Grow. Never a bare Fade for a sheet.
 
+### Loading States
+- **Skeletons for content with a knowable shape** (lists, cards, heroes, stat tiles) — MUI Skeleton, wave animation, sized to the real component so content appears without layout shift; 3 placeholder items per list.
+- **Spinners only for operations** (transcribing, scanning, uploading, auth redirects) — there is no layout to mimic.
+- Skeletons render on initial load only; background refetches keep stale content visible and never re-skeleton.
+
 ## Inspiration
 Linear, Stripe Dashboard, Notion — clean, modern SaaS aesthetics with attention to detail.
