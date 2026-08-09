@@ -21,6 +21,8 @@ import { AwsTranscribeProvider } from './transcribe-provider';
 import { AwsCognitoUserAdmin } from './cognito-user-admin';
 import { AwsCloudWatchMetrics } from './cloudwatch-metrics';
 import { runImportJob, type ImportWorkPayload } from './import-worker';
+import { runNotifyJob, type NotifyWorkPayload } from './notify-worker';
+import { WebPushSender } from './push-sender';
 import { route, type ApiEvent, type RouteDeps } from './router';
 import { parseGroups } from './admin-guard';
 
@@ -40,6 +42,9 @@ const adminUsers = new AwsCognitoUserAdmin(
   process.env.USER_POOL_ID ?? '',
 );
 const metrics = new AwsCloudWatchMetrics(new CloudWatchClient({}));
+const reminders = new DynamoReminderRepository(tableName, client);
+const pushSubs = new DynamoPushSubscriptionRepository(tableName, client);
+const pushSender = new WebPushSender();
 
 const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
   await lambda.send(new InvokeCommand({
@@ -78,7 +83,7 @@ const deps: RouteDeps = {
   storage: new S3PhotoStorage(photosBucket, s3),
   events,
   proofs: new DynamoProofRepository(tableName, client),
-  reminders: new DynamoReminderRepository(tableName, client),
+  reminders,
   llm,
   sessions: new DynamoChatSessionRepository(tableName, client),
   transcriber: new AwsTranscribeProvider(),
@@ -89,20 +94,33 @@ const deps: RouteDeps = {
   adminUsers,
   metrics,
   apiId: process.env.API_ID ?? '',
-  pushSubs: new DynamoPushSubscriptionRepository(tableName, client),
+  pushSubs,
 };
 
 const isImportPayload = (e: unknown): e is ImportWorkPayload =>
   typeof e === 'object' && e !== null && (e as { jobType?: unknown }).jobType === 'import';
 
+const isNotifyPayload = (e: unknown): e is NotifyWorkPayload =>
+  typeof e === 'object' && e !== null && (e as { jobType?: unknown }).jobType === 'notify';
+
 export async function handler(
-  event: APIGatewayProxyEventV2WithJWTAuthorizer | ImportWorkPayload,
+  event: APIGatewayProxyEventV2WithJWTAuthorizer | ImportWorkPayload | NotifyWorkPayload,
   context: Context,
 ): Promise<APIGatewayProxyResultV2 | void> {
   // Detached worker invocation (async self-invoke) — no API Gateway envelope.
   if (isImportPayload(event)) {
     await runImportJob(
       { jobs: importJobs, cars, events, llm, loadS3Text, remainingMs: () => context.getRemainingTimeInMillis() },
+      event,
+    );
+    return;
+  }
+
+  // Detached cron invocation (EventBridge daily rule, self-invoke pattern) — no API
+  // Gateway envelope either.
+  if (isNotifyPayload(event)) {
+    await runNotifyJob(
+      { subs: pushSubs, cars, reminders, sender: pushSender, remainingMs: () => context.getRemainingTimeInMillis() },
       event,
     );
     return;
