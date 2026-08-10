@@ -26,6 +26,7 @@ import { Callback } from './routes/Callback';
 import { UserManagement } from './routes/admin/UserManagement';
 import { Dashboard } from './routes/admin/Dashboard';
 import { InstallPrompt } from './components/InstallPrompt';
+import { PushRefresh } from './components/PushRefresh';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function Root() {
     <ThemeProvider theme={buildTheme(resolved)}>
       <CssBaseline />
       <AuthProvider>
+        <PushRefresh />
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <Routes>

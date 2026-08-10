@@ -1,0 +1,12 @@
+{
+  "pushTitle": "Push notifications",
+  "pushBody": "Get a nudge when a car's odometer goes stale or a reminder comes due.",
+  "pushEnable": "Enable notifications",
+  "pushEnabled": "Notifications enabled",
+  "pushDenied": "Notifications are blocked for CarLog. Enable them in your browser or system settings to turn this back on.",
+  "pushIosInstall": "On iPhone, notifications only work once CarLog is added to your Home Screen: tap the Share icon, then \"Add to Home Screen\".",
+  "pushEnableFailed": "Couldn't enable notifications. Please try again.",
+  "pushDismiss": "Got it",
+  "promptTitle": "Get notified when service is due",
+  "promptEnable": "Enable"
+}

@@ -38,6 +38,7 @@ import {
   type AttachmentRef,
   type ScanDocContentType,
   type CarExport,
+  type PushSubscription,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -234,6 +235,16 @@ export const deleteReminder = (token: string, carId: string, reminderId: string)
 // 200 → the rescheduled next occurrence; 204 (one-shot, deleted) → undefined.
 export const completeReminder = (token: string, carId: string, reminderId: string, input: CompleteReminderInput): Promise<Reminder | undefined> =>
   request(token, `${reminderBase(carId)}/${reminderId}/complete`, ReminderSchema, { method: 'POST', body: JSON.stringify(input) });
+
+// Raw browser PushSubscription fields (no lang — that's captured separately at
+// subscribe time from the app's current i18n language, not part of the browser object).
+type PushSubscriptionInput = Omit<PushSubscription, 'lang'>;
+
+export const savePushSubscription = (token: string, sub: PushSubscriptionInput, lang: 'uk' | 'en'): Promise<void> =>
+  request(token, '/push/subscription', z.undefined(), { method: 'POST', body: JSON.stringify({ ...sub, lang }) });
+
+export const deletePushSubscription = (token: string, endpoint: string): Promise<void> =>
+  request(token, '/push/subscription', z.undefined(), { method: 'DELETE', body: JSON.stringify({ endpoint }) });
 
 export const listUsers = (token: string, nextToken?: string): Promise<ListUsersResponse> => {
   const qs = nextToken ? `?nextToken=${encodeURIComponent(nextToken)}` : '';

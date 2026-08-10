@@ -46,13 +46,13 @@ export function ReminderCard({
   return (
     <Card variant="outlined" sx={{ mb: 1, borderRadius: 2, ...(accent ? { borderLeft: 3, borderLeftColor: accent } : {}) }}>
       <CardContent sx={{ '&:last-child': { pb: 2 } }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-          <Chip label={t(`event:category_${reminder.category}`)} size="small" color="primary" variant="outlined" sx={{ minWidth: 96 }} />
+        {/* Line 1: title dominates and wraps naturally; the ⋮ menu is pinned to the
+            top-right corner (alignSelf flex-start) so it never drifts mid-card when
+            the title wraps to a second line. */}
+        <Stack direction="row" spacing={1} alignItems="flex-start">
           <Typography sx={{ fontWeight: 600, flexGrow: 1 }}>{reminder.title}</Typography>
-          {reminder.repeatMonths !== undefined || reminder.repeatKm !== undefined ? (
-            <Chip icon={<RepeatIcon />} label={t('reminders:repeats')} size="small" variant="outlined" />
-          ) : null}
-          <IconButton size="small" aria-label={t('reminders:moreActions')} onClick={(e) => setMenuAnchor(e.currentTarget)}>
+          <IconButton size="small" aria-label={t('reminders:moreActions')} onClick={(e) => setMenuAnchor(e.currentTarget)}
+            sx={{ alignSelf: 'flex-start', mt: -0.5, mr: -0.5 }}>
             <MoreVertIcon fontSize="small" />
           </IconButton>
           <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
@@ -66,12 +66,18 @@ export function ReminderCard({
             </MenuItem>
           </Menu>
         </Stack>
+        {/* Line 2: the anchor dueness line (unchanged). */}
         {anchorText ? (
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 0.5, color: accent ?? 'text.primary' }}>
             {anchorText}
           </Typography>
         ) : null}
-        <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+        {/* Line 3: every chip (category, repeat, date/km) grouped into one wrapping row. */}
+        <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', rowGap: 1 }}>
+          <Chip label={t(`event:category_${reminder.category}`)} size="small" color="primary" variant="outlined" />
+          {reminder.repeatMonths !== undefined || reminder.repeatKm !== undefined ? (
+            <Chip icon={<RepeatIcon />} label={t('reminders:repeats')} size="small" variant="outlined" />
+          ) : null}
           {dateLabel ? <Chip label={dateLabel} size="small" variant="outlined" /> : null}
           {kmLabel ? <Chip label={kmLabel} size="small" variant="outlined" /> : null}
         </Stack>
