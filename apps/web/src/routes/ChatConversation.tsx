@@ -15,7 +15,7 @@ import { RecordingBar } from '../components/chat/RecordingBar';
 import { useSpeechRecognition } from '../lib/useSpeechRecognition';
 import { useVoiceRecorder } from '../lib/useVoiceRecorder';
 import { MAX_CLIP_SECONDS } from '../lib/wav-encode';
-import { holdGestureReducer, holdOutcome, initialHoldState, HOLD_THRESHOLD_MS } from '../lib/hold-gesture';
+import { holdGestureReducer, holdOutcome, micEffect, initialHoldState, HOLD_THRESHOLD_MS } from '../lib/hold-gesture';
 import { useChatSession, useCreateChatSession, usePostChatMessage, useResolveChatAction, useTranscribe } from '../queries';
 
 // One voice-flow notice at a time, rendered in the alerts strip above the composer.
@@ -140,9 +140,15 @@ export function ChatConversation() {
     setTooLong(false);
     dispatchHold({ kind: 'down', at: Date.now() });
     clearHoldTimer();
+    // 'acquire' (see micEffect) MUST run synchronously in this handler rather than in the
+    // timer below: iOS/Safari only permit getUserMedia + AudioContext startup inside a
+    // user-gesture context, and a setTimeout callback is not one. Acquiring here (and only
+    // *recording* at promote-time) is what makes hold-to-record work on iPhone at all.
+    // Every gesture that ends without a clip releases the mic again — see onMicPointerUp.
+    recorder.acquire();
     holdTimerRef.current = setTimeout(() => {
       dispatchHold({ kind: 'holdTimer' });
-      void recorder.start();
+      void recorder.beginRecording(); // 'begin' — no gesture context needed, so a timer is fine
     }, HOLD_THRESHOLD_MS);
   };
 
@@ -152,22 +158,28 @@ export function ChatConversation() {
 
   const onMicPointerUp = () => {
     clearHoldTimer();
-    const outcome = holdOutcome(hold, { kind: 'up', at: Date.now() });
-    dispatchHold({ kind: 'up', at: Date.now() });
+    const up = { kind: 'up', at: Date.now() } as const;
+    const outcome = holdOutcome(hold, up);
+    const effect = micEffect(hold, up);
+    dispatchHold(up);
+    // 'release' covers BOTH a short tap and a slide-to-cancel. The tap case matters: the
+    // mic was already acquired in pointerdown (it has to be, for iOS), so a gesture that
+    // never promoted still owns a live stream — without this the orange iOS mic indicator
+    // stays lit after a stray tap and the next gesture finds acquire() already busy.
+    if (effect === 'release') recorder.cancel();
+    else if (effect === 'finish') void finishRecording();
     if (outcome === 'hint') setVoiceNotice({ kind: 'hint' });
-    else if (outcome === 'cancel') recorder.cancel();
-    else if (outcome === 'record') void finishRecording();
   };
 
   // A system interruption (incoming call, app switch) fires pointercancel instead of
   // pointerup — must tear the mic down exactly like an explicit cancel, never leave it
   // waiting for a release that isn't coming. Call recorder.cancel() unconditionally
-  // (not just when state !== 'idle'): start() is async and awaits the getUserMedia
-  // permission prompt before flipping state to 'recording', so a pointercancel that
-  // lands during that window would otherwise see state still 'idle', skip cancel(), and
-  // let the in-flight start() go on to open the mic once the prompt resolves — with the
-  // gesture already over and nothing left to stop it. cancel() safely no-ops if nothing
-  // was actually running yet.
+  // (not just when state !== 'idle'): acquire() only flips state to 'recording' once the
+  // getUserMedia permission prompt resolves AND the gesture promotes, so a pointercancel
+  // landing in that window would otherwise see state still 'idle', skip cancel(), and let
+  // the in-flight acquisition open the mic once the prompt resolves — with the gesture
+  // already over and nothing left to stop it. cancel() safely no-ops if nothing was
+  // actually running yet, and bumps runId so that pending acquisition is discarded.
   const onMicPointerCancel = () => {
     clearHoldTimer();
     dispatchHold({ kind: 'reset' });
@@ -199,9 +211,9 @@ export function ChatConversation() {
   // Unmount while the finger is still down but before HOLD_THRESHOLD_MS has elapsed (e.g.
   // navigating away mid-press): the pending holdTimerRef timeout is a bare setTimeout, not
   // tied to this effect, so without clearing it here it fires after unmount and calls
-  // recorder.start() — opening the mic with the button (and every handler that could ever
-  // stop it) already gone. recorder's own unmount effect only guards what it already
-  // started; it can't see this still-pending timer.
+  // recorder.beginRecording() — promoting to a live recording with the button (and every
+  // handler that could ever stop it) already gone. The mic acquired by pointerdown is
+  // released by recorder's own unmount teardown; this only has to stop the promote.
   useEffect(() => () => clearHoldTimer(), []);
 
   const backToList = () => navigate(`/cars/${id}?tab=chat`);
