@@ -3,6 +3,15 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  build: {
+    // The AudioWorklet processor (`pcm-capture-worklet.js?url`) is ~1.5KB, so the default
+    // 4KB inline limit would turn it into a `data:text/javascript,...` URL. It MUST stay a
+    // real same-origin file: `audioWorklet.addModule()` support for data:/blob: URLs is
+    // undocumented on Safari, and iOS is the only platform that path exists for — trading a
+    // verified fetch for an unverified one would reintroduce the bug it fixes. Everything
+    // else keeps the default behaviour.
+    assetsInlineLimit: (filePath) => (filePath.includes('pcm-capture-worklet') ? false : undefined),
+  },
   plugins: [
     react(),
     VitePWA({
