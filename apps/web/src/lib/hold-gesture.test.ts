@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  holdGestureReducer, holdOutcome, initialHoldState,
+  holdGestureReducer, holdOutcome, micEffect, initialHoldState,
   HOLD_THRESHOLD_MS, CANCEL_SLIDE_PX, type HoldState,
 } from './hold-gesture';
 
@@ -53,5 +53,70 @@ describe('holdGestureReducer', () => {
     s = holdGestureReducer(s, { kind: 'holdTimer' });
     s = holdGestureReducer(s, { kind: 'reset' });
     expect(s.phase).toBe('idle');
+  });
+});
+
+// These pin the iOS fix: the mic must be ACQUIRED in the pointerdown handler (a user-gesture
+// context) and merely PROMOTED to recording by the 300ms timer, which on iOS/Safari is not a
+// gesture context and cannot legally call getUserMedia or start an AudioContext.
+describe('micEffect', () => {
+  it('acquires the mic on pointerdown, not on the promote timer', () => {
+    expect(micEffect(initialHoldState, down(0))).toBe('acquire');
+  });
+
+  it('the promote timer only begins recording — it must never acquire', () => {
+    const pressed = holdGestureReducer(initialHoldState, down(0));
+    expect(micEffect(pressed, { kind: 'holdTimer' })).toBe('begin');
+  });
+
+  it('a stale promote timer (already released) does nothing', () => {
+    let s = holdGestureReducer(initialHoldState, down(0));
+    s = holdGestureReducer(s, up(100));
+    expect(micEffect(s, { kind: 'holdTimer' })).toBeNull();
+  });
+
+  it('a short tap releases the mic acquired by pointerdown', () => {
+    const pressed = holdGestureReducer(initialHoldState, down(0));
+    expect(micEffect(pressed, up(HOLD_THRESHOLD_MS - 1))).toBe('release');
+  });
+
+  it('slide-to-cancel releases the mic', () => {
+    let s = holdGestureReducer(initialHoldState, down(0));
+    s = holdGestureReducer(s, { kind: 'holdTimer' });
+    s = holdGestureReducer(s, { kind: 'move', dx: -(CANCEL_SLIDE_PX + 1) });
+    expect(micEffect(s, up(5_000))).toBe('release');
+  });
+
+  it('releasing a real recording finishes it', () => {
+    let s = holdGestureReducer(initialHoldState, down(0));
+    s = holdGestureReducer(s, { kind: 'holdTimer' });
+    expect(micEffect(s, up(5_000))).toBe('finish');
+  });
+
+  it('an interruption (pointercancel/reset) always releases the mic', () => {
+    let s = holdGestureReducer(initialHoldState, down(0));
+    expect(micEffect(s, { kind: 'reset' })).toBe('release');
+    s = holdGestureReducer(s, { kind: 'holdTimer' });
+    expect(micEffect(s, { kind: 'reset' })).toBe('release');
+  });
+
+  it('moving mid-recording has no mic-lifecycle effect', () => {
+    let s = holdGestureReducer(initialHoldState, down(0));
+    s = holdGestureReducer(s, { kind: 'holdTimer' });
+    expect(micEffect(s, { kind: 'move', dx: -10 })).toBeNull();
+  });
+
+  it('every gesture that acquires eventually releases or finishes', () => {
+    // Exhaustive over the terminal paths: tap, cancel-slide, record, interruption.
+    const paths: Array<{ events: Parameters<typeof holdGestureReducer>[1][]; final: string }> = [
+      { events: [down(0)], final: 'release' },
+      { events: [down(0), { kind: 'holdTimer' }], final: 'finish' },
+      { events: [down(0), { kind: 'holdTimer' }, { kind: 'move', dx: -(CANCEL_SLIDE_PX + 1) }], final: 'release' },
+    ];
+    for (const { events, final } of paths) {
+      expect(micEffect(initialHoldState, events[0]!)).toBe('acquire');
+      const s = events.reduce<HoldState>(holdGestureReducer, initialHoldState);
+      expect(micEffect(s, up(9_999))).toBe(final);
+    }
   });
 });

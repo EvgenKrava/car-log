@@ -20,6 +20,7 @@
 - Strict TS never `any`; MUI only; i18n en+uk symmetric; no TODO/stubs; trailing newline; conventional commits NO trailers; gates `pnpm turbo run build lint typecheck test` per task.
 - Branch: `feat/voice-v2-transcribe`.
 - **IAM note:** the Transcribe streaming action name must be verified empirically at deploy (docs disagree: `transcribe:StartStreamTranscription` vs `transcribestreaming:*`). The deploy task includes a live probe.
+  - **RESOLVED 2026-08-09 — `transcribe:StartStreamTranscription` is correct; no change needed.** The AWS Service Authorization Reference lists both `StartStreamTranscription` and `StartStreamTranscriptionWebSocket` under the `transcribe:` prefix; `transcribestreaming` is not an IAM service prefix. The deployed role policy already grants exactly this action. Note the live probe as originally written could not have settled it: the iPhone requests never reached Lambda (client-side gesture bug, fixed separately), so CloudWatch had zero Transcribe log lines — absence of `AccessDeniedException` was evidence of *no invocation*, not of working IAM. Genuine end-to-end confirmation still requires one successful on-device dictation.
 
 ---
 

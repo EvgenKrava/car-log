@@ -29,6 +29,37 @@ export function holdOutcome(state: HoldState, event: HoldEvent): 'record' | 'can
   return null;
 }
 
+// Which mic-lifecycle side-effect each gesture event requires. Kept pure and separate from
+// `holdOutcome` (which decides the USER-FACING notice) because the split is what makes
+// hold-to-record work on iOS at all, and is therefore worth pinning in tests:
+//
+//   'acquire' — open the mic. MUST be run synchronously in the pointerdown handler: iOS
+//               only permits getUserMedia + AudioContext startup inside a user-gesture
+//               context, and the 300ms promote timer is NOT one.
+//   'begin'   — promote the already-acquired mic to a live recording (safe from a timer).
+//   'release' — the gesture ended without producing a clip; hand the mic back. Required
+//               even for a short tap, because pointerdown already acquired it.
+//   'finish'  — stop, encode, and transcribe what was recorded.
+export type MicEffect = 'acquire' | 'begin' | 'release' | 'finish' | null;
+
+export function micEffect(state: HoldState, event: HoldEvent): MicEffect {
+  switch (event.kind) {
+    case 'down':
+      return 'acquire';
+    case 'holdTimer':
+      return state.phase === 'pressed' ? 'begin' : null;
+    case 'up':
+      if (state.phase === 'recording') return 'finish';
+      // 'pressed' (tap, never promoted) and 'cancelling' (slid away) both discard the mic.
+      if (state.phase === 'pressed' || state.phase === 'cancelling') return 'release';
+      return null;
+    case 'reset':
+      return 'release';
+    case 'move':
+      return null;
+  }
+}
+
 export function holdGestureReducer(state: HoldState, event: HoldEvent): HoldState {
   switch (event.kind) {
     case 'down':

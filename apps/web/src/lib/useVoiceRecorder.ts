@@ -6,6 +6,22 @@ import { encodeWav16kMono, MAX_CLIP_SECONDS } from './wav-encode';
 // decodes + re-encodes to 16kHz mono WAV (Transcribe streaming accepts pcm|ogg-opus|flac
 // only). Auto-stops at MAX_CLIP_SECONDS (treated as a normal stop, not a cancel).
 // Nothing is uploaded or persisted by this hook; the caller owns the bytes.
+//
+// Starting is deliberately SPLIT IN TWO, and the split is load-bearing on iOS:
+//
+//   acquire()        — MUST be called synchronously from the pointerdown handler.
+//                     Fires getUserMedia and constructs + resumes the AudioContext.
+//   beginRecording() — called when the hold gesture promotes (300ms later, from a
+//                     setTimeout). Constructs and starts the MediaRecorder.
+//
+// iOS/Safari gate both `getUserMedia` and AudioContext startup on a real user-gesture
+// ("transient activation") context. A setTimeout callback is NOT one: called from there,
+// getUserMedia rejects (or silently never prompts) and a fresh AudioContext stays
+// `suspended` forever, so the level meter reads pure silence. Recording semantics still
+// begin at promote-time — acquire() leaves `state` at 'idle' so a short tap never flashes
+// the recording UI — but the privileged calls happen in the gesture where iOS allows them.
+// Whoever calls acquire() owns releasing it: any gesture that ends WITHOUT recording
+// (short tap, slide-to-cancel, pointercancel) must call cancel(), or the mic stays hot.
 export function useVoiceRecorder() {
   const [supported] = useState(() =>
     typeof window !== 'undefined'
@@ -42,12 +58,15 @@ export function useVoiceRecorder() {
 
   // getUserMedia's permission prompt can outlive the gesture that requested it (mainly the
   // very first grant on a device). If the gesture concludes (cancel, or an immediate
-  // stop-and-encode) before that prompt resolves, `start()` must not go on to open the mic
-  // with nobody left to tear it down. `runId` is bumped by cancel() to invalidate an
-  // in-flight start(); `startInFlight` lets stopAndEncode() wait for that same start() to
-  // finish setting up the recorder before trying to stop it.
+  // stop-and-encode) before that prompt resolves, the acquisition must not go on to open
+  // the mic with nobody left to tear it down. `runId` is bumped by cancel() to invalidate
+  // an in-flight acquire(); `startInFlight` lets stopAndEncode() wait for acquisition +
+  // recorder setup to finish before trying to stop it.
   const runId = useRef(0);
   const startInFlight = useRef<Promise<void> | null>(null);
+  // The in-flight getUserMedia from acquire(). Resolves to the live stream, or null if it
+  // was denied/failed/invalidated. beginRecording() awaits this rather than re-requesting.
+  const acquiring = useRef<Promise<MediaStream | null> | null>(null);
 
   const teardown = useCallback(() => {
     cancelAnimationFrame(raf.current);
@@ -57,18 +76,34 @@ export function useVoiceRecorder() {
     recorder.current = null;
     chunks.current = [];
     cappedBlob.current = undefined;
+    acquiring.current = null;
     void audioCtx.current?.close();
     audioCtx.current = null;
     setLevel(0);
     setSeconds(0);
   }, []);
 
-  const start = useCallback((): Promise<void> => {
-    if (!supported || stateRef.current !== 'idle') return Promise.resolve();
-    if (startInFlight.current) return startInFlight.current; // permission prompt already pending
+  // Call this SYNCHRONOUSLY from the pointerdown handler — see the header comment. Cheap
+  // and idempotent: a second pointer landing mid-gesture re-uses the first acquisition.
+  const acquire = useCallback((): void => {
+    if (!supported || stateRef.current !== 'idle' || acquiring.current) return;
     const myRun = ++runId.current;
     setError(null);
-    const p = (async () => {
+
+    // Created here, inside the gesture, purely so iOS lets it leave 'suspended'. It is only
+    // read by the level meter in beginRecording(); if construction fails, recording still
+    // works and the meter just stays flat, so this never blocks the recording itself.
+    try {
+      const ctx = new AudioContext();
+      audioCtx.current = ctx;
+      if (ctx.state === 'suspended') void ctx.resume();
+    } catch {
+      audioCtx.current = null;
+    }
+
+    // The async IIFE runs synchronously up to its first await, so the getUserMedia CALL
+    // itself still happens inside the gesture — only the permission prompt resolves later.
+    const p = (async (): Promise<MediaStream | null> => {
       let media: MediaStream;
       try {
         media = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -78,16 +113,36 @@ export function useVoiceRecorder() {
         // swallowed silently and the mic-denied path showed nothing at all.
         const name = (err as { name?: string }).name;
         setError(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'failed');
-        return; // denied/unavailable — stay idle; the caller sees stopAndEncode() return null
+        return null;
       }
       if (myRun !== runId.current) {
         // The gesture ended (cancel()) while the permission prompt was pending — never
         // let this stream go live with nothing left to stop it.
         media.getTracks().forEach((t) => t.stop());
-        return;
+        return null;
       }
-
       stream.current = media;
+      return media;
+    })();
+
+    acquiring.current = p;
+    const settled = p.then(() => undefined);
+    startInFlight.current = settled;
+    void settled.finally(() => { if (startInFlight.current === settled) startInFlight.current = null; });
+  }, [supported]);
+
+  // Promote an acquired mic to an actual recording. Safe to call from a setTimeout: nothing
+  // in here needs a user gesture (MediaRecorder does not, getUserMedia/AudioContext do and
+  // already happened in acquire()).
+  const beginRecording = useCallback((): Promise<void> => {
+    const pending = acquiring.current;
+    if (!pending || stateRef.current !== 'idle') return Promise.resolve();
+    const myRun = runId.current;
+    const p = (async () => {
+      const media = await pending;
+      // Denied/failed, or the gesture was cancelled while the prompt was pending — in the
+      // latter case acquire() already stopped the tracks.
+      if (!media || myRun !== runId.current || stateRef.current !== 'idle') return;
       try {
         const rec = new MediaRecorder(media);
         recorder.current = rec;
@@ -109,28 +164,29 @@ export function useVoiceRecorder() {
         // visible stutter on the primary device. Only commit when the value actually
         // moved (>0.02) or 100ms elapsed, whichever first — keeps the meter responsive to
         // real level changes while skipping the vast majority of same-ish frames.
-        const ctx = new AudioContext();
-        audioCtx.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        ctx.createMediaStreamSource(media).connect(analyser);
-        const data = new Uint8Array(analyser.fftSize);
-        let lastCommitted = 0;
-        let lastCommitAt = 0;
-        const tick = () => {
-          analyser.getByteTimeDomainData(data);
-          let sum = 0;
-          for (let i = 0; i < data.length; i += 1) { const d = (data[i]! - 128) / 128; sum += d * d; }
-          const next = Math.min(1, Math.sqrt(sum / data.length) * 3);
-          const now = performance.now();
-          if (Math.abs(next - lastCommitted) > 0.02 || now - lastCommitAt >= 100) {
-            lastCommitted = next;
-            lastCommitAt = now;
-            setLevel(next);
-          }
+        const ctx = audioCtx.current; // created + resumed inside the gesture by acquire()
+        if (ctx) {
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 512;
+          ctx.createMediaStreamSource(media).connect(analyser);
+          const data = new Uint8Array(analyser.fftSize);
+          let lastCommitted = 0;
+          let lastCommitAt = 0;
+          const tick = () => {
+            analyser.getByteTimeDomainData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i += 1) { const d = (data[i]! - 128) / 128; sum += d * d; }
+            const next = Math.min(1, Math.sqrt(sum / data.length) * 3);
+            const now = performance.now();
+            if (Math.abs(next - lastCommitted) > 0.02 || now - lastCommitAt >= 100) {
+              lastCommitted = next;
+              lastCommitAt = now;
+              setLevel(next);
+            }
+            raf.current = requestAnimationFrame(tick);
+          };
           raf.current = requestAnimationFrame(tick);
-        };
-        raf.current = requestAnimationFrame(tick);
+        }
 
         let s = 0;
         timer.current = setInterval(() => {
@@ -154,12 +210,20 @@ export function useVoiceRecorder() {
     startInFlight.current = p;
     void p.finally(() => { if (startInFlight.current === p) startInFlight.current = null; });
     return p;
-  }, [supported]);
+  }, [teardown]);
 
   const stopAndEncode = useCallback(async (): Promise<ArrayBuffer | null> => {
-    if (startInFlight.current) await startInFlight.current; // let a pending permission prompt settle first
+    // Let a pending permission prompt / recorder setup settle first. Two links in the
+    // chain can be in flight (acquire → beginRecording), and awaiting the first can
+    // install the second, so drain until it's actually empty rather than awaiting once.
+    for (let i = 0; startInFlight.current && i < 4; i += 1) await startInFlight.current;
     const rec = recorder.current;
-    if (!rec || stateRef.current !== 'recording') return null;
+    if (!rec || stateRef.current !== 'recording') {
+      // Nothing was recording (denied mic, or released before the recorder came up), but
+      // acquire() may still hold a live stream — never leave it hot for the caller.
+      if (stateRef.current === 'idle') { runId.current += 1; teardown(); }
+      return null;
+    }
     setPhase('encoding');
     const blob = cappedBlob.current !== undefined
       ? cappedBlob.current // the MAX_CLIP_SECONDS timer already stopped + resolved this
@@ -167,7 +231,13 @@ export function useVoiceRecorder() {
         stopResolve.current = resolve;
         if (rec.state !== 'inactive') rec.stop();
       });
-    const ctxForDecode = new AudioContext();
+    // Decode on the context acquire() already built inside the user gesture where iOS
+    // permits it. iOS also caps how many AudioContexts a page may hold, so reusing the live
+    // one (rather than opening a second per clip) keeps long sessions from hitting that
+    // ceiling. decodeAudioData does not require a running context, so a suspended one is
+    // fine. Fall back to a fresh context only if acquire()'s construction failed.
+    const ownCtx = audioCtx.current === null;
+    const ctxForDecode = audioCtx.current ?? new AudioContext();
     let decodeTimeout: ReturnType<typeof setTimeout> | undefined;
     try {
       if (!blob) return null;
@@ -188,14 +258,15 @@ export function useVoiceRecorder() {
       return null;
     } finally {
       if (decodeTimeout) clearTimeout(decodeTimeout);
-      void ctxForDecode.close();
+      // Only close a context we opened ourselves; the shared one is teardown()'s to close.
+      if (ownCtx) void ctxForDecode.close();
       teardown();
       setPhase('idle');
     }
   }, [teardown]);
 
   const cancel = useCallback(() => {
-    runId.current += 1; // invalidate a start() whose getUserMedia prompt hasn't resolved yet
+    runId.current += 1; // invalidate an acquire() whose getUserMedia prompt hasn't resolved yet
     stopResolve.current = null;
     const rec = recorder.current;
     if (rec) {
@@ -212,10 +283,10 @@ export function useVoiceRecorder() {
   }, [teardown]);
 
   useEffect(() => () => { // unmount: never leave the mic hot
-    runId.current += 1; // invalidate a start() whose getUserMedia prompt hasn't resolved yet
+    runId.current += 1; // invalidate an acquire() whose getUserMedia prompt hasn't resolved yet
     if (recorder.current && recorder.current.state !== 'inactive') recorder.current.stop();
     teardown();
   }, [teardown]);
 
-  return { supported, state, level, seconds, error, start, stopAndEncode, cancel };
+  return { supported, state, level, seconds, error, acquire, beginRecording, stopAndEncode, cancel };
 }
