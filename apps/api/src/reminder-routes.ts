@@ -38,7 +38,10 @@ export async function handleReminderRoute(
     if (next) await deps.reminders.create(next); // Put overwrites the same key
     else await deps.reminders.delete(ownerId, carId, reminderId);
     const bumped = bumpCarMileage(car, completion.mileage);
-    if (bumped) await deps.cars.update(ownerId, carId, bumped);
+    if (bumped) {
+      const { mileageUpdatedAt, ...input } = bumped;
+      await deps.cars.update(ownerId, carId, input, mileageUpdatedAt);
+    }
     return next ? ok(200, next) : ok(204, null);
   }
   if (reminderId && path === `${base}/${reminderId}` && method === 'PUT') {

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -35,6 +35,7 @@ import { ImportEventsDialog } from '../components/ImportEventsDialog';
 import { ScanInvoiceDialog } from '../components/ScanInvoiceDialog';
 import { ChatPanel } from '../components/ChatPanel';
 import { RemindersSection, type RemindersSectionHandle } from '../components/RemindersSection';
+import { QuickOdometerSheet } from '../components/QuickOdometerSheet';
 import { ServiceTimeline } from '../components/ServiceTimeline';
 import { SpendSparkline } from '../components/SpendSparkline';
 import { AppShell } from '../components/ui/AppShell';
@@ -48,9 +49,30 @@ import { downloadJson, exportFilename } from '../lib/download-json';
 // One of the three key facts on the hero — an icon beside a small caps label
 // and a prominent value. Icons sit in a tinted square so the row reads as a
 // dashboard, not a table; minWidth 0 + noWrap keeps 360px widths safe.
-function StatTile({ icon, label, value, note }: { icon: React.ReactNode; label: string; value: string; note?: string }) {
+function StatTile({
+  icon, label, value, note, onClick,
+}: { icon: React.ReactNode; label: string; value: string; note?: string; onClick?: () => void }) {
   return (
-    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+    <Box
+      component={onClick ? 'button' : 'div'}
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      sx={{
+        minWidth: 0,
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.25,
+        textAlign: 'left',
+        border: 0,
+        p: 0,
+        m: 0,
+        bgcolor: 'transparent',
+        font: 'inherit',
+        color: 'inherit',
+        ...(onClick ? { cursor: 'pointer' } : {}),
+      }}
+    >
       <Box
         sx={{
           width: 36,
@@ -83,7 +105,7 @@ function StatTile({ icon, label, value, note }: { icon: React.ReactNode; label: 
           ) : null}
         </Typography>
       </Box>
-    </Stack>
+    </Box>
   );
 }
 
@@ -223,6 +245,7 @@ function VehicleDetail({ car }: { car: Car }) {
   // section's add action directly via this imperative handle.
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [exportFailed, setExportFailed] = useState(false);
+  const [odometerOpen, setOdometerOpen] = useState(false);
   const remindersRef = useRef<RemindersSectionHandle>(null);
   // Active tab lives in the URL (?tab=reminders) so refresh and back/forward keep
   // the user's place; the default (history) stays out of the URL.
@@ -231,6 +254,19 @@ function VehicleDetail({ car }: { car: Car }) {
   const tab: TabKey = isTabKey(tabParam) ? tabParam : 'history';
   const setTab = (next: TabKey) =>
     setSearchParams(next === 'history' ? {} : { tab: next }, { replace: true });
+
+  // A push notification (stale odometer) deep-links here with ?odometer=1 to open the
+  // quick-update sheet directly; strip the param immediately so it doesn't reopen on
+  // back-navigation or a refresh.
+  useEffect(() => {
+    if (searchParams.get('odometer') !== '1') return;
+    setOdometerOpen(true);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('odometer');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // The add action depends on the active tab: history → options sheet,
   // reminders → new reminder; chat → start a new chat session (same "+" affordance
@@ -371,7 +407,7 @@ function VehicleDetail({ car }: { car: Car }) {
                   // Desktop keeps the compact 3-across instrument cluster.
                   gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
                   gap: { xs: 1.25, sm: 2 },
-                  '& > :not(:first-of-type)': {
+                  '& > :not(:first-child)': {
                     borderColor: 'divider',
                     // Rows divided by a top border on mobile; columns by a left border on desktop.
                     borderTop: { xs: 1, sm: 0 },
@@ -385,6 +421,7 @@ function VehicleDetail({ car }: { car: Car }) {
                   icon={<SpeedIcon sx={{ fontSize: 20 }} />}
                   label={t('vehicle:statOdometer')}
                   value={mileageDisplay}
+                  onClick={() => setOdometerOpen(true)}
                 />
                 <StatTile
                   icon={<ReceiptLongIcon sx={{ fontSize: 20 }} />}
@@ -482,6 +519,7 @@ function VehicleDetail({ car }: { car: Car }) {
       <ShareCarDialog open={shareOpen} onClose={() => setShareOpen(false)} car={car} />
       <ImportEventsDialog carId={car.id} open={importOpen} onClose={() => setImportOpen(false)} />
       <ScanInvoiceDialog carId={car.id} open={scanOpen} onClose={() => setScanOpen(false)} />
+      <QuickOdometerSheet open={odometerOpen} onClose={() => setOdometerOpen(false)} car={car} />
       {/* Add affordance. Desktop (no bottom bar) → a FAB; mobile → the "+" lives in
           the bottom bar as a labeled item (below). Per-tab action: history → options
           sheet, reminders → new reminder. */}

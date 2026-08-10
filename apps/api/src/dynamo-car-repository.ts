@@ -13,6 +13,9 @@ type Row = Car & { PK: string; SK: string };
 const toRow = (car: Car): Row => ({ ...car, PK: pk(car.ownerId), SK: sk(car.id) });
 const toCar = (row: Record<string, unknown>): Car => {
   const { PK, SK, ...car } = row as Row;
+  // Rows written before mileageUpdatedAt existed backfill from updatedAt — any edit
+  // bumped updatedAt, so it is the closest honest signal we have for legacy cars.
+  car.mileageUpdatedAt = car.mileageUpdatedAt ?? car.updatedAt;
   return car;
 };
 
@@ -48,7 +51,7 @@ export class DynamoCarRepository implements CarRepository {
     return res.Item ? toCar(res.Item) : null;
   }
 
-  async update(ownerId: string, id: string, input: CreateCarInput): Promise<Car> {
+  async update(ownerId: string, id: string, input: CreateCarInput, mileageUpdatedAt?: string): Promise<Car> {
     const existing = await this.getById(ownerId, id);
     if (!existing) throw new CarNotFoundError(id);
     const updated: Car = {
@@ -57,6 +60,7 @@ export class DynamoCarRepository implements CarRepository {
       ownerId: existing.ownerId,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
+      mileageUpdatedAt: mileageUpdatedAt ?? existing.mileageUpdatedAt,
       shared: existing.shared,
     };
     await this.client.send(new PutCommand({ TableName: this.tableName, Item: toRow(updated) }));

@@ -18,6 +18,8 @@ import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, HttpMethods } from 'aws-cdk-lib/aws-s3';
 import { Distribution, PriceClass, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { Rule, Schedule, RuleTargetInput } from 'aws-cdk-lib/aws-events';
+import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
 import type { Construct } from 'constructs';
 
 const __dirnameLocal = dirname(fileURLToPath(import.meta.url));
@@ -28,6 +30,10 @@ type CarLogStackProps = StackProps & {
   // in Cognito IdP ProviderDetails or Lambda environment variables.
   googleClientSecret: string;
   bedrockBearerToken: string;
+  // Same mechanism (SSM SecureString resolved at synth, passed as literal props) as the
+  // Bedrock bearer token above — VAPID keys for the notify worker's web-push sender.
+  vapidPublicKey: string;
+  vapidPrivateKey: string;
 };
 
 export class CarLogStack extends Stack {
@@ -141,6 +147,13 @@ export class CarLogStack extends Stack {
         // Only set BEDROCK_REGION when a region was passed via context (keeps the env clean
         // otherwise; the adapter falls back to AWS_REGION).
         ...(bedrockRegion ? { BEDROCK_REGION: bedrockRegion } : {}),
+        // VAPID keys for the notify worker's web-push sender, resolved from SSM
+        // SecureString at synth time (see bin/carlog.ts) for the same reason as the
+        // Bedrock bearer token: CloudFormation rejects ssm-secure dynamic references in
+        // Lambda environment variables.
+        VAPID_PUBLIC_KEY: props.vapidPublicKey,
+        VAPID_PRIVATE_KEY: props.vapidPrivateKey,
+        VAPID_SUBJECT: 'mailto:admin@carlog.app',
       },
       // 300s: detached import-worker invocations (async self-invoke) chunk large files
       // through Bedrock and need minutes. HTTP calls are still bounded by API Gateway's
@@ -157,8 +170,10 @@ export class CarLogStack extends Stack {
       // Lambda Node runtime), but `@aws-sdk/client-transcribe-streaming` is NOT bundled into
       // nodejs20.x — without this it would be missing from the deployed asset entirely, and
       // the handler's top-level import would throw Runtime.ImportModuleError on cold start,
-      // taking down every route, not just transcription.
-      bundling: { format: undefined, nodeModules: ['@aws-sdk/client-transcribe-streaming'] },
+      // taking down every route, not just transcription. `web-push` is a plain npm package
+      // esbuild bundles by default, but it is listed here too and verified empirically in
+      // the synthed asset (Task 4) — the same class of incident, not worth risking twice.
+      bundling: { format: undefined, nodeModules: ['@aws-sdk/client-transcribe-streaming', 'web-push'] },
     });
     table.grantReadWriteData(fn);
     photosBucket.grantReadWrite(fn);
@@ -224,6 +239,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/admin/users/{username}/enabled', methods: [HttpMethod.PUT], integration, authorizer });
     httpApi.addRoutes({ path: '/admin/metrics', methods: [HttpMethod.GET], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/sharing', methods: [HttpMethod.PUT], integration, authorizer });
+    httpApi.addRoutes({ path: '/push/subscription', methods: [HttpMethod.POST, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/public/cars/{carId}', methods: [HttpMethod.GET], integration }); // NO authorizer — public
 
     // Rate limiting: throttle the default stage so no client can flood the API.
@@ -233,6 +249,14 @@ export class CarLogStack extends Stack {
       throttlingRateLimit: 20,
       throttlingBurstLimit: 40,
     };
+
+    // Daily notify job: same self-invoke pattern as the import worker (Lambda invoked
+    // directly, bypassing API Gateway) — EventBridge supplies the discriminant payload the
+    // handler switches on. 07:00 UTC, once a day.
+    new Rule(this, 'DailyNotify', {
+      schedule: Schedule.cron({ minute: '0', hour: '7' }),
+      targets: [new LambdaFunction(fn, { event: RuleTargetInput.fromObject({ jobType: 'notify' }) })],
+    });
 
     const webBucket = new Bucket(this, 'WebBucket', {
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -261,5 +285,6 @@ export class CarLogStack extends Stack {
     new CfnOutput(this, 'WebBucketName', { value: webBucket.bucketName });
     new CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
     new CfnOutput(this, 'WebUrl', { value: `https://${distribution.distributionDomainName}` });
+    new CfnOutput(this, 'VapidPublicKey', { value: props.vapidPublicKey });
   }
 }

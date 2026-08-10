@@ -1,5 +1,5 @@
 import { CreateCarSchema, SetSharingSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository } from '@carlog/domain';
+import { CarNotFoundError, createCar, nowIso, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handleEventRoute } from './event-routes';
 import { handleReminderRoute } from './reminder-routes';
@@ -9,6 +9,7 @@ import type { TranscribeProvider } from './transcribe-provider';
 import { handleImportRoute } from './llm-routes';
 import { handleImportJobRoute } from './import-job-routes';
 import { handleImportCarRoute } from './import-car-route';
+import { handlePushRoute } from './push-routes';
 import { handleScanRoute } from './scan-routes';
 import { handleAdminRoute } from './admin-routes';
 import { handlePublicRoute } from './public-routes';
@@ -16,6 +17,7 @@ import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 import type { CognitoUserAdmin } from './cognito-user-admin';
 import type { MetricsPort } from './cloudwatch-metrics';
+import type { PushSubscriptionRepository } from './push-subscription-repository';
 
 export type ApiEvent = {
   method: string;
@@ -39,6 +41,7 @@ export type RouteDeps = {
   adminUsers: CognitoUserAdmin;
   metrics: MetricsPort;
   apiId: string;
+  pushSubs: PushSubscriptionRepository;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -74,6 +77,11 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
         { cars: deps.cars, events: deps.events, storage: deps.storage, llm: deps.llm, loadScanBase64: deps.loadScanBase64, newId: deps.newId },
         event, ownerId,
       );
+      if (result) return result;
+    }
+
+    if (path === '/push/subscription') {
+      const result = await handlePushRoute({ pushSubs: deps.pushSubs }, event, ownerId);
       if (result) return result;
     }
 
@@ -129,7 +137,13 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
       const { shared } = SetSharingSchema.parse(body);
       return ok(200, await deps.cars.setShared(ownerId, id, shared));
     }
-    if (id && path === `/cars/${id}` && method === 'PUT') return ok(200, await deps.cars.update(ownerId, id, CreateCarSchema.parse(body)));
+    if (id && path === `/cars/${id}` && method === 'PUT') {
+      const input = CreateCarSchema.parse(body);
+      const existing = await deps.cars.getById(ownerId, id);
+      if (!existing) throw new CarNotFoundError(id);
+      const mileageUpdatedAt = input.mileage !== existing.mileage ? nowIso() : undefined;
+      return ok(200, await deps.cars.update(ownerId, id, input, mileageUpdatedAt));
+    }
     if (id && path === `/cars/${id}` && method === 'DELETE') { await deps.cars.delete(ownerId, id); return ok(204, null); }
     if (id && path === `/cars/${id}` && method === 'GET') {
       const car = await deps.cars.getById(ownerId, id);

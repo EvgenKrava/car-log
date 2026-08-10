@@ -6,6 +6,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // Custom sw.ts (push + notificationclick handlers) replaces the generated worker.
+      // injectManifest hands us the precache manifest via self.__WB_MANIFEST; everything
+      // else the old generateSW config did (skipWaiting, clientsClaim, cleanupOutdatedCaches,
+      // SPA nav fallback, no API caching) is replicated by hand in sw.ts.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png', 'icons/*.png'],
       manifest: {
@@ -23,17 +30,8 @@ export default defineConfig({
           { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallback: '/index.html',
-        // Activate a new SW immediately and take control of open pages, so a deploy never
-        // leaves a client on a stale cached index.html pointing at a deleted bundle (which
-        // renders as a white screen until every tab is closed). `cleanupOutdatedCaches`
-        // removes precaches from prior SW versions.
-        clientsClaim: true,
-        skipWaiting: true,
-        cleanupOutdatedCaches: true,
-        // No runtimeCaching: API (execute-api) and Cognito always hit the network.
       },
       devOptions: { enabled: false },
     }),

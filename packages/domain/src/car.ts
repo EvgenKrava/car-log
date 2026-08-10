@@ -7,18 +7,28 @@ export function createCar(ownerId: string, input: CreateCarInput, deps: CreateCa
   const data = CreateCarSchema.parse(input);
   const id = (deps.newId ?? defaultNewId)();
   const timestamp = (deps.now ?? nowIso)();
-  return { ...data, id, ownerId, createdAt: timestamp, updatedAt: timestamp, shared: false };
+  // A freshly-created car's mileage is as-fresh-as-creation itself, so mileageUpdatedAt
+  // starts equal to createdAt.
+  return {
+    ...data, id, ownerId, createdAt: timestamp, updatedAt: timestamp,
+    mileageUpdatedAt: timestamp, shared: false,
+  };
 }
 
 // Events (and reminder completions) carry odometer readings; the car's mileage
 // field must never lag behind them. Returns the update input when a bump is
-// needed, null when the reading isn't newer.
-export function bumpCarMileage(car: Car, mileage: number): CreateCarInput | null {
+// needed, null when the reading isn't newer. mileageUpdatedAt moves ONLY here —
+// it is the honest "odometer last changed" signal, distinct from updatedAt which
+// moves on any edit (e.g. a nickname change).
+export function bumpCarMileage(
+  car: Car, mileage: number, now: () => string = nowIso,
+): (CreateCarInput & { mileageUpdatedAt: string }) | null {
   if (mileage <= car.mileage) return null;
   return {
     make: car.make, model: car.model, year: car.year, mileage,
     fuelType: car.fuelType, engineVolume: car.engineVolume,
     nickname: car.nickname, vin: car.vin, licensePlate: car.licensePlate,
+    mileageUpdatedAt: now(),
   };
 }
 

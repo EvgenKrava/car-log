@@ -104,7 +104,10 @@ export async function handleEventRoute(
     const created = await deps.events.create(ev);
     // Odometer readings on events keep the car's mileage current (spec: mileage auto-update).
     const bumped = bumpCarMileage(car, ev.mileage);
-    if (bumped) await deps.cars.update(ownerId, carId, bumped);
+    if (bumped) {
+      const { mileageUpdatedAt, ...input } = bumped;
+      await deps.cars.update(ownerId, carId, input, mileageUpdatedAt);
+    }
     return ok(201, created);
   }
   if (eventId && path === `${base}/${eventId}` && method === 'GET') {
@@ -119,7 +122,10 @@ export async function handleEventRoute(
     const input = CreateEventSchema.parse(body);
     const updated = await deps.events.update(ownerId, carId, eventId, input);
     const bumped = bumpCarMileage(car, input.mileage);
-    if (bumped) await deps.cars.update(ownerId, carId, bumped);
+    if (bumped) {
+      const { mileageUpdatedAt, ...carInput } = bumped;
+      await deps.cars.update(ownerId, carId, carInput, mileageUpdatedAt);
+    }
     return ok(200, updated);
   }
   if (eventId && path === `${base}/${eventId}` && method === 'DELETE') {

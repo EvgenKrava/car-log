@@ -16,7 +16,7 @@ export class InMemoryCarRepository implements CarRepository {
   async getById(ownerId: string, id: string): Promise<Car | null> {
     return this.cars.get(this.key(ownerId, id)) ?? null;
   }
-  async update(ownerId: string, id: string, input: CreateCarInput): Promise<Car> {
+  async update(ownerId: string, id: string, input: CreateCarInput, mileageUpdatedAt?: string): Promise<Car> {
     const existing = this.cars.get(this.key(ownerId, id));
     if (!existing) throw new CarNotFoundError(id);
     const updated: Car = {
@@ -25,6 +25,7 @@ export class InMemoryCarRepository implements CarRepository {
       ownerId: existing.ownerId,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
+      mileageUpdatedAt: mileageUpdatedAt ?? existing.mileageUpdatedAt,
       shared: existing.shared,
     };
     this.cars.set(this.key(ownerId, id), updated);

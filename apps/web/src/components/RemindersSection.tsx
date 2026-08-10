@@ -1,10 +1,13 @@
 import { forwardRef, useImperativeHandle, useState } from 'react';
-import { Box, Button, Collapse, Typography } from '@mui/material';
+import { Box, Button, Collapse, Snackbar, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useTranslation } from 'react-i18next';
 import type { Car, CreateEventInput, Reminder } from '@carlog/contracts';
+import { useAuth } from '../auth';
 import { useDeleteReminder, useReminders } from '../queries';
 import { groupReminders, todayISO } from '../lib/reminder-view';
+import { pushSupported, subscribeToPush } from '../lib/push';
+import { isStandalone } from '../lib/install-mode';
 import { tokens } from '../theme/tokens';
 import { ReminderCard } from './ReminderCard';
 import { ReminderFormDialog } from './ReminderFormDialog';
@@ -16,10 +19,13 @@ import { EmptyState } from './ui/EmptyState';
 import { ReminderCardSkeleton } from './ui/skeletons';
 import { Reveal } from './ui/Reveal';
 
+const PUSH_PROMPT_KEY = 'carlog.pushPromptShown';
+
 export type RemindersSectionHandle = { openAdd: () => void };
 
 export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>(function RemindersSection({ car }, ref) {
-  const { t } = useTranslation(['reminders', 'common']);
+  const { t, i18n } = useTranslation(['reminders', 'push', 'common']);
+  const { accessToken } = useAuth();
   const { data: reminders, isLoading, isError } = useReminders(car.id);
   const del = useDeleteReminder(car.id);
   const [formOpen, setFormOpen] = useState(false);
@@ -33,6 +39,32 @@ export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>
   // Ids mid-removal (complete or delete): kept out of view via Collapse while the
   // exit animation plays, then dropped once the underlying mutation has settled.
   const [removing, setRemoving] = useState<Set<string>>(new Set());
+  // One-time (ever, across the whole app) nudge to enable push, offered right after the
+  // first reminder completion — the moment a user has just proven they care about
+  // staying on top of service. Only when it could actually work: push supported, not
+  // yet asked (permission still 'default'), and installed (iOS push requires standalone).
+  const [pushPromptOpen, setPushPromptOpen] = useState(false);
+  const [pushEnableFailed, setPushEnableFailed] = useState(false);
+
+  const maybePromptPush = () => {
+    if (localStorage.getItem(PUSH_PROMPT_KEY) === '1') return;
+    if (!pushSupported() || Notification.permission !== 'default' || !isStandalone()) return;
+    setPushPromptOpen(true);
+  };
+
+  // Mirrors EnableNotificationsCard.onEnable: subscribe outcome drives feedback and the
+  // once-ever flag. The flag is written ONLY after a settled successful subscribe — on
+  // failure it's left unset so the prompt (and the Profile card) can still offer this
+  // again, instead of a denied/failed attempt silently burning the one-time nudge.
+  const onEnablePush = () => {
+    if (!accessToken) return;
+    setPushPromptOpen(false);
+    setPushEnableFailed(false);
+    const lang: 'uk' | 'en' = i18n.language.startsWith('uk') ? 'uk' : 'en';
+    subscribeToPush(accessToken, lang)
+      .then(() => localStorage.setItem(PUSH_PROMPT_KEY, '1'))
+      .catch(() => setPushEnableFailed(true));
+  };
 
   const groups = groupReminders(reminders ?? [], car.mileage, todayISO());
   const sections = [
@@ -122,11 +154,26 @@ export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>
               return next;
             }), tokens.motion.duration.base);
             setEventPrefill(prefill);
+            maybePromptPush();
           }} />
       ) : null}
 
       <EventFormDialog open={Boolean(eventPrefill)} onClose={() => setEventPrefill(undefined)}
         carId={car.id} mode="create" initial={eventPrefill} />
+
+      <Snackbar
+        open={pushPromptOpen}
+        autoHideDuration={8000}
+        onClose={() => setPushPromptOpen(false)}
+        message={t('push:promptTitle')}
+        action={<Button color="inherit" size="small" onClick={onEnablePush}>{t('push:promptEnable')}</Button>}
+      />
+      <Snackbar
+        open={pushEnableFailed}
+        autoHideDuration={5000}
+        onClose={() => setPushEnableFailed(false)}
+        message={t('push:pushEnableFailed')}
+      />
     </Box>
   );
 });

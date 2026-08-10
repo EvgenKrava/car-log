@@ -28,6 +28,10 @@ export const CarSchema = CreateCarSchema.extend({
   ownerId: z.string().min(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  // When the odometer value last actually changed — server-owned, distinct from
+  // `updatedAt` which moves on ANY edit (e.g. a nickname change). This is the honest
+  // "how stale is the mileage" signal notifications key off of.
+  mileageUpdatedAt: z.string().datetime(),
   shared: z.boolean().default(false),
 });
 

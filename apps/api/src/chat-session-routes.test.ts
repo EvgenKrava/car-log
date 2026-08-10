@@ -21,7 +21,7 @@ const car: Car = {
   id: CAR_ID, ownerId: OWNER, make: 'VW', model: 'Golf', year: 2018, mileage: 90000,
   fuelType: 'diesel', engineVolume: undefined, nickname: undefined, vin: undefined,
   licensePlate: undefined, createdAt: '2024-01-01T00:00:00.000Z',
-  updatedAt: '2024-01-01T00:00:00.000Z', shared: false,
+  updatedAt: '2024-01-01T00:00:00.000Z', mileageUpdatedAt: '2024-01-01T00:00:00.000Z', shared: false,
 };
 
 // A stub storage: chat attachments are not exercised by these tests.

@@ -137,7 +137,7 @@ export function Dashboard() {
                     display: 'grid',
                     gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(0, 1fr))' },
                     gap: { xs: 1.25, sm: 2 },
-                    '& > :not(:first-of-type)': {
+                    '& > :not(:first-child)': {
                       borderColor: 'divider',
                       borderTop: { xs: 1, sm: 0 },
                       borderLeft: { xs: 0, sm: 1 },

@@ -12,6 +12,7 @@ COGNITO_DOMAIN=$(out CognitoDomain)
 BUCKET=$(out WebBucketName)
 DIST_ID=$(out DistributionId)
 WEB_URL=$(out WebUrl)
+VAPID_PUB=$(out VapidPublicKey)
 
 cat > apps/web/.env.production <<EOF
 VITE_API_URL=$API_URL
@@ -20,6 +21,7 @@ VITE_COGNITO_CLIENT_ID=$CLIENT_ID
 VITE_COGNITO_DOMAIN=$COGNITO_DOMAIN
 VITE_REDIRECT_URI=$WEB_URL/callback
 VITE_LOGOUT_URI=$WEB_URL
+VITE_VAPID_PUBLIC_KEY=$VAPID_PUB
 EOF
 
 # Reconcile Cognito callback/logout URLs to the live CloudFront URL.

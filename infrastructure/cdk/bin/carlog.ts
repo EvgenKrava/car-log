@@ -36,4 +36,6 @@ new CarLogStack(app, 'CarLogStack', {
   env: { region },
   googleClientSecret: readSecureParam('/carlog/google-client-secret'),
   bedrockBearerToken: readSecureParam('/carlog/bedrock-bearer-token'),
+  vapidPublicKey: readSecureParam('/carlog/vapid-public-key'),
+  vapidPrivateKey: readSecureParam('/carlog/vapid-private-key'),
 });

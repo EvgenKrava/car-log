@@ -12,7 +12,8 @@ const CAR_ID = '33333333-3333-4333-8333-333333333333';
 const car: Car = {
   id: CAR_ID, ownerId: OWNER, make: 'VW', model: 'Golf', year: 2018, mileage: 90000,
   fuelType: 'diesel', engineVolume: 2, nickname: 'Wolfie', vin: undefined, licensePlate: undefined,
-  createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z', shared: false,
+  createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z',
+  mileageUpdatedAt: '2024-01-01T00:00:00.000Z', shared: false,
 };
 
 let ids = 0;
@@ -142,7 +143,7 @@ describe('DomainChatToolExecutor', () => {
     });
   });
 
-  it('creates an event and bumps the car odometer', async () => {
+  it('creates an event and bumps the car odometer, moving mileageUpdatedAt', async () => {
     const out = await build().execute({
       id: 't1', name: 'create_event',
       input: { date: '2026-08-04', mileage: 95000, category: 'oil_change', cost: 1800, title: 'Oil' },
@@ -150,7 +151,9 @@ describe('DomainChatToolExecutor', () => {
     expect(out.isError).toBe(false);
     expect(out.action?.kind).toBe('create_event');
     expect((await events.listByCar(OWNER, CAR_ID))).toHaveLength(1);
-    expect((await cars.getById(OWNER, CAR_ID))!.mileage).toBe(95000);
+    const stored = await cars.getById(OWNER, CAR_ID);
+    expect(stored!.mileage).toBe(95000);
+    expect(stored!.mileageUpdatedAt).not.toBe(car.mileageUpdatedAt); // the odometer honestly moved
   });
 
   it('does not lower the odometer for an older event', async () => {
@@ -183,6 +186,17 @@ describe('DomainChatToolExecutor', () => {
     expect(stored!.mileage).toBe(99000);
     expect(stored!.nickname).toBe('Wolfie'); // preserved
     expect(stored!.make).toBe('VW');
+    expect(stored!.mileageUpdatedAt).not.toBe(car.mileageUpdatedAt); // mileage really changed
+  });
+
+  it('update_car with only a nickname change does NOT move mileageUpdatedAt', async () => {
+    const out = await build().execute({
+      id: 't1', name: 'update_car', input: { nickname: 'Renamed' },
+    });
+    expect(out.isError).toBe(false);
+    const stored = await cars.getById(OWNER, CAR_ID);
+    expect(stored!.nickname).toBe('Renamed');
+    expect(stored!.mileageUpdatedAt).toBe(car.mileageUpdatedAt); // mileage untouched
   });
 
   it('rejects an update_car with no fields', async () => {

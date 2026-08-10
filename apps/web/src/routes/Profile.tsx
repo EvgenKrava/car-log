@@ -17,7 +17,9 @@ import { useAuth } from '../auth';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useThemeMode, type ThemeMode } from '../lib/theme-mode';
+import { isStandalone } from '../lib/install-mode';
 import { ChangePasswordDialog } from '../components/ChangePasswordDialog';
+import { EnableNotificationsCard } from '../components/EnableNotificationsCard';
 
 // A setting row: label on the left, control on the right; stacks on phones so
 // the toggle groups never overflow at 360px.
@@ -80,9 +82,7 @@ export function Profile() {
     document.documentElement.lang = code;
   };
 
-  const isStandalone =
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const standalone = isStandalone();
 
   return (
     <AppShell>
@@ -175,12 +175,14 @@ export function Profile() {
                 label={t('common:installApp')}
                 control={
                   <Typography sx={{ fontWeight: 500 }}>
-                    {isStandalone ? t('common:installed') : t('common:notInstalled')}
+                    {standalone ? t('common:installed') : t('common:notInstalled')}
                   </Typography>
                 }
               />
             </CardContent>
           </Card>
+
+          <EnableNotificationsCard />
 
           {!isFederated && (
             <>

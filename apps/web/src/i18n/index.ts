@@ -23,6 +23,8 @@ import enShare from './locales/en/share.json';
 import ukShare from './locales/uk/share.json';
 import enChat from './locales/en/chat.json';
 import ukChat from './locales/uk/chat.json';
+import enPush from './locales/en/push.json';
+import ukPush from './locales/uk/push.json';
 
 export const LANG_STORAGE_KEY = 'carlog.lang';
 
@@ -32,7 +34,7 @@ void i18n
   .init({
     fallbackLng: 'en',
     supportedLngs: ['en', 'uk'],
-    ns: ['common', 'garage', 'vehicle', 'car', 'auth', 'event', 'import', 'reminders', 'admin', 'share', 'chat'],
+    ns: ['common', 'garage', 'vehicle', 'car', 'auth', 'event', 'import', 'reminders', 'admin', 'share', 'chat', 'push'],
     defaultNS: 'common',
     interpolation: { escapeValue: false },
     detection: {
@@ -41,8 +43,8 @@ void i18n
       caches: ['localStorage'],
     },
     resources: {
-      en: { common: enCommon, garage: enGarage, vehicle: enVehicle, car: enCar, auth: enAuth, event: enEvent, import: enImport, reminders: enReminders, admin: enAdmin, share: enShare, chat: enChat },
-      uk: { common: ukCommon, garage: ukGarage, vehicle: ukVehicle, car: ukCar, auth: ukAuth, event: ukEvent, import: ukImport, reminders: ukReminders, admin: ukAdmin, share: ukShare, chat: ukChat },
+      en: { common: enCommon, garage: enGarage, vehicle: enVehicle, car: enCar, auth: enAuth, event: enEvent, import: enImport, reminders: enReminders, admin: enAdmin, share: enShare, chat: enChat, push: enPush },
+      uk: { common: ukCommon, garage: ukGarage, vehicle: ukVehicle, car: ukCar, auth: ukAuth, event: ukEvent, import: ukImport, reminders: ukReminders, admin: ukAdmin, share: ukShare, chat: ukChat, push: ukPush },
     },
   });
 

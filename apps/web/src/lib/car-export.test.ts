@@ -10,7 +10,8 @@ const car: Car = {
   id: 'car-1', ownerId: 'owner-secret', make: 'VW', model: 'Golf', year: 2018,
   mileage: 92000, fuelType: 'diesel', engineVolume: 2, nickname: 'Wolfie',
   vin: 'WVWZZZ1KZAW000001', licensePlate: 'AA1234BB',
-  createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z', shared: true,
+  createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z',
+  mileageUpdatedAt: '2024-01-01T00:00:00.000Z', shared: true,
 };
 
 const events: Event[] = [

@@ -8,6 +8,7 @@ import { InMemoryImportJobRepository } from './in-memory-import-job-repository';
 import { InMemoryReminderRepository } from './in-memory-reminder-repository';
 import { InMemoryChatSessionRepository } from './in-memory-chat-session-repository';
 import { InMemoryTranscribeProvider } from './in-memory-transcribe-provider';
+import { InMemoryPushSubscriptionRepository } from './in-memory-push-subscription-repository';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -36,7 +37,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -55,6 +56,7 @@ beforeEach(() => {
     adminUsers,
     metrics,
     apiId: 'api-1',
+    pushSubs: new InMemoryPushSubscriptionRepository(),
   };
 });
 
@@ -98,6 +100,26 @@ describe('route', () => {
     const res = await route(deps, { ...base, method: 'PUT', path: `/cars/${created.id}`, ownerId: 'u1', pathParams: { id: created.id }, body: validBody });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).vin).toBeUndefined();
+  });
+
+  it('PUT /cars/{id} moves mileageUpdatedAt when mileage changes, but not for a nickname-only edit', async () => {
+    // Fake clock so the "moved" assertion can't pass merely by two real-clock reads
+    // landing in the same millisecond.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    try {
+      const created = JSON.parse((await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: validBody })).body);
+
+      vi.setSystemTime(new Date('2026-01-02T00:00:00.000Z'));
+      const renamed = await route(deps, { ...base, method: 'PUT', path: `/cars/${created.id}`, ownerId: 'u1', pathParams: { id: created.id }, body: { ...validBody, nickname: 'Bessie' } });
+      expect(JSON.parse(renamed.body).mileageUpdatedAt).toBe(created.mileageUpdatedAt); // unchanged
+
+      vi.setSystemTime(new Date('2026-01-03T00:00:00.000Z'));
+      const bumped = await route(deps, { ...base, method: 'PUT', path: `/cars/${created.id}`, ownerId: 'u1', pathParams: { id: created.id }, body: { ...validBody, mileage: validBody.mileage + 1000 } });
+      expect(JSON.parse(bumped.body).mileageUpdatedAt).not.toBe(created.mileageUpdatedAt); // moved
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   async function makeCar(ownerId: string) {
