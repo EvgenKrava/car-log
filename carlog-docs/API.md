@@ -27,6 +27,11 @@ POST /cars/{id}/reminders/{reminderId}/complete
 
 POST /import/car        # recreate a car (with events + reminders) from a CarLog export file
 
+## Push
+
+POST   /push/subscription    # register this device for notifications
+DELETE /push/subscription    # unregister
+
 ## Attachments
 
 POST /attachments/presign
