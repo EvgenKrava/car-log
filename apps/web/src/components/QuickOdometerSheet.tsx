@@ -37,15 +37,19 @@ export function QuickOdometerSheet({ open, onClose, car }: { open: boolean; onCl
     if (!open) return;
     setMileage(car.mileage);
     update.reset();
-  }, [open, car.mileage]);
+  }, [open, car.mileage, update]);
 
   const lower = mileage !== undefined && mileage < car.mileage;
 
   const onSave = async () => {
     if (mileage === undefined) return;
-    await update.mutateAsync(toUpdateInput(car, mileage));
-    onClose();
-    setSavedOpen(true);
+    try {
+      await update.mutateAsync(toUpdateInput(car, mileage));
+      onClose();
+      setSavedOpen(true);
+    } catch {
+      // mutation state (update.isError) drives the UI
+    }
   };
 
   return (

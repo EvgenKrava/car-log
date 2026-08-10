@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
-import { resolveInstallMode, type InstallMode } from '../lib/install-mode';
+import { resolveInstallMode, isIOS, isStandalone, type InstallMode } from '../lib/install-mode';
 
 const DISMISS_KEY = 'carlog.pwa.dismissed';
-
-const isIOS = (): boolean =>
-  /iphone|ipad|ipod/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
-
-const isStandalone = (): boolean =>
-  window.matchMedia('(display-mode: standalone)').matches ||
-  ('standalone' in navigator && (navigator as { standalone?: boolean }).standalone === true);
 
 function usePwaInstall() {
   const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);

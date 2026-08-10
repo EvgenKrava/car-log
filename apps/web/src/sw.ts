@@ -14,8 +14,24 @@ precacheAndRoute(self.__WB_MANIFEST);
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  const { title, body, url } = event.data.json() as { title: string; body: string; url: string };
+  // With userVisibleOnly: true, every push MUST result in a visible notification —
+  // skip that contract (by returning without calling showNotification inside
+  // waitUntil) and the browser shows its own generic "site updated in background"
+  // notification and penalizes the push budget. event.data.json() also throws
+  // SYNCHRONOUSLY (before waitUntil) on malformed JSON, which would abort the
+  // listener entirely — so both the missing-payload and bad-JSON cases fall back
+  // to a minimal generic notification instead of returning silently.
+  let payload: { title: string; body: string; url: string } | undefined;
+  if (event.data) {
+    try {
+      payload = event.data.json() as { title: string; body: string; url: string };
+    } catch {
+      payload = undefined;
+    }
+  }
+  const title = payload?.title ?? 'CarLog';
+  const body = payload?.body;
+  const url = payload?.url ?? '/';
   event.waitUntil(self.registration.showNotification(title, {
     body, data: { url }, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
   }));

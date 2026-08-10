@@ -17,20 +17,6 @@ export function pushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined';
 }
 
-export function isStandalone(): boolean {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-// iOS Safari only exposes the Push API to an installed (standalone) PWA, never to a
-// plain browser tab — so an iOS user who hasn't installed yet needs Add-to-Home-Screen
-// guidance instead of an Enable button that can't work.
-export function isIOS(): boolean {
-  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
-}
-
 function toSubscriptionJson(sub: PushSubscription): { endpoint: string; keys: { p256dh: string; auth: string } } {
   const json = sub.toJSON();
   const endpoint = json.endpoint;

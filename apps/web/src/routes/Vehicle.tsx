@@ -407,7 +407,7 @@ function VehicleDetail({ car }: { car: Car }) {
                   // Desktop keeps the compact 3-across instrument cluster.
                   gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
                   gap: { xs: 1.25, sm: 2 },
-                  '& > :not(:first-of-type)': {
+                  '& > :not(:first-child)': {
                     borderColor: 'divider',
                     // Rows divided by a top border on mobile; columns by a left border on desktop.
                     borderTop: { xs: 1, sm: 0 },

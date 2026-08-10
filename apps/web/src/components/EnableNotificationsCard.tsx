@@ -3,7 +3,8 @@ import { Alert, Box, Button, Card, CardContent, Snackbar, Stack, Typography } fr
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth';
-import { pushSupported, isIOS, subscribeToPush } from '../lib/push';
+import { pushSupported, subscribeToPush } from '../lib/push';
+import { isIOS } from '../lib/install-mode';
 
 const DENIED_DISMISS_KEY = 'carlog.pushDeniedDismissed';
 

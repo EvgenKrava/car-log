@@ -6,7 +6,8 @@ import type { Car, CreateEventInput, Reminder } from '@carlog/contracts';
 import { useAuth } from '../auth';
 import { useDeleteReminder, useReminders } from '../queries';
 import { groupReminders, todayISO } from '../lib/reminder-view';
-import { isStandalone, pushSupported, subscribeToPush } from '../lib/push';
+import { pushSupported, subscribeToPush } from '../lib/push';
+import { isStandalone } from '../lib/install-mode';
 import { tokens } from '../theme/tokens';
 import { ReminderCard } from './ReminderCard';
 import { ReminderFormDialog } from './ReminderFormDialog';
@@ -43,19 +44,26 @@ export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>
   // staying on top of service. Only when it could actually work: push supported, not
   // yet asked (permission still 'default'), and installed (iOS push requires standalone).
   const [pushPromptOpen, setPushPromptOpen] = useState(false);
+  const [pushEnableFailed, setPushEnableFailed] = useState(false);
 
   const maybePromptPush = () => {
     if (localStorage.getItem(PUSH_PROMPT_KEY) === '1') return;
     if (!pushSupported() || Notification.permission !== 'default' || !isStandalone()) return;
-    localStorage.setItem(PUSH_PROMPT_KEY, '1');
     setPushPromptOpen(true);
   };
 
+  // Mirrors EnableNotificationsCard.onEnable: subscribe outcome drives feedback and the
+  // once-ever flag. The flag is written ONLY after a settled successful subscribe — on
+  // failure it's left unset so the prompt (and the Profile card) can still offer this
+  // again, instead of a denied/failed attempt silently burning the one-time nudge.
   const onEnablePush = () => {
     if (!accessToken) return;
     setPushPromptOpen(false);
+    setPushEnableFailed(false);
     const lang: 'uk' | 'en' = i18n.language.startsWith('uk') ? 'uk' : 'en';
-    void subscribeToPush(accessToken, lang);
+    subscribeToPush(accessToken, lang)
+      .then(() => localStorage.setItem(PUSH_PROMPT_KEY, '1'))
+      .catch(() => setPushEnableFailed(true));
   };
 
   const groups = groupReminders(reminders ?? [], car.mileage, todayISO());
@@ -159,6 +167,12 @@ export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>
         onClose={() => setPushPromptOpen(false)}
         message={t('push:promptTitle')}
         action={<Button color="inherit" size="small" onClick={onEnablePush}>{t('push:promptEnable')}</Button>}
+      />
+      <Snackbar
+        open={pushEnableFailed}
+        autoHideDuration={5000}
+        onClose={() => setPushEnableFailed(false)}
+        message={t('push:pushEnableFailed')}
       />
     </Box>
   );
