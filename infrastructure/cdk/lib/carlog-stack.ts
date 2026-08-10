@@ -207,7 +207,16 @@ export class CarLogStack extends Stack {
       jwtAudience: [client.userPoolClientId],
     });
 
-    const integration = new HttpLambdaIntegration('CarsIntegration', fn);
+    // scopePermissionToRoute: false — one Lambda (fn) backs ~30 routes on this
+    // HTTP API via a single shared integration. The default (true) creates one
+    // narrowly-scoped AWS::Lambda::Permission statement per route, which hit
+    // Lambda's 20480-byte resource-policy cap once the push-subscription routes
+    // were added (47 statements, 20054 bytes -> 20711/20713 on CREATE_FAILED).
+    // false collapses this to a single wildcard permission scoped to this API's
+    // ID (execute-api:{apiId}/*/*) — still API-scoped, not account-wide; per-route
+    // auth (JWT authorizer vs public) is unaffected since that's enforced by the
+    // route's authorizer config, not by this permission.
+    const integration = new HttpLambdaIntegration('CarsIntegration', fn, { scopePermissionToRoute: false });
     httpApi.addRoutes({ path: '/cars', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}', methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/events', methods: [HttpMethod.GET, HttpMethod.POST], integration, authorizer });
