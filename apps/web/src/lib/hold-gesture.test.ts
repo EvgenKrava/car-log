@@ -61,62 +61,73 @@ describe('holdGestureReducer', () => {
 // gesture context and cannot legally call getUserMedia or start an AudioContext.
 describe('micEffect', () => {
   it('acquires the mic on pointerdown, not on the promote timer', () => {
-    expect(micEffect(initialHoldState, down(0))).toBe('acquire');
+    expect(micEffect(initialHoldState, down(0), false)).toBe('acquire');
   });
 
   it('the promote timer only begins recording — it must never acquire', () => {
     const pressed = holdGestureReducer(initialHoldState, down(0));
-    expect(micEffect(pressed, { kind: 'holdTimer' })).toBe('begin');
+    expect(micEffect(pressed, { kind: 'holdTimer' }, false)).toBe('begin');
   });
 
   it('a stale promote timer (already released) does nothing', () => {
     let s = holdGestureReducer(initialHoldState, down(0));
     s = holdGestureReducer(s, up(100));
-    expect(micEffect(s, { kind: 'holdTimer' })).toBeNull();
+    expect(micEffect(s, { kind: 'holdTimer' }, false)).toBeNull();
   });
 
   it('a short tap releases the mic acquired by pointerdown', () => {
     const pressed = holdGestureReducer(initialHoldState, down(0));
-    expect(micEffect(pressed, up(HOLD_THRESHOLD_MS - 1))).toBe('release');
+    expect(micEffect(pressed, up(HOLD_THRESHOLD_MS - 1), false)).toBe('release');
   });
 
   it('slide-to-cancel releases the mic', () => {
     let s = holdGestureReducer(initialHoldState, down(0));
     s = holdGestureReducer(s, { kind: 'holdTimer' });
     s = holdGestureReducer(s, { kind: 'move', dx: -(CANCEL_SLIDE_PX + 1) });
-    expect(micEffect(s, up(5_000))).toBe('release');
+    expect(micEffect(s, up(5_000), true)).toBe('release');
   });
 
   it('releasing a real recording finishes it', () => {
     let s = holdGestureReducer(initialHoldState, down(0));
     s = holdGestureReducer(s, { kind: 'holdTimer' });
-    expect(micEffect(s, up(5_000))).toBe('finish');
+    expect(micEffect(s, up(5_000), true)).toBe('finish');
+  });
+
+  // Regression: the whole hold can elapse behind the browser's permission prompt — the
+  // reducer promotes to 'recording' but capture never went live. Releasing there is the
+  // user reaching for the prompt's buttons; it must hand the mic back, never encode an
+  // empty clip and surface a "didn't catch that" failure for a mere access request.
+  it('releasing while the permission prompt blocked capture releases, not finishes', () => {
+    let s = holdGestureReducer(initialHoldState, down(0));
+    s = holdGestureReducer(s, { kind: 'holdTimer' });
+    expect(micEffect(s, up(5_000), false)).toBe('release');
   });
 
   it('an interruption (pointercancel/reset) always releases the mic', () => {
     let s = holdGestureReducer(initialHoldState, down(0));
-    expect(micEffect(s, { kind: 'reset' })).toBe('release');
+    expect(micEffect(s, { kind: 'reset' }, false)).toBe('release');
     s = holdGestureReducer(s, { kind: 'holdTimer' });
-    expect(micEffect(s, { kind: 'reset' })).toBe('release');
+    expect(micEffect(s, { kind: 'reset' }, true)).toBe('release');
   });
 
   it('moving mid-recording has no mic-lifecycle effect', () => {
     let s = holdGestureReducer(initialHoldState, down(0));
     s = holdGestureReducer(s, { kind: 'holdTimer' });
-    expect(micEffect(s, { kind: 'move', dx: -10 })).toBeNull();
+    expect(micEffect(s, { kind: 'move', dx: -10 }, true)).toBeNull();
   });
 
   it('every gesture that acquires eventually releases or finishes', () => {
     // Exhaustive over the terminal paths: tap, cancel-slide, record, interruption.
-    const paths: Array<{ events: Parameters<typeof holdGestureReducer>[1][]; final: string }> = [
-      { events: [down(0)], final: 'release' },
-      { events: [down(0), { kind: 'holdTimer' }], final: 'finish' },
-      { events: [down(0), { kind: 'holdTimer' }, { kind: 'move', dx: -(CANCEL_SLIDE_PX + 1) }], final: 'release' },
+    const paths: Array<{ events: Parameters<typeof holdGestureReducer>[1][]; captureLive: boolean; final: string }> = [
+      { events: [down(0)], captureLive: false, final: 'release' },
+      { events: [down(0), { kind: 'holdTimer' }], captureLive: true, final: 'finish' },
+      { events: [down(0), { kind: 'holdTimer' }], captureLive: false, final: 'release' },
+      { events: [down(0), { kind: 'holdTimer' }, { kind: 'move', dx: -(CANCEL_SLIDE_PX + 1) }], captureLive: true, final: 'release' },
     ];
-    for (const { events, final } of paths) {
-      expect(micEffect(initialHoldState, events[0]!)).toBe('acquire');
+    for (const { events, captureLive, final } of paths) {
+      expect(micEffect(initialHoldState, events[0]!, false)).toBe('acquire');
       const s = events.reduce<HoldState>(holdGestureReducer, initialHoldState);
-      expect(micEffect(s, up(9_999))).toBe(final);
+      expect(micEffect(s, up(9_999), captureLive)).toBe(final);
     }
   });
 });

@@ -43,6 +43,9 @@ export function useSpeechRecognition() {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<SpeechError | null>(null);
+  // Sticky, unlike `error`: dismissing the denied alert must not resurrect the mic button
+  // — access is still blocked, and a resurrected button could only fail the same way.
+  const [denied, setDenied] = useState(false);
 
   const recognizer = useRef<SpeechRecognizer | null>(null);
   const finalText = useRef('');
@@ -98,8 +101,9 @@ export function useSpeechRecognition() {
     rec.onerror = (e) => {
       if (recognizer.current !== rec) return; // superseded — not our session anymore
       if (e.error === 'no-speech' || e.error === 'aborted') return; // the restart covers these
-      const denied = e.error === 'not-allowed' || e.error === 'service-not-allowed';
-      setError(denied ? 'denied' : 'failed');
+      const isDenied = e.error === 'not-allowed' || e.error === 'service-not-allowed';
+      setError(isDenied ? 'denied' : 'failed');
+      if (isDenied) setDenied(true);
       wantListening.current = false;
       setListening(false);
     };
@@ -138,5 +142,9 @@ export function useSpeechRecognition() {
     }
   }, []);
 
-  return { supported, listening, transcript, error, start, stop };
+  // Once denied, the caller hides the mic button, so the next start() that used to clear
+  // a stale error can never run — the alert needs an explicit dismiss instead.
+  const dismissError = useCallback(() => setError(null), []);
+
+  return { supported, denied, listening, transcript, error, dismissError, start, stop };
 }

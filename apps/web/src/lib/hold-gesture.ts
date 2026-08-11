@@ -42,14 +42,21 @@ export function holdOutcome(state: HoldState, event: HoldEvent): 'record' | 'can
 //   'finish'  — stop, encode, and transcribe what was recorded.
 export type MicEffect = 'acquire' | 'begin' | 'release' | 'finish' | null;
 
-export function micEffect(state: HoldState, event: HoldEvent): MicEffect {
+// `captureLive` is whether the recorder actually reached its recording phase. The reducer
+// can sit in 'recording' while the recorder never started: getUserMedia's permission prompt
+// keeps the acquisition pending past the promote timer, so the whole hold happens with the
+// browser's prompt on screen and zero audio flowing. A release in that window is the user
+// reaching for the prompt's Allow/Deny button — it must hand the mic back, not
+// stop-and-encode an empty clip and stamp a "didn't catch that" failure over a mere
+// permission request.
+export function micEffect(state: HoldState, event: HoldEvent, captureLive: boolean): MicEffect {
   switch (event.kind) {
     case 'down':
       return 'acquire';
     case 'holdTimer':
       return state.phase === 'pressed' ? 'begin' : null;
     case 'up':
-      if (state.phase === 'recording') return 'finish';
+      if (state.phase === 'recording') return captureLive ? 'finish' : 'release';
       // 'pressed' (tap, never promoted) and 'cancelling' (slid away) both discard the mic.
       if (state.phase === 'pressed' || state.phase === 'cancelling') return 'release';
       return null;

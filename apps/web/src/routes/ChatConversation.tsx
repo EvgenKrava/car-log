@@ -86,6 +86,13 @@ export function ChatConversation() {
 
   const voiceLang = (): 'uk-UA' | 'en-US' => (i18n.language.startsWith('uk') ? 'uk-UA' : 'en-US');
 
+  // Mic access is blocked for this origin (previous denial via the Permissions API, or a
+  // rejection from either voice path this session). Both voice affordances share the same
+  // permission, so hide both — the composer falls through to the plain send button rather
+  // than offering a mic that can only ever fail. Un-hides live if access is re-granted in
+  // site settings (the recorder hook watches for the permission change).
+  const micDenied = recorder.denied || speech.denied;
+
   // Posts one recorded clip for transcription and appends the result into the composer —
   // never auto-sends. `isRetry` controls what a failure does next: first failure keeps the
   // buffer for one retry; a second discards it (voiceNotice.wav becomes null).
@@ -160,7 +167,12 @@ export function ChatConversation() {
     clearHoldTimer();
     const up = { kind: 'up', at: Date.now() } as const;
     const outcome = holdOutcome(hold, up);
-    const effect = micEffect(hold, up);
+    // captureLive distinguishes a real recording from a hold spent entirely behind the
+    // browser's permission prompt (getUserMedia still pending, recorder never left 'idle').
+    // Releasing in that window is the user reaching for the prompt — micEffect maps it to
+    // 'release', not 'finish', so no empty clip is encoded and no "didn't catch that"
+    // failure is stamped over a mere access request.
+    const effect = micEffect(hold, up, recorder.state === 'recording');
     dispatchHold(up);
     // 'release' covers BOTH a short tap and a slide-to-cancel. The tap case matters: the
     // mic was already acquired in pointerdown (it has to be, for iOS), so a gesture that
@@ -320,14 +332,16 @@ export function ChatConversation() {
         {resolve.isError ? <Alert severity="error" sx={{ mb: 1 }}>{t('chat:actionError')}</Alert> : null}
         {attachError ? <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setAttachError(null)}>{attachError}</Alert> : null}
         {speech.error ? (
-          <Alert severity="warning" sx={{ mb: 1 }}>
+          // Dismissible: after a denial the mic button is hidden, so no future start()
+          // will ever clear this — without onClose the alert would be permanent.
+          <Alert severity="warning" sx={{ mb: 1 }} onClose={speech.dismissError}>
             {speech.error === 'denied' ? t('chat:voiceDenied') : t('chat:error')}
           </Alert>
         ) : recorder.error ? (
           // Hold-to-record path: getUserMedia was rejected (mic denied, or any other
           // failure — no device, already in use, insecure context). Previously this had
           // no wiring at all and the gesture silently produced nothing.
-          <Alert severity="warning" sx={{ mb: 1 }}>
+          <Alert severity="warning" sx={{ mb: 1 }} onClose={recorder.dismissError}>
             {recorder.error === 'denied' ? t('chat:voiceDenied') : t('chat:voiceRetry')}
           </Alert>
         ) : null}
@@ -377,7 +391,7 @@ export function ChatConversation() {
             </>
           )}
           <VoiceComposerButton
-            recorderSupported={recorder.supported}
+            recorderSupported={recorder.supported && !micDenied}
             recording={recorder.state !== 'idle'}
             transcribing={transcribe.isPending}
             cancelling={hold.phase === 'cancelling'}
@@ -385,7 +399,7 @@ export function ChatConversation() {
             onPointerMove={onMicPointerMove}
             onPointerUp={onMicPointerUp}
             onPointerCancel={onMicPointerCancel}
-            speechSupported={speech.supported}
+            speechSupported={speech.supported && !micDenied}
             listening={speech.listening}
             speechSeconds={seconds}
             onSpeechStart={() => speech.start(voiceLang())}

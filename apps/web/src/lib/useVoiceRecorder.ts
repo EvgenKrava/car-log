@@ -73,6 +73,14 @@ export function useVoiceRecorder() {
   // permission prompt was refused (or blocked by a prior denial); 'failed' = any other
   // getUserMedia rejection (no device, already in use, insecure context, etc).
   const [error, setError] = useState<'denied' | 'failed' | null>(null);
+  // True when the browser has mic access blocked for this origin. The caller uses it to
+  // drop the voice affordance entirely (plain send-button composer) instead of rendering a
+  // mic that can only ever fail. Seeded from the Permissions API where available — so a
+  // denial from a past session hides the mic from first render, before any gesture — and
+  // forced true when getUserMedia itself rejects with a permission error (covers browsers
+  // whose Permissions API can't be queried for 'microphone'). Flips back on its own via
+  // the status change listener if the user re-allows in site settings.
+  const [denied, setDenied] = useState(false);
 
   const pcm = useRef<PcmCapture | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -111,6 +119,25 @@ export function useVoiceRecorder() {
   // instead of adding latency after the hold promotes. Resolves false if the module can't
   // be installed, which drops this gesture to the 'recorder' path.
   const workletReady = useRef<Promise<boolean> | null>(null);
+
+  // Seed `denied` from the Permissions API so a denial from a previous visit hides the mic
+  // from first render, and track changes so re-allowing in site settings brings it back
+  // without a reload. Browsers that can't query 'microphone' (older Firefox) just reject —
+  // there `denied` is only ever learned at getUserMedia time, which is the old behavior.
+  useEffect(() => {
+    let disposed = false;
+    let status: PermissionStatus | null = null;
+    const sync = () => {
+      if (disposed || !status) return;
+      const isDenied = status.state === 'denied';
+      setDenied(isDenied);
+      if (!isDenied) setError((e) => (e === 'denied' ? null : e));
+    };
+    navigator.permissions?.query({ name: 'microphone' as PermissionName })
+      .then((s) => { status = s; sync(); s.addEventListener('change', sync); })
+      .catch(() => { /* unqueryable here — getUserMedia rejection will set `denied` instead */ });
+    return () => { disposed = true; status?.removeEventListener('change', sync); };
+  }, []);
 
   const teardown = useCallback(() => {
     cancelAnimationFrame(raf.current);
@@ -177,7 +204,9 @@ export function useVoiceRecorder() {
         // context, etc) so the caller can show the right copy — previously this was
         // swallowed silently and the mic-denied path showed nothing at all.
         const name = (err as { name?: string }).name;
-        setError(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'failed');
+        const isDenied = name === 'NotAllowedError' || name === 'SecurityError';
+        setError(isDenied ? 'denied' : 'failed');
+        if (isDenied) setDenied(true); // covers browsers where the Permissions API query failed
         return null;
       }
       if (myRun !== runId.current) {
@@ -479,5 +508,9 @@ export function useVoiceRecorder() {
     teardown();
   }, [teardown]);
 
-  return { supported, state, level, seconds, error, acquire, beginRecording, stopAndEncode, cancel };
+  // With `denied` the mic button disappears, so the next acquire() that used to clear a
+  // stale error can never run — give the caller an explicit dismiss for the alert instead.
+  const dismissError = useCallback(() => setError(null), []);
+
+  return { supported, denied, state, level, seconds, error, dismissError, acquire, beginRecording, stopAndEncode, cancel };
 }
