@@ -29,9 +29,8 @@ type CarLogStackProps = StackProps & {
   // literal values at deploy: CloudFormation does not support ssm-secure dynamic references
   // in Cognito IdP ProviderDetails or Lambda environment variables.
   googleClientSecret: string;
-  bedrockBearerToken: string;
-  // Same mechanism (SSM SecureString resolved at synth, passed as literal props) as the
-  // Bedrock bearer token above — VAPID keys for the notify worker's web-push sender.
+  // Same mechanism (SSM SecureString resolved at synth, passed as literal props) — VAPID
+  // keys for the notify worker's web-push sender.
   vapidPublicKey: string;
   vapidPrivateKey: string;
 };
@@ -112,13 +111,6 @@ export class CarLogStack extends Stack {
       ],
     });
 
-    // Bedrock runs in a DIFFERENT (Bedrock-enabled) account: the bearer token in
-    // /carlog/bedrock-bearer-token is issued BY that account, so the runtime call reaches
-    // that account's Bedrock with no cross-account IAM. Its model access may live in a
-    // different region than this stack — pass `-c bedrockRegion=<region>` at deploy to set
-    // BEDROCK_REGION; when unset, the Lambda falls back to its own AWS_REGION.
-    const bedrockRegion = this.node.tryGetContext('bedrockRegion') as string | undefined;
-
     // Created before the Lambda so its apiId can be passed into the function's environment
     // (used by the admin metrics handler to scope CloudWatch GetMetricData queries to this
     // API). Routes are added further below, once the Lambda integration exists.
@@ -139,18 +131,9 @@ export class CarLogStack extends Stack {
         PHOTOS_BUCKET: photosBucket.bucketName,
         USER_POOL_ID: userPool.userPoolId,
         API_ID: httpApi.apiId,
-        // Bearer token (issued by the Bedrock-enabled account), resolved from SSM
-        // SecureString at synth time (see bin/carlog.ts). CloudFormation rejects ssm-secure
-        // dynamic references in Lambda env vars, so it must be a literal. Read by
-        // AnthropicBedrockMantle; self-identifying, so it reaches that account cross-account.
-        AWS_BEARER_TOKEN_BEDROCK: props.bedrockBearerToken,
-        // Only set BEDROCK_REGION when a region was passed via context (keeps the env clean
-        // otherwise; the adapter falls back to AWS_REGION).
-        ...(bedrockRegion ? { BEDROCK_REGION: bedrockRegion } : {}),
         // VAPID keys for the notify worker's web-push sender, resolved from SSM
-        // SecureString at synth time (see bin/carlog.ts) for the same reason as the
-        // Bedrock bearer token: CloudFormation rejects ssm-secure dynamic references in
-        // Lambda environment variables.
+        // SecureString at synth time (see bin/carlog.ts): CloudFormation rejects ssm-secure
+        // dynamic references in Lambda environment variables.
         VAPID_PUBLIC_KEY: props.vapidPublicKey,
         VAPID_PRIVATE_KEY: props.vapidPrivateKey,
         VAPID_SUBJECT: 'mailto:admin@carlog.app',
@@ -202,6 +185,18 @@ export class CarLogStack extends Stack {
     // Transcribe streaming has no resource-level scoping. Action name to be
     // live-verified at deploy (Task 4) — some SDK versions expose it differently.
     fn.addToRolePolicy(new PolicyStatement({ actions: ['transcribe:StartStreamTranscription'], resources: ['*'] }));
+    // Bedrock chat/extraction (BedrockLlmProvider) — SigV4 via this role, no bearer token.
+    // Keep the model id here in sync with BEDROCK_MODEL_ID's default in
+    // apps/api/src/bedrock-llm-provider.ts. The `us.` cross-region inference profile needs
+    // both its own ARN (in this stack's region) AND the underlying foundation-model ARN,
+    // which has no account segment and can route to any US region — hence the wildcard.
+    fn.addToRolePolicy(new PolicyStatement({
+      actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
+      resources: [
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
+      ],
+    }));
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
       jwtAudience: [client.userPoolClientId],

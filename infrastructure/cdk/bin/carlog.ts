@@ -5,13 +5,13 @@ import { CarLogStack } from '../lib/carlog-stack';
 const region = process.env.CDK_DEFAULT_REGION ?? 'us-east-1';
 
 // CloudFormation `{{resolve:ssm-secure:...}}` dynamic references are NOT supported in
-// Lambda environment variables or Cognito UserPoolIdentityProvider ProviderDetails
-// (the changeset is rejected with "SSM Secure reference is not supported in: ..."). Both
+// Lambda environment variables or Cognito UserPoolIdentityProvider ProviderDetails (the
+// changeset is rejected with "SSM Secure reference is not supported in: ..."). Both
 // consumers need the plaintext at deploy: the Cognito IdP because Cognito stores the
-// client secret itself, and the Lambda because the Anthropic Bedrock SDK reads the bearer
-// token from a plain env var at runtime. So we resolve the two SecureString parameters at
-// synth time via the AWS CLI (the deploy already runs under AWS_PROFILE=yevhenii) and pass
-// the literal values into the stack. Values are never written to the repo.
+// client secret itself, and the Lambda for the VAPID web-push keys it reads from a plain
+// env var at runtime. So we resolve the SecureString parameters at synth time via the AWS
+// CLI (the deploy already runs under AWS_PROFILE=yevhenii) and pass the literal values
+// into the stack. Values are never written to the repo.
 function readSecureParam(name: string): string {
   const value = execFileSync(
     'aws',
@@ -35,7 +35,6 @@ const app = new App();
 new CarLogStack(app, 'CarLogStack', {
   env: { region },
   googleClientSecret: readSecureParam('/carlog/google-client-secret'),
-  bedrockBearerToken: readSecureParam('/carlog/bedrock-bearer-token'),
   vapidPublicKey: readSecureParam('/carlog/vapid-public-key'),
   vapidPrivateKey: readSecureParam('/carlog/vapid-private-key'),
 });

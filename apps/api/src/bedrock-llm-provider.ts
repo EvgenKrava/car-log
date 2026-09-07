@@ -1,4 +1,4 @@
-import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
+import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
 import type {
   LlmProvider, ExtractionContext, CarChatContext, ChatAttachment,
   ChatTurnEntry, ChatTurnResult, ChatToolDefinition,
@@ -14,12 +14,13 @@ import { LlmUnavailableError } from './llm-errors';
 // documented fallback for that gap — never widen `raw` to `any` instead.
 type ContentBlockParam = Record<string, unknown>;
 
-// Bare on-demand foundation-model id. The Bedrock-enabled account (677276119483) that
-// issued our bearer token does NOT have the `global.`/`us.` cross-region inference
-// profiles provisioned — verified live: `global.anthropic.claude-opus-4-8` 404s there,
-// the bare id returns 200. Overridable via env so a deploy can target a different
-// account's provisioned model/profile without a code change.
-const MODEL = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-opus-4-8';
+// Claude Haiku 4.5 — cheapest current Claude model with vision support, invoked in our
+// own account via SigV4 (the Lambda's execution role), not a cross-account bearer token.
+// This account only has cross-region inference profiles provisioned, not on-demand
+// throughput for this model — a bare `anthropic.claude-haiku-4-5-20251001-v1:0` 400s with
+// "on-demand throughput isn't supported"; the `us.` prefix routes to whichever US region
+// has capacity. Overridable via env for a deploy that wants a different model/profile.
+const MODEL = process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 // The tool schema mirrors the CandidateEvent shape so the model emits committable JSON.
 // The domain use-case (extractEvents) is the authoritative validator — this schema only
@@ -182,12 +183,11 @@ function chatSystem(ctx: CarChatContext, today: string): string {
 }
 
 export class BedrockLlmProvider implements LlmProvider {
-  // Auth via AWS_BEARER_TOKEN_BEDROCK env (a bearer token ISSUED BY the Bedrock-enabled
-  // account — the token is self-identifying, so this reaches that account's Bedrock with
-  // no cross-account IAM). The SDK auto-detects the env token. BEDROCK_REGION lets the
-  // Bedrock region differ from this Lambda's own AWS_REGION (the issuing account may host
-  // model access elsewhere); falls back to AWS_REGION, then us-east-1.
-  private readonly client = new AnthropicBedrockMantle({
+  // SigV4 auth via the Lambda's own execution role (default AWS credential provider
+  // chain) — no bearer token, no cross-account IAM. BEDROCK_REGION lets the Bedrock call
+  // target a different region than this Lambda's own AWS_REGION if ever needed; falls
+  // back to AWS_REGION, then us-east-1.
+  private readonly client = new AnthropicBedrock({
     awsRegion: process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? 'us-east-1',
   });
 
@@ -197,19 +197,14 @@ export class BedrockLlmProvider implements LlmProvider {
       res = await this.client.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        thinking: { type: 'adaptive' },
-        // 'low' keeps the call inside the 29s Lambda cap (API GW hard-caps at 30s):
-        // longer pasted notes at 'medium' ran past it and timed out. Extraction is a
-        // structured-output task — it doesn't need deep reasoning.
-        output_config: { effort: 'low' },
+        // Haiku 4.5 supports neither adaptive thinking nor output_config.effort (400s on
+        // both) — it's fast enough for this structured-output task without them.
         tools: [EXTRACT_TOOL],
         tool_choice: { type: 'tool', name: 'record_events' },
         messages: [{ role: 'user', content: prompt(text, ctx) }],
       });
     } catch (err) {
       // Log the error class + message for diagnosis (model-not-found, throttling, etc.).
-      // The Bedrock SDK's error message carries the status/model, NOT the bearer token, so
-      // this does not leak the credential.
       const e = err as Error;
       console.error('Bedrock call failed', e.name, e.message);
       throw new LlmUnavailableError();
@@ -233,8 +228,6 @@ export class BedrockLlmProvider implements LlmProvider {
       res = await this.client.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        thinking: { type: 'adaptive' },
-        output_config: { effort: 'low' },
         tools: [EXTRACT_TOOL],
         tool_choice: { type: 'tool', name: 'record_events' },
         messages: [{ role: 'user', content: [docBlock, { type: 'text', text: promptText }] }],
@@ -310,13 +303,10 @@ export class BedrockLlmProvider implements LlmProvider {
     try {
       res = await this.client.messages.create({
         model: MODEL,
-        // Headroom above a short answer: adaptive thinking shares this budget with the
-        // reply and any tool_use blocks.
+        // Headroom above a short answer plus any tool_use blocks. No thinking/effort:
+        // Haiku 4.5 supports neither (400s on both), and is fast enough without them —
+        // well inside the ~29s Lambda / 30s API Gateway cap across a multi-round tool turn.
         max_tokens: 4096,
-        thinking: { type: 'adaptive' },
-        // 'low' keeps each round well inside the ~29s Lambda / 30s API Gateway cap; a
-        // tool turn makes several of these calls back to back.
-        output_config: { effort: 'low' },
         system: chatSystem(context, new Date().toISOString().slice(0, 10)),
         ...(bedrockTools ? { tools: bedrockTools } : {}),
         messages: bedrockMessages,
