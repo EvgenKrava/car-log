@@ -22,3 +22,4 @@ export * from './reminder';
 export * from './reminder-repository';
 export { toCarExport } from './car-export';
 export * from './notify';
+export * from './usage-quota';
