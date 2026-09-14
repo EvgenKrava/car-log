@@ -24,6 +24,7 @@ import { runImportJob, type ImportWorkPayload } from './import-worker';
 import { runNotifyJob, type NotifyWorkPayload } from './notify-worker';
 import { WebPushSender } from './push-sender';
 import { route, type ApiEvent, type RouteDeps } from './router';
+import { MalformedBodyError, withErrorHandling } from './errors';
 import { parseGroups } from './admin-guard';
 
 const tableName = process.env.TABLE_NAME ?? '';
@@ -97,6 +98,13 @@ const deps: RouteDeps = {
   pushSubs,
 };
 
+// JSON.parse used to run outside withErrorHandling, so a bad body crashed the invocation
+// (API Gateway answered with a generic 500). Defer the failure into the guarded call.
+const parseBody = (raw: string | undefined): unknown => {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return new MalformedBodyError(); }
+};
+
 const isImportPayload = (e: unknown): e is ImportWorkPayload =>
   typeof e === 'object' && e !== null && (e as { jobType?: unknown }).jobType === 'import';
 
@@ -133,8 +141,10 @@ export async function handler(
     groups: parseGroups(event.requestContext.authorizer?.jwt?.claims?.['cognito:groups']),
     pathParams: event.pathParameters ? (event.pathParameters as Record<string, string>) : {},
     queryParams: event.queryStringParameters ? (event.queryStringParameters as Record<string, string>) : {},
-    body: event.body ? JSON.parse(event.body) : null,
+    body: parseBody(event.body),
   };
-  const result = await route(deps, apiEvent);
+  const result = apiEvent.body instanceof MalformedBodyError
+    ? await withErrorHandling(async () => { throw apiEvent.body; })
+    : await route(deps, apiEvent);
   return { statusCode: result.statusCode, headers: result.headers, body: result.body };
 }
