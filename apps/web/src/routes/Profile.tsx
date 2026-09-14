@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Avatar, Box, Button, Card, CardContent, Container, Stack, ToggleButton,
+  Avatar, Box, Button, Card, CardContent, Container, Link, Stack, ToggleButton,
   ToggleButtonGroup, Typography,
 } from '@mui/material';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -13,12 +13,14 @@ import InstallMobileIcon from '@mui/icons-material/InstallMobile';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useAuth } from '../auth';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useThemeMode, type ThemeMode } from '../lib/theme-mode';
 import { isStandalone } from '../lib/install-mode';
 import { ChangePasswordDialog } from '../components/ChangePasswordDialog';
+import { DeleteAccountDialog } from '../components/DeleteAccountDialog';
 import { EnableNotificationsCard } from '../components/EnableNotificationsCard';
 
 // A setting row: label on the left, control on the right; stacks on phones so
@@ -74,6 +76,7 @@ export function Profile() {
   const navigate = useNavigate();
   const { mode, setMode } = useThemeMode();
   const [pwOpen, setPwOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
   const lang: 'en' | 'uk' = i18n.language.startsWith('uk') ? 'uk' : 'en';
   const initial = (email?.[0] ?? '?').toUpperCase();
 
@@ -184,25 +187,35 @@ export function Profile() {
 
           <EnableNotificationsCard />
 
-          {!isFederated && (
-            <>
-              <Card>
-                <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-                  <SectionTitle icon={<VerifiedIcon sx={{ fontSize: 18 }} />} title={t('common:account')} />
-                  <SettingRow
-                    label={t('auth:changePassword')}
-                    control={
-                      <Button variant="outlined" size="small" startIcon={<LockOutlinedIcon sx={{ fontSize: 18 }} />}
-                        onClick={() => setPwOpen(true)}>
-                        {t('auth:changePassword')}
-                      </Button>
-                    }
-                  />
-                </CardContent>
-              </Card>
-              <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
-            </>
-          )}
+          {/* Account card renders for everyone: password change only applies to email
+              sign-ins, but account deletion is available to federated users too. */}
+          <Card>
+            <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+              <SectionTitle icon={<VerifiedIcon sx={{ fontSize: 18 }} />} title={t('common:account')} />
+              {!isFederated && (
+                <SettingRow
+                  label={t('auth:changePassword')}
+                  control={
+                    <Button variant="outlined" size="small" startIcon={<LockOutlinedIcon sx={{ fontSize: 18 }} />}
+                      onClick={() => setPwOpen(true)}>
+                      {t('auth:changePassword')}
+                    </Button>
+                  }
+                />
+              )}
+              <SettingRow
+                label={t('auth:deleteAccount')}
+                control={
+                  <Button variant="outlined" color="error" size="small" startIcon={<DeleteOutlineIcon sx={{ fontSize: 18 }} />}
+                    onClick={() => setDelOpen(true)}>
+                    {t('auth:deleteAccount')}
+                  </Button>
+                }
+              />
+            </CardContent>
+          </Card>
+          {!isFederated && <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />}
+          <DeleteAccountDialog open={delOpen} onClose={() => setDelOpen(false)} />
 
           {/* Sign out gets its own quiet, full-width action instead of hiding
               in the header menu only. */}
@@ -215,6 +228,10 @@ export function Profile() {
           >
             {t('common:signOut')}
           </Button>
+          <Stack direction="row" spacing={2} justifyContent="center">
+            <Link component={RouterLink} to="/privacy" variant="caption" color="text.secondary">{t('auth:privacy')}</Link>
+            <Link component={RouterLink} to="/terms" variant="caption" color="text.secondary">{t('auth:terms')}</Link>
+          </Stack>
         </Stack>
       </Container>
     </AppShell>

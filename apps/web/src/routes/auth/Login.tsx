@@ -37,6 +37,10 @@ export function Login() {
           <Button type="submit" variant="contained" disabled={busy}>{t('auth:signInAction')}</Button>
           <Link component={RouterLink} to="/forgot">{t('auth:toForgot')}</Link>
           <Link component={RouterLink} to="/signup">{t('auth:toSignUp')}</Link>
+          <Stack direction="row" spacing={2} justifyContent="center">
+            <Link component={RouterLink} to="/privacy" variant="caption" color="text.secondary">{t('auth:privacy')}</Link>
+            <Link component={RouterLink} to="/terms" variant="caption" color="text.secondary">{t('auth:terms')}</Link>
+          </Stack>
         </Stack>
       </form>
     </AuthLayout>

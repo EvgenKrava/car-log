@@ -262,6 +262,10 @@ export const setUserAdmin = (token: string, username: string, makeAdmin: boolean
 export const setUserEnabled = (token: string, username: string, enabled: boolean): Promise<void> =>
   request(token, `/admin/users/${encodeURIComponent(username)}/enabled`, AdminUserSchema, { method: 'PUT', body: JSON.stringify({ enabled }) })
     .then(() => undefined);
+// Self-service account deletion — the server purges everything, then the Cognito user.
+export const deleteMe = (token: string): Promise<void> =>
+  request(token, '/me', CarSchema, { method: 'DELETE' }).then(() => undefined);
+
 export const deleteUser = (token: string, username: string): Promise<void> =>
   request(token, `/admin/users/${encodeURIComponent(username)}`, AdminUserSchema, { method: 'DELETE' })
     .then(() => undefined);

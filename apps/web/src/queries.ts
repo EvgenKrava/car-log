@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
 import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event, CarExport } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, importCar, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, transcribeAudio, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser } from './api-client';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, importCar, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, transcribeAudio, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser, deleteMe } from './api-client';
 import { prepareScanFile } from './lib/prepare-scan';
 
 export function useCars() {
@@ -348,4 +348,11 @@ export function useResolveChatAction(carId: string) {
       void qc.invalidateQueries({ queryKey: ['cars', carId, 'reminders'] });
     },
   });
+}
+
+// Deletes the caller's own account. The caller signs out afterwards; there is nothing
+// left to invalidate.
+export function useDeleteAccount() {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useMutation({ mutationFn: () => deleteMe(token) });
 }
