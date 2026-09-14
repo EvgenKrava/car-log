@@ -1,5 +1,5 @@
 import {
-  CreateImportJobRequestSchema, ImportTxtPresignRequestSchema, type ImportJob,
+  CreateImportJobRequestSchema, ImportTxtPresignRequestSchema, IMPORT_FILE_MAX, type ImportJob,
 } from '@carlog/contracts';
 import { CarNotFoundError, type CarRepository, type PhotoStorage } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
@@ -35,8 +35,8 @@ export async function handleImportJobRoute(
   if (path === '/import/presign' && method === 'POST') {
     ImportTxtPresignRequestSchema.parse(body);
     const key = `imports/${ownerId}/${deps.newId()}.txt`;
-    const uploadUrl = await deps.storage.presignPut(key, 'text/plain', 0);
-    return ok(200, { key, uploadUrl });
+    const upload = await deps.storage.presignUpload(key, 'text/plain', IMPORT_FILE_MAX);
+    return ok(200, { key, upload });
   }
 
   if (path === '/import/jobs' && method === 'POST') {

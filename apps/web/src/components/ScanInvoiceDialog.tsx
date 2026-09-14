@@ -9,6 +9,7 @@ import { NumberField } from './ui/NumberField';
 import { WorksSummary } from './ui/WorksSummary';
 import { Modal } from './ui/Modal';
 import { prepareScanFile } from '../lib/prepare-scan';
+import { useQuotaMessage } from '../lib/use-quota-message';
 import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
 import { useAuth } from '../auth';
@@ -18,6 +19,7 @@ type Phase = 'input' | 'scanning' | 'review';
 
 export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; open: boolean; onClose: () => void }) {
   const { t } = useTranslation(['import', 'event', 'common']);
+  const quotaMessage = useQuotaMessage();
   const { accessToken } = useAuth();
   const token = accessToken ?? '';
   const extractScan = useExtractFromScan(carId);
@@ -124,8 +126,11 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
       setDrafts(events);
       setPhase('review');
     } catch (e) {
+      const quota = quotaMessage(e);
       const msg = (e as Error).message;
-      if (msg.includes('503')) {
+      if (quota) {
+        setError(quota);
+      } else if (msg.includes('503')) {
         setError(t('import:errorUnavailable'));
       } else {
         setError(t('import:errorFailed'));

@@ -1,5 +1,7 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import type { PresignedUpload } from '@carlog/contracts';
 import type { PhotoStorage } from '@carlog/domain';
 
 const PRESIGN_TTL_SECONDS = 3600; // 1 hour
@@ -7,13 +9,14 @@ const PRESIGN_TTL_SECONDS = 3600; // 1 hour
 export class S3PhotoStorage implements PhotoStorage {
   constructor(private readonly bucket: string, private readonly client: S3Client) {}
 
-  // maxSize is intentionally unused — signing ContentLength causes signature mismatches.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async presignPut(key: string, contentType: string, _maxSize: number): Promise<string> {
-    const cmd = new PutObjectCommand({
-      Bucket: this.bucket, Key: key, ContentType: contentType,
+  // Presigned POST (not PUT): only a POST policy can bound the object size server-side.
+  async presignUpload(key: string, contentType: string, maxSize: number): Promise<PresignedUpload> {
+    const { url, fields } = await createPresignedPost(this.client, {
+      Bucket: this.bucket, Key: key, Expires: PRESIGN_TTL_SECONDS,
+      Fields: { 'Content-Type': contentType },
+      Conditions: [['content-length-range', 1, maxSize], ['eq', '$Content-Type', contentType]],
     });
-    return getSignedUrl(this.client, cmd, { expiresIn: PRESIGN_TTL_SECONDS });
+    return { url, fields };
   }
 
   async presignGet(key: string): Promise<string> {

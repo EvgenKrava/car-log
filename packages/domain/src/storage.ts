@@ -1,7 +1,10 @@
+import type { PresignedUpload } from '@carlog/contracts';
+
 // Object-storage port for car-scoped binary assets (scan uploads, event proofs).
 // Named `PhotoStorage` for historical reasons; it is not photo-specific.
 export interface PhotoStorage {
-  presignPut(key: string, contentType: string, maxSize: number): Promise<string>;
+  // Presigned browser POST bounded to [1, maxSize] bytes and the given content type.
+  presignUpload(key: string, contentType: string, maxSize: number): Promise<PresignedUpload>;
   presignGet(key: string): Promise<string>;
   deleteObject(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;

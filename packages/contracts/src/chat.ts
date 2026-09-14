@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PresignedUploadSchema } from './upload';
 import { ScanDocContentTypeSchema, MAX_SCAN_SIZE, maxScanSize } from './import';
 
 const optText = (s: z.ZodString) => z.literal('').transform(() => undefined).or(s.optional());
@@ -101,7 +102,7 @@ export const ChatAttachmentPresignRequestSchema = z.object({
 
 export const ChatAttachmentPresignResponseSchema = z.object({
   key: z.string().min(1),
-  uploadUrl: z.string().url(),
+  upload: PresignedUploadSchema,
 });
 
 export const TRANSCRIBE_AUDIO_MAX_B64 = 2_800_000; // ~60s of 16kHz mono 16-bit WAV, base64

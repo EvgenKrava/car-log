@@ -1,4 +1,4 @@
-import { ScanPresignRequestSchema, ExtractFromScanRequestSchema } from '@carlog/contracts';
+import { ScanPresignRequestSchema, ExtractFromScanRequestSchema, maxScanSize } from '@carlog/contracts';
 import { CarNotFoundError, extractEventsFromDocument, type CarRepository, type EventRepository, type PhotoStorage, type LlmProvider } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
 import { buildExtractionContext } from './extraction-context';
@@ -20,8 +20,8 @@ export async function handleScanRoute(deps: ScanDeps, event: ApiEvent, ownerId: 
     const req = ScanPresignRequestSchema.parse(body);
     const ext = req.contentType === 'application/pdf' ? 'pdf' : req.contentType.split('/')[1];
     const key = `scans/${ownerId}/${deps.newId()}.${ext}`;
-    const uploadUrl = await deps.storage.presignPut(key, req.contentType, 0);
-    return ok(200, { key, uploadUrl });
+    const upload = await deps.storage.presignUpload(key, req.contentType, maxScanSize(req.contentType));
+    return ok(200, { key, upload });
   }
 
   if (path === '/import/scan' && method === 'POST') {

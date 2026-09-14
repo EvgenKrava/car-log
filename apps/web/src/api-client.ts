@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { ApiError } from './lib/api-error';
+import { buildUploadForm } from './lib/upload-form';
 import {
   CarSchema,
   type Car,
@@ -39,6 +41,9 @@ import {
   type ScanDocContentType,
   type CarExport,
   type PushSubscription,
+  ImportPresignResponseSchema,
+  ScanPresignResponseSchema,
+  type PresignedUpload,
 } from '@carlog/contracts';
 
 const CarListSchema = z.array(CarSchema);
@@ -57,7 +62,7 @@ async function request<S extends z.ZodTypeAny>(
     ...init,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
   });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null));
   if (res.status === 204) return undefined as z.output<S>;
   return schema.parse(await res.json()) as z.output<S>;
 }
@@ -81,12 +86,13 @@ export const setCarSharing = (token: string, carId: string, shared: boolean): Pr
 export async function getPublicCar(carId: string): Promise<PublicCar> {
   const res = await fetch(`${API_URL}/public/cars/${encodeURIComponent(carId)}`);
   if (res.status === 404) throw new Error('NOT_SHARED');
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null));
   return PublicCarSchema.parse(await res.json());
 }
 
-export async function uploadToS3(uploadUrl: string, file: File): Promise<void> {
-  const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+// Presigned POST: multipart form, no explicit Content-Type (the browser sets the boundary).
+export async function uploadToS3(upload: PresignedUpload, file: File): Promise<void> {
+  const res = await fetch(upload.url, { method: 'POST', body: buildUploadForm(upload, file) });
   if (!res.ok) throw new Error(`S3 upload ${res.status}`);
 }
 
@@ -111,8 +117,8 @@ export const deleteProof = (token: string, carId: string, eventId: string, proof
 
 export async function uploadProof(token: string, carId: string, eventId: string, file: File): Promise<void> {
   const input = { contentType: file.type as AttachmentContentType, size: file.size, filename: file.name };
-  const { uploadUrl, proofId } = await presignProof(token, carId, eventId, input);
-  await uploadToS3(uploadUrl, file);
+  const { upload, proofId } = await presignProof(token, carId, eventId, input);
+  await uploadToS3(upload, file);
   await confirmProof(token, carId, eventId, { ...input, proofId });
 }
 
@@ -122,11 +128,10 @@ export const importCar = (token: string, file: CarExport): Promise<Car> =>
 export const extractEvents = (token: string, carId: string, text: string): Promise<ExtractEventsResponse> =>
   request(token, '/import/extract', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, text }) });
 
-const ImportPresignSchema = z.object({ key: z.string(), uploadUrl: z.string().url() });
 const CreateJobResponseSchema = z.object({ jobId: z.string().uuid() });
 
-export const presignImportTxt = (token: string, size: number): Promise<z.infer<typeof ImportPresignSchema>> =>
-  request(token, '/import/presign', ImportPresignSchema, { method: 'POST', body: JSON.stringify({ size }) });
+export const presignImportTxt = (token: string, size: number): Promise<z.infer<typeof ImportPresignResponseSchema>> =>
+  request(token, '/import/presign', ImportPresignResponseSchema, { method: 'POST', body: JSON.stringify({ size }) });
 
 export const createImportJob = (token: string, input: { carId: string; text?: string; s3Key?: string }): Promise<{ jobId: string }> =>
   request(token, '/import/jobs', CreateJobResponseSchema, { method: 'POST', body: JSON.stringify(input) });
@@ -149,9 +154,8 @@ export const latestImportJob = async (token: string, carId: string): Promise<Imp
   }
 };
 
-const ScanPresignSchema = z.object({ key: z.string(), uploadUrl: z.string().url() });
-export const presignScan = (token: string, contentType: string, size: number): Promise<z.infer<typeof ScanPresignSchema>> =>
-  request(token, '/import/scan/presign', ScanPresignSchema, { method: 'POST', body: JSON.stringify({ contentType, size }) });
+export const presignScan = (token: string, contentType: string, size: number): Promise<z.infer<typeof ScanPresignResponseSchema>> =>
+  request(token, '/import/scan/presign', ScanPresignResponseSchema, { method: 'POST', body: JSON.stringify({ contentType, size }) });
 export const extractFromScan = (token: string, carId: string, s3Key: string, contentType: string): Promise<ExtractEventsResponse> =>
   request(token, '/import/scan', ExtractEventsResponseSchema, { method: 'POST', body: JSON.stringify({ carId, s3Key, contentType }) });
 export const confirmProofFromScan = (token: string, carId: string, eventId: string, s3Key: string, contentType: string, size: number) =>
@@ -213,11 +217,11 @@ export async function transcribeAudio(
 // Presign + upload one already-prepared (downscaled) file, returning its attachment ref.
 export async function uploadChatAttachment(token: string, carId: string, file: File): Promise<AttachmentRef> {
   const contentType = file.type as ScanDocContentType;
-  const { key, uploadUrl } = await request(
+  const { key, upload } = await request(
     token, `${chatBase(carId)}/attachments/presign`, ChatAttachmentPresignResponseSchema,
     { method: 'POST', body: JSON.stringify({ contentType, size: file.size }) },
   );
-  await uploadToS3(uploadUrl, file);
+  await uploadToS3(upload, file);
   return { key, contentType, filename: file.name, size: file.size };
 }
 

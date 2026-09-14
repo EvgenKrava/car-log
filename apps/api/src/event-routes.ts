@@ -44,8 +44,8 @@ export async function handleEventRoute(
       assertProofUnderCap(existing.length);
       const newProofId = crypto.randomUUID();
       const key = proofKey(ownerId, carId, eventId, newProofId);
-      const uploadUrl = await deps.storage.presignPut(key, req.contentType, MAX_PROOF_SIZE);
-      return ok(200, { proofId: newProofId, uploadUrl, key });
+      const upload = await deps.storage.presignUpload(key, req.contentType, MAX_PROOF_SIZE);
+      return ok(200, { proofId: newProofId, upload, key });
     }
     if (path === pbase && method === 'POST') {
       const req = ProofConfirmSchema.parse(body);

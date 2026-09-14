@@ -72,8 +72,8 @@ export async function handleChatRoute(
   if (path === `${base}/attachments/presign` && method === 'POST') {
     const req = ChatAttachmentPresignRequestSchema.parse(body);
     const key = `chat/${ownerId}/${carId}/${deps.newId()}.${ext(req.contentType)}`;
-    const uploadUrl = await deps.storage.presignPut(key, req.contentType, maxScanSize(req.contentType));
-    return ok(200, { key, uploadUrl });
+    const upload = await deps.storage.presignUpload(key, req.contentType, maxScanSize(req.contentType));
+    return ok(200, { key, upload });
   }
 
   const sessionsBase = `${base}/sessions`;

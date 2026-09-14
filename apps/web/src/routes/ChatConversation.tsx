@@ -17,18 +17,20 @@ import { useVoiceRecorder } from '../lib/useVoiceRecorder';
 import { MAX_CLIP_SECONDS } from '../lib/wav-encode';
 import { holdGestureReducer, holdOutcome, micEffect, initialHoldState, HOLD_THRESHOLD_MS } from '../lib/hold-gesture';
 import { useChatSession, useCreateChatSession, usePostChatMessage, useResolveChatAction, useTranscribe } from '../queries';
+import { useQuotaMessage } from '../lib/use-quota-message';
 
 // One voice-flow notice at a time, rendered in the alerts strip above the composer.
 // 'retry' carries the WAV that failed so its Retry action can re-post the exact same
 // bytes; once a retry itself fails, `wav` is nulled — the ref is discarded, no further
 // retry offered, but the "didn't catch that" message still explains the empty result.
-type VoiceNotice = { kind: 'hint' } | { kind: 'retry'; wav: ArrayBuffer | null };
+type VoiceNotice = { kind: 'hint' } | { kind: 'retry'; wav: ArrayBuffer | null } | { kind: 'quota'; text: string };
 
 const MAX_ATTACH = 4;
 const ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf';
 
 export function ChatConversation() {
   const { t, i18n } = useTranslation(['chat', 'common']);
+  const quotaMessage = useQuotaMessage();
   const { id = '', sid = '' } = useParams();
   const navigate = useNavigate();
 
@@ -103,7 +105,9 @@ export function ChatConversation() {
       setVoiceNotice(null);
       setInput((v) => (v ? `${v} ${text}` : text));
       inputElRef.current?.focus();
-    } catch {
+    } catch (e) {
+      const quota = quotaMessage(e);
+      if (quota) { setVoiceNotice({ kind: 'quota', text: quota }); return; }
       setVoiceNotice({ kind: 'retry', wav: isRetry ? null : wav });
     }
   };
@@ -328,7 +332,7 @@ export function ChatConversation() {
           <div ref={endRef} />
         </Box>
 
-        {post.isError ? <Alert severity="error" sx={{ mb: 1 }}>{t('chat:error')}</Alert> : null}
+        {post.isError ? <Alert severity="error" sx={{ mb: 1 }}>{quotaMessage(post.error) ?? t('chat:error')}</Alert> : null}
         {resolve.isError ? <Alert severity="error" sx={{ mb: 1 }}>{t('chat:actionError')}</Alert> : null}
         {attachError ? <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setAttachError(null)}>{attachError}</Alert> : null}
         {speech.error ? (
@@ -350,6 +354,9 @@ export function ChatConversation() {
         ) : null}
         {voiceNotice?.kind === 'hint' ? (
           <Alert severity="info" sx={{ mb: 1 }}>{t('chat:voiceHoldHint')}</Alert>
+        ) : null}
+        {voiceNotice?.kind === 'quota' ? (
+          <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setVoiceNotice(null)}>{voiceNotice.text}</Alert>
         ) : null}
         {voiceNotice?.kind === 'retry' ? (
           <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setVoiceNotice(null)}

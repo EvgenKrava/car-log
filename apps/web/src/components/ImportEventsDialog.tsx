@@ -10,11 +10,13 @@ import { WorksSummary } from './ui/WorksSummary';
 import { Modal } from './ui/Modal';
 import { EVENT_CATEGORIES, IMPORT_INLINE_MAX, IMPORT_FILE_MAX, type CandidateEvent, type ImportJob } from '@carlog/contracts';
 import { useCreateImportJob, useImportJob, useLatestImportJob, useDeleteImportJob, useCreateEvent } from '../queries';
+import { useQuotaMessage } from '../lib/use-quota-message';
 
 type Phase = 'input' | 'progress' | 'review';
 
 export function ImportEventsDialog({ carId, open, onClose }: { carId: string; open: boolean; onClose: () => void }) {
   const { t } = useTranslation(['import', 'event', 'common']);
+  const quotaMessage = useQuotaMessage();
   const create = useCreateEvent(carId);
   const createJob = useCreateImportJob(carId);
   const deleteJob = useDeleteImportJob(carId);
@@ -158,8 +160,9 @@ export function ImportEventsDialog({ carId, open, onClose }: { carId: string; op
       setPhase('progress');
       hasSeededReview.current = false;
     } catch (e) {
+      const quota = quotaMessage(e);
       const status = (e as Error).message;
-      setError(status.includes('503') ? t('import:errorUnavailable') : t('import:errorFailed'));
+      setError(quota ?? (status.includes('503') ? t('import:errorUnavailable') : t('import:errorFailed')));
     }
   };
 

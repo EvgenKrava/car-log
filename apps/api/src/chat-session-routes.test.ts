@@ -26,7 +26,7 @@ const car: Car = {
 
 // A stub storage: chat attachments are not exercised by these tests.
 const storage = {
-  presignPut: async () => 'https://example.test/put',
+  presignUpload: async () => ({ url: 'https://example.test/', fields: { key: 'k' } }),
   presignGet: async () => 'https://example.test/get',
   exists: async () => true,
   deleteObject: async () => undefined,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PresignedUploadSchema } from './upload';
 import { CreateEventSchema } from './event';
 
 // A CandidateEvent is an Event the user has NOT committed yet. Extraction is lenient:
@@ -87,7 +88,10 @@ export const ScanPresignRequestSchema = z.object({
 export type ScanPresignRequest = z.infer<typeof ScanPresignRequestSchema>;
 
 export const ScanPresignResponseSchema = z.object({
-  key: z.string().min(1), uploadUrl: z.string().url(),
+  key: z.string().min(1), upload: PresignedUploadSchema,
+});
+export const ImportPresignResponseSchema = z.object({
+  key: z.string().min(1), upload: PresignedUploadSchema,
 });
 
 export const ExtractFromScanRequestSchema = z.object({

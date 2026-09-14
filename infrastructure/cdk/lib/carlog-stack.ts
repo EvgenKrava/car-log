@@ -168,7 +168,8 @@ export class CarLogStack extends Stack {
       // taking down every route, not just transcription. `web-push` is a plain npm package
       // esbuild bundles by default, but it is listed here too and verified empirically in
       // the synthed asset (Task 4) — the same class of incident, not worth risking twice.
-      bundling: { format: undefined, nodeModules: ['@aws-sdk/client-transcribe-streaming', 'web-push'] },
+      // `@aws-sdk/s3-presigned-post` is likewise absent from the runtime-provided SDK set.
+      bundling: { format: undefined, nodeModules: ['@aws-sdk/client-transcribe-streaming', '@aws-sdk/s3-presigned-post', 'web-push'] },
     });
     table.grantReadWriteData(fn);
     photosBucket.grantReadWrite(fn);

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PresignedUploadSchema } from './upload';
 
 export const ATTACHMENT_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'] as const;
 export const MAX_PROOF_SIZE = 10_485_760; // 10 MB
@@ -24,7 +25,7 @@ export const ProofSchema = z.object({
 });
 
 export const ProofConfirmSchema = ProofPresignRequestSchema.extend({ proofId: z.string().uuid() });
-export const ProofPresignResponseSchema = z.object({ proofId: z.string().uuid(), uploadUrl: z.string().url(), key: z.string().min(1) });
+export const ProofPresignResponseSchema = z.object({ proofId: z.string().uuid(), upload: PresignedUploadSchema, key: z.string().min(1) });
 export const ProofWithUrlSchema = ProofSchema.extend({ url: z.string().url() });
 
 export type AttachmentContentType = z.infer<typeof AttachmentContentTypeSchema>;

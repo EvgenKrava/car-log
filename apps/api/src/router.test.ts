@@ -17,7 +17,7 @@ import type { MetricsPort } from './cloudwatch-metrics';
 
 let cars: InMemoryCarRepository;
 const storage: PhotoStorage = {
-  presignPut: async () => 'https://s3.example/put',
+  presignUpload: async () => ({ url: 'https://s3.example/', fields: { key: 'k' } }),
   presignGet: async () => 'https://s3.example/get',
   deleteObject: async () => {},
   exists: async () => true,
@@ -354,9 +354,9 @@ describe('route', () => {
     it('presigns a txt upload under the imports prefix', async () => {
       const res = await route(deps, { ...base, method: 'POST', path: '/import/presign', ownerId: 'u1', body: { size: 1000 } });
       expect(res.statusCode).toBe(200);
-      const { key, uploadUrl } = JSON.parse(res.body);
+      const { key, upload } = JSON.parse(res.body);
       expect(key).toMatch(/^imports\/u1\/.+\.txt$/);
-      expect(uploadUrl).toContain('https://');
+      expect(upload.url).toContain('https://');
     });
 
     it('rejects a create request with foreign s3Key prefix (IDOR guard)', async () => {
@@ -380,12 +380,12 @@ describe('route', () => {
       return JSON.parse(res.body).id as string;
     }
 
-    it('POST /import/scan/presign returns key and uploadUrl under scans/ prefix', async () => {
+    it('POST /import/scan/presign returns key and upload under scans/ prefix', async () => {
       const res = await route(deps, { ...base, method: 'POST', path: '/import/scan/presign', ownerId: 'u1', body: { contentType: 'application/pdf', size: 5000 } });
       expect(res.statusCode).toBe(200);
-      const { key, uploadUrl } = JSON.parse(res.body);
+      const { key, upload } = JSON.parse(res.body);
       expect(key).toMatch(/^scans\/u1\/.+\.pdf$/);
-      expect(uploadUrl).toContain('https://');
+      expect(upload.url).toContain('https://');
     });
 
     it('POST /import/scan returns extracted events for owned car', async () => {
@@ -598,7 +598,7 @@ describe('route', () => {
       expect(res.statusCode).toBe(200);
       const b = JSON.parse(res.body);
       expect(b.key.startsWith(`chat/u1/${carId}/`)).toBe(true);
-      expect(b.uploadUrl).toBe('https://s3.example/put');
+      expect(b.upload).toEqual({ url: 'https://s3.example/', fields: { key: 'k' } });
     });
 
     it('session routes 404 for a car the caller does not own', async () => {

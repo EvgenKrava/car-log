@@ -146,8 +146,8 @@ export function useCreateImportJob(carId: string) {
   return useMutation({
     mutationFn: async (input: { text?: string; file?: File }) => {
       if (input.file) {
-        const { key, uploadUrl } = await presignImportTxt(token, input.file.size);
-        await uploadToS3(uploadUrl, input.file);
+        const { key, upload } = await presignImportTxt(token, input.file.size);
+        await uploadToS3(upload, input.file);
         return createImportJob(token, { carId, s3Key: key });
       }
       return createImportJob(token, { carId, text: input.text ?? '' });
@@ -191,8 +191,8 @@ export function useExtractFromScan(carId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? '';
   return useMutation({
     mutationFn: async ({ file }: { file: File }) => {
-      const { key, uploadUrl } = await presignScan(token, file.type, file.size);
-      await uploadToS3(uploadUrl, file);
+      const { key, upload } = await presignScan(token, file.type, file.size);
+      await uploadToS3(upload, file);
       const { events } = await extractFromScan(token, carId, key, file.type);
       return { events, s3Key: key, contentType: file.type, size: file.size };
     },
