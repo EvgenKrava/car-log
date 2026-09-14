@@ -1,5 +1,5 @@
 import { CreateCarSchema, SetSharingSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, nowIso, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository } from '@carlog/domain';
+import { CarNotFoundError, createCar, nowIso, consumeQuota, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository, type UsageQuota } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handleEventRoute } from './event-routes';
 import { handleReminderRoute } from './reminder-routes';
@@ -13,6 +13,8 @@ import { handlePushRoute } from './push-routes';
 import { handleScanRoute } from './scan-routes';
 import { handleAdminRoute } from './admin-routes';
 import { handlePublicRoute } from './public-routes';
+import { quotaKindFor } from './quota-gate';
+import { isAdmin } from './admin-guard';
 import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -42,6 +44,7 @@ export type RouteDeps = {
   metrics: MetricsPort;
   apiId: string;
   pushSubs: PushSubscriptionRepository;
+  quota: UsageQuota;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -58,6 +61,10 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (!ownerId) return ok(401, { error: 'Unauthorized' });
     const id = pathParams.id;
+
+    // Metered operations consume the caller's daily quota before any handler runs.
+    const kind = quotaKindFor(method, path);
+    if (kind) await consumeQuota(deps.quota, ownerId, kind, isAdmin(event.groups));
 
     if (path.startsWith('/admin/')) {
       const result = await handleAdminRoute(

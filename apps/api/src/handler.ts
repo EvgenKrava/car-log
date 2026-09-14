@@ -15,6 +15,7 @@ import { DynamoReminderRepository } from './dynamo-reminder-repository';
 import { DynamoImportJobRepository } from './import-job-repository';
 import { DynamoChatSessionRepository } from './dynamo-chat-session-repository';
 import { DynamoPushSubscriptionRepository } from './push-subscription-repository';
+import { DynamoUsageQuota } from './dynamo-usage-quota';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { AwsTranscribeProvider } from './transcribe-provider';
@@ -45,6 +46,7 @@ const adminUsers = new AwsCognitoUserAdmin(
 const metrics = new AwsCloudWatchMetrics(new CloudWatchClient({}));
 const reminders = new DynamoReminderRepository(tableName, client);
 const pushSubs = new DynamoPushSubscriptionRepository(tableName, client);
+const quota = new DynamoUsageQuota(tableName, client);
 const pushSender = new WebPushSender();
 
 const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
@@ -96,6 +98,7 @@ const deps: RouteDeps = {
   metrics,
   apiId: process.env.API_ID ?? '',
   pushSubs,
+  quota,
 };
 
 // JSON.parse used to run outside withErrorHandling, so a bad body crashed the invocation

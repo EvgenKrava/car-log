@@ -9,6 +9,7 @@ import { InMemoryReminderRepository } from './in-memory-reminder-repository';
 import { InMemoryChatSessionRepository } from './in-memory-chat-session-repository';
 import { InMemoryTranscribeProvider } from './in-memory-transcribe-provider';
 import { InMemoryPushSubscriptionRepository } from './in-memory-push-subscription-repository';
+import { InMemoryUsageQuota } from './in-memory-usage-quota';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -37,7 +38,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -57,6 +58,7 @@ beforeEach(() => {
     metrics,
     apiId: 'api-1',
     pushSubs: new InMemoryPushSubscriptionRepository(),
+    quota: new InMemoryUsageQuota(),
   };
 });
 
@@ -604,5 +606,52 @@ describe('route', () => {
       const res = await route(deps, { ...base, method: 'GET', path: `/cars/${carId}/chat/sessions`, ownerId: 'u2', pathParams: { id: carId } });
       expect(res.statusCode).toBe(404);
     });
+  });
+});
+
+describe('daily quota gate', () => {
+  const today = () => new Date().toISOString().slice(0, 10);
+  async function makeCar(ownerId: string): Promise<string> {
+    const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
+    return JSON.parse(res.body).id as string;
+  }
+
+  it('429s the 4th import job of the day with kind + resetsAt', async () => {
+    const carId = await makeCar('u1');
+    const body = { carId, text: 'oil change 2024' };
+    for (let i = 0; i < 3; i += 1) {
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body });
+      expect(res.statusCode).toBe(202);
+    }
+    const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', body });
+    expect(res.statusCode).toBe(429);
+    const parsed = JSON.parse(res.body);
+    expect(parsed.error).toBe('QuotaExceeded');
+    expect(parsed.kind).toBe('import');
+    expect(parsed.resetsAt).toMatch(/T00:00:00\.000Z$/);
+  });
+
+  it('admins are not metered', async () => {
+    const carId = await makeCar('u1');
+    const body = { carId, text: 'oil change 2024' };
+    for (let i = 0; i < 4; i += 1) {
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', groups: ['admin'], body });
+      expect(res.statusCode).toBe(202);
+    }
+    expect(deps.quota.counts.size).toBe(0);
+  });
+
+  it('a 429 does not consume the counter', async () => {
+    deps.quota.counts.set(`u1#extract#${today()}`, 10);
+    const carId = await makeCar('u1');
+    const res = await route(deps, { ...base, method: 'POST', path: '/import/extract', ownerId: 'u1', body: { carId, text: 'x' } });
+    expect(res.statusCode).toBe(429);
+    expect(deps.quota.counts.get(`u1#extract#${today()}`)).toBe(10);
+  });
+
+  it('non-metered routes never touch the counter', async () => {
+    await makeCar('u1');
+    await route(deps, { ...base, method: 'GET', path: '/cars', ownerId: 'u1' });
+    expect(deps.quota.counts.size).toBe(0);
   });
 });

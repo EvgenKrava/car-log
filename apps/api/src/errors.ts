@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { CarNotFoundError, CapExceededError, EventNotFoundError, ProofNotFoundError, ReminderNotFoundError, ExtractionFailedError } from '@carlog/domain';
+import { CarNotFoundError, CapExceededError, EventNotFoundError, ProofNotFoundError, ReminderNotFoundError, ExtractionFailedError, QuotaExceededError } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 import { TranscribeUnavailableError } from './transcribe-errors';
 
@@ -42,6 +42,9 @@ export async function withErrorHandling(fn: () => Promise<ApiResult>): Promise<A
     }
     if (err instanceof LlmUnavailableError) {
       return { statusCode: 503, headers: HEADERS, body: JSON.stringify({ error: 'LlmUnavailable', message: err.message }) };
+    }
+    if (err instanceof QuotaExceededError) {
+      return { statusCode: 429, headers: HEADERS, body: JSON.stringify({ error: 'QuotaExceeded', kind: err.kind, resetsAt: err.resetsAt }) };
     }
     if (err instanceof TranscribeUnavailableError) {
       return { statusCode: 503, headers: HEADERS, body: JSON.stringify({ error: 'TranscribeUnavailable', message: err.message }) };
