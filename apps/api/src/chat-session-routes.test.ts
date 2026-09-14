@@ -31,6 +31,7 @@ const storage = {
   exists: async () => true,
   deleteObject: async () => undefined,
   copyObject: async () => undefined,
+  deletePrefix: async () => 0,
 };
 
 const pendingAction: ChatAction = {
@@ -40,7 +41,7 @@ const pendingAction: ChatAction = {
 };
 
 const post = (path: string): ApiEvent => ({
-  method: 'POST', path, ownerId: OWNER, groups: [],
+  method: 'POST', path, ownerId: OWNER, username: null, groups: [],
   pathParams: { id: CAR_ID, sid: SID, aid: AID }, queryParams: {}, body: null,
 });
 

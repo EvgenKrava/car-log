@@ -1,5 +1,5 @@
 import { CreateCarSchema, SetSharingSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, nowIso, consumeQuota, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository, type UsageQuota } from '@carlog/domain';
+import { CarNotFoundError, createCar, nowIso, consumeQuota, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository, type UsageQuota, type UserDataRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handleEventRoute } from './event-routes';
 import { handleReminderRoute } from './reminder-routes';
@@ -13,6 +13,7 @@ import { handlePushRoute } from './push-routes';
 import { handleScanRoute } from './scan-routes';
 import { handleAdminRoute } from './admin-routes';
 import { handlePublicRoute } from './public-routes';
+import { handleMeRoute } from './me-routes';
 import { quotaKindFor } from './quota-gate';
 import { isAdmin } from './admin-guard';
 import type { ImportJobRepository } from './import-job-repository';
@@ -25,6 +26,8 @@ export type ApiEvent = {
   method: string;
   path: string;
   ownerId: string | null;
+  // Cognito username (access-token `username` claim) — needed for AdminDeleteUser.
+  username: string | null;
   groups: string[];
   pathParams: Record<string, string>;
   queryParams: Record<string, string>;
@@ -45,6 +48,7 @@ export type RouteDeps = {
   apiId: string;
   pushSubs: PushSubscriptionRepository;
   quota: UsageQuota;
+  userData: UserDataRepository;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -66,9 +70,20 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     const kind = quotaKindFor(method, path);
     if (kind) await consumeQuota(deps.quota, ownerId, kind, isAdmin(event.groups));
 
+    if (path === '/me') {
+      const result = await handleMeRoute(
+        { cars: deps.cars, storage: deps.storage, userData: deps.userData, identity: deps.adminUsers },
+        event, ownerId,
+      );
+      if (result) return result;
+    }
+
     if (path.startsWith('/admin/')) {
       const result = await handleAdminRoute(
-        { users: deps.adminUsers, metrics: deps.metrics, events: deps.events, apiId: deps.apiId },
+        {
+          users: deps.adminUsers, metrics: deps.metrics, events: deps.events, apiId: deps.apiId,
+          cars: deps.cars, storage: deps.storage, userData: deps.userData,
+        },
         event,
       );
       if (result) return result;

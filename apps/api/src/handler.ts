@@ -16,6 +16,7 @@ import { DynamoImportJobRepository } from './import-job-repository';
 import { DynamoChatSessionRepository } from './dynamo-chat-session-repository';
 import { DynamoPushSubscriptionRepository } from './push-subscription-repository';
 import { DynamoUsageQuota } from './dynamo-usage-quota';
+import { DynamoUserDataRepository } from './dynamo-user-data-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { BedrockLlmProvider } from './bedrock-llm-provider';
 import { AwsTranscribeProvider } from './transcribe-provider';
@@ -47,6 +48,7 @@ const metrics = new AwsCloudWatchMetrics(new CloudWatchClient({}));
 const reminders = new DynamoReminderRepository(tableName, client);
 const pushSubs = new DynamoPushSubscriptionRepository(tableName, client);
 const quota = new DynamoUsageQuota(tableName, client);
+const userData = new DynamoUserDataRepository(tableName, client);
 const pushSender = new WebPushSender();
 
 const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
@@ -99,6 +101,7 @@ const deps: RouteDeps = {
   apiId: process.env.API_ID ?? '',
   pushSubs,
   quota,
+  userData,
 };
 
 // JSON.parse used to run outside withErrorHandling, so a bad body crashed the invocation
@@ -141,6 +144,7 @@ export async function handler(
     method: event.requestContext.http.method,
     path: event.requestContext.http.path,
     ownerId: event.requestContext.authorizer?.jwt?.claims?.sub as string | undefined ?? null,
+    username: event.requestContext.authorizer?.jwt?.claims?.username as string | undefined ?? null,
     groups: parseGroups(event.requestContext.authorizer?.jwt?.claims?.['cognito:groups']),
     pathParams: event.pathParameters ? (event.pathParameters as Record<string, string>) : {},
     queryParams: event.queryStringParameters ? (event.queryStringParameters as Record<string, string>) : {},

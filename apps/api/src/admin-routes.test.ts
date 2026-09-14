@@ -26,11 +26,16 @@ const eventsRepo = (): EventRepository => ({
   delete: vi.fn(async () => {}),
   recentAcrossOwners: vi.fn(async () => []),
 });
+const purgeDeps = () => ({
+  cars: { listByOwner: vi.fn(async () => []), setShared: vi.fn(async () => { throw new Error('unused'); }) } as unknown as AdminRouteDeps['cars'],
+  storage: { deletePrefix: vi.fn(async () => 0) } as unknown as AdminRouteDeps['storage'],
+  userData: { deleteAllForOwner: vi.fn(async () => 0) },
+});
 const deps = (over?: Partial<AdminRouteDeps>): AdminRouteDeps => ({
-  users: port(), metrics: metricsPort(), events: eventsRepo(), apiId: 'api-1', ...over,
+  users: port(), metrics: metricsPort(), events: eventsRepo(), apiId: 'api-1', ...purgeDeps(), ...over,
 });
 const base = (over: Partial<ApiEvent>): ApiEvent => ({
-  method: 'GET', path: '/admin/users', ownerId: 'caller', groups: ['admin'],
+  method: 'GET', path: '/admin/users', ownerId: 'caller', username: 'caller', groups: ['admin'],
   pathParams: {}, queryParams: {}, body: null, ...over,
 });
 

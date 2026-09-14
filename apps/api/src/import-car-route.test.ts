@@ -20,7 +20,7 @@ const file = {
 };
 
 const post = (body: unknown): ApiEvent => ({
-  method: 'POST', path: '/import/car', ownerId: OWNER, groups: [],
+  method: 'POST', path: '/import/car', ownerId: OWNER, username: null, groups: [],
   pathParams: {}, queryParams: {}, body,
 });
 

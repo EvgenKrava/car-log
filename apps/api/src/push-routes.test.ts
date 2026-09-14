@@ -12,11 +12,11 @@ const subscriptionBody = (endpoint: string, lang: 'uk' | 'en' = 'en') => ({
 });
 
 const post = (body: unknown, ownerId = OWNER): ApiEvent => ({
-  method: 'POST', path: '/push/subscription', ownerId, groups: [],
+  method: 'POST', path: '/push/subscription', ownerId, username: null, groups: [],
   pathParams: {}, queryParams: {}, body,
 });
 const del = (body: unknown, ownerId = OWNER): ApiEvent => ({
-  method: 'DELETE', path: '/push/subscription', ownerId, groups: [],
+  method: 'DELETE', path: '/push/subscription', ownerId, username: null, groups: [],
   pathParams: {}, queryParams: {}, body,
 });
 

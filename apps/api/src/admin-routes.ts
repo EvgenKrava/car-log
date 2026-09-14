@@ -1,5 +1,5 @@
 import { SetEnabledSchema } from '@carlog/contracts';
-import type { EventRepository } from '@carlog/domain';
+import type { CarRepository, EventRepository, PhotoStorage, UserDataRepository } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
 import type { ApiEvent } from './router';
 import { isAdmin } from './admin-guard';
@@ -15,6 +15,10 @@ export type AdminRouteDeps = {
   metrics: MetricsPort;
   events: EventRepository;
   apiId: string;
+  // Admin delete purges the target's data the same way self-service deletion does.
+  cars: CarRepository;
+  storage: PhotoStorage;
+  userData: UserDataRepository;
 };
 
 // Returns undefined for non-/admin paths so the main router can continue.
@@ -50,7 +54,9 @@ export async function handleAdminRoute(deps: AdminRouteDeps, event: ApiEvent): P
     if (username && path === `/admin/users/${username}` && method === 'DELETE') {
       const targetSub = (await port.getSub(username)) ?? null;
       if (targetSub === null) return ok(404, { error: 'User not found' });
-      await deleteUser(port, actor, username, targetSub);
+      await deleteUser(port, actor, username, targetSub, {
+        cars: deps.cars, storage: deps.storage, userData: deps.userData, identity: port,
+      });
       return ok(204, null);
     }
     if (path === '/admin/metrics' && method === 'GET') {

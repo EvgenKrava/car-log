@@ -10,6 +10,7 @@ import { InMemoryChatSessionRepository } from './in-memory-chat-session-reposito
 import { InMemoryTranscribeProvider } from './in-memory-transcribe-provider';
 import { InMemoryPushSubscriptionRepository } from './in-memory-push-subscription-repository';
 import { InMemoryUsageQuota } from './in-memory-usage-quota';
+import { InMemoryUserDataRepository } from './in-memory-user-data-repository';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -22,6 +23,7 @@ const storage: PhotoStorage = {
   deleteObject: async () => {},
   exists: async () => true,
   copyObject: async () => {},
+  deletePrefix: async () => 0,
 };
 let enqueueSpy: ReturnType<typeof vi.fn>;
 const adminUsers: CognitoUserAdmin = {
@@ -38,7 +40,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota; userData: InMemoryUserDataRepository };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -59,10 +61,11 @@ beforeEach(() => {
     apiId: 'api-1',
     pushSubs: new InMemoryPushSubscriptionRepository(),
     quota: new InMemoryUsageQuota(),
+    userData: new InMemoryUserDataRepository(),
   };
 });
 
-const base = { groups: [] as string[], pathParams: {}, queryParams: {}, body: null };
+const base = { username: null, groups: [] as string[], pathParams: {}, queryParams: {}, body: null };
 const validBody = { make: 'Toyota', model: 'Corolla', year: 2020, mileage: 45000, fuelType: 'petrol' };
 
 describe('route', () => {
@@ -653,5 +656,39 @@ describe('daily quota gate', () => {
     await makeCar('u1');
     await route(deps, { ...base, method: 'GET', path: '/cars', ownerId: 'u1' });
     expect(deps.quota.counts.size).toBe(0);
+  });
+});
+
+describe('DELETE /me', () => {
+  async function makeCar(ownerId: string): Promise<string> {
+    const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId, body: validBody });
+    return JSON.parse(res.body).id as string;
+  }
+
+  it('unshares, purges the partition and S3 prefixes, then deletes the Cognito user', async () => {
+    const sharedId = await makeCar('u1');
+    await makeCar('u1');
+    await route(deps, { ...base, method: 'PUT', path: `/cars/${sharedId}/sharing`, ownerId: 'u1', pathParams: { id: sharedId }, body: { shared: true } });
+    expect(await cars.findSharedOwnerId(sharedId)).toBe('u1');
+    const prefixes: string[] = [];
+    deps.storage = { ...storage, deletePrefix: async (p: string) => { prefixes.push(p); return 0; } };
+
+    const res = await route(deps, { ...base, method: 'DELETE', path: '/me', ownerId: 'u1', username: 'user-1' });
+    expect(res.statusCode).toBe(204);
+    expect(await cars.findSharedOwnerId(sharedId)).toBeNull();
+    expect(prefixes).toEqual(['proofs/u1/', 'scans/u1/', 'imports/u1/', 'chat/u1/']);
+    expect(deps.userData.purged).toEqual(['u1']);
+    expect(adminUsers.deleteUser).toHaveBeenCalledWith('user-1');
+  });
+
+  it('400s without a username claim', async () => {
+    const res = await route(deps, { ...base, method: 'DELETE', path: '/me', ownerId: 'u1', username: null });
+    expect(res.statusCode).toBe(400);
+    expect(deps.userData.purged).toEqual([]);
+  });
+
+  it('401s unauthenticated', async () => {
+    const res = await route(deps, { ...base, method: 'DELETE', path: '/me', ownerId: null });
+    expect(res.statusCode).toBe(401);
   });
 });

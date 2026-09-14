@@ -20,7 +20,7 @@ beforeEach(() => {
 
 function makeEvent(overrides: Partial<ApiEvent>): ApiEvent {
   return {
-    method: 'GET', path: '/public/cars/nope', ownerId: null, groups: [],
+    method: 'GET', path: '/public/cars/nope', ownerId: null, username: null, groups: [],
     pathParams: {}, queryParams: {}, body: null,
     ...overrides,
   };

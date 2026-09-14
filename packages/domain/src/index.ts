@@ -23,3 +23,5 @@ export * from './reminder-repository';
 export { toCarExport } from './car-export';
 export * from './notify';
 export * from './usage-quota';
+export * from './user-data-repository';
+export { deleteAccount, OWNER_PREFIXES, type DeleteAccountDeps } from './delete-account';

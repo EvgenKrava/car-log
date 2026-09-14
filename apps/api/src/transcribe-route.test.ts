@@ -63,7 +63,7 @@ function wavWithListChunkBase64(seconds = 1, sampleRate = 16_000): { b64: string
 }
 
 const post = (body: unknown, carId = CAR_ID): ApiEvent => ({
-  method: 'POST', path: `/cars/${carId}/chat/transcribe`, ownerId: OWNER, groups: [],
+  method: 'POST', path: `/cars/${carId}/chat/transcribe`, ownerId: OWNER, username: null, groups: [],
   pathParams: { id: carId }, queryParams: {}, body,
 });
 

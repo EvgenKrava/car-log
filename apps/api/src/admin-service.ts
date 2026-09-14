@@ -1,3 +1,4 @@
+import { deleteAccount, type DeleteAccountDeps } from '@carlog/domain';
 import type { ListUsersResponse, AdminUser } from '@carlog/contracts';
 import { ADMIN_GROUP } from './admin-guard';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -37,8 +38,12 @@ export async function setEnabled(port: CognitoUserAdmin, actor: AdminActor, user
   await port.setEnabled(username, enabled);
 }
 
-export async function deleteUser(port: CognitoUserAdmin, actor: AdminActor, username: string, targetSub: string): Promise<void> {
+// Purges the target's data (cars, files, rows) before the Cognito identity — see
+// deleteAccount in the domain for the ordering rationale.
+export async function deleteUser(
+  port: CognitoUserAdmin, actor: AdminActor, username: string, targetSub: string, purge: DeleteAccountDeps,
+): Promise<void> {
   requireAdmin(actor);
   if (targetSub === actor.sub) throw new SelfLockoutError('You cannot delete yourself');
-  await port.deleteUser(username);
+  await deleteAccount(purge, targetSub, username);
 }

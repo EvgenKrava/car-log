@@ -1,9 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { CognitoUserAdmin, CognitoUser } from './cognito-user-admin';
+import type { DeleteAccountDeps } from '@carlog/domain';
 import { listUsers, setAdmin, setEnabled, deleteUser, ForbiddenError, SelfLockoutError } from './admin-service';
 
 const CALLER = { sub: 'caller-sub', isAdmin: true };
 const other: CognitoUser = { username: 'other', sub: 'other-sub', email: 'o@x.com', status: 'CONFIRMED', enabled: true, createdAt: '2026-01-01T00:00:00.000Z' };
+
+function purge(port: CognitoUserAdmin = fakePort()): DeleteAccountDeps {
+  return {
+    cars: { listByOwner: vi.fn(async () => []), setShared: vi.fn() } as unknown as DeleteAccountDeps['cars'],
+    storage: { deletePrefix: vi.fn(async () => 0) } as unknown as DeleteAccountDeps['storage'],
+    userData: { deleteAllForOwner: vi.fn(async () => 0) },
+    identity: port,
+  };
+}
 
 function fakePort(overrides: Partial<CognitoUserAdmin> = {}): CognitoUserAdmin {
   return {
@@ -33,7 +43,7 @@ describe('self-lockout guards', () => {
     await expect(setAdmin(fakePort(), CALLER, 'me', 'caller-sub', false)).rejects.toBeInstanceOf(SelfLockoutError);
   });
   it('blocks deleting yourself', async () => {
-    await expect(deleteUser(fakePort(), CALLER, 'me', 'caller-sub')).rejects.toBeInstanceOf(SelfLockoutError);
+    await expect(deleteUser(fakePort(), CALLER, 'me', 'caller-sub', purge())).rejects.toBeInstanceOf(SelfLockoutError);
   });
   it('allows revoking another admin', async () => {
     const port = fakePort();
@@ -47,5 +57,15 @@ describe('self-lockout guards', () => {
     const port = fakePort();
     await setEnabled(port, CALLER, 'other', 'other-sub', false);
     expect(port.setEnabled).toHaveBeenCalledWith('other', false);
+  });
+});
+
+describe('deleteUser purge', () => {
+  it('purges the target data and deletes the Cognito user', async () => {
+    const port = fakePort();
+    const deps = purge(port);
+    await deleteUser(port, CALLER, 'other', 'other-sub', deps);
+    expect(deps.userData.deleteAllForOwner).toHaveBeenCalledWith('other-sub');
+    expect(port.deleteUser).toHaveBeenCalledWith('other');
   });
 });

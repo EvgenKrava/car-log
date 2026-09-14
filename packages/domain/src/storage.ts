@@ -9,6 +9,8 @@ export interface PhotoStorage {
   deleteObject(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
   copyObject(srcKey: string, destKey: string): Promise<void>;
+  // Deletes every object under `prefix`; returns the count.
+  deletePrefix(prefix: string): Promise<number>;
 }
 
 // Thrown by the per-car / per-event cap guards (proofs, reminders) when a
