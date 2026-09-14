@@ -26,6 +26,8 @@ import { Callback } from './routes/Callback';
 import { UserManagement } from './routes/admin/UserManagement';
 import { Dashboard } from './routes/admin/Dashboard';
 import { InstallPrompt } from './components/InstallPrompt';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { NotFound } from './routes/NotFound';
 import { PushRefresh } from './components/PushRefresh';
 
 const queryClient = new QueryClient();
@@ -42,6 +44,7 @@ function Root() {
         <PushRefresh />
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
+            <ErrorBoundary>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
@@ -56,7 +59,9 @@ function Root() {
               <Route path="/cars/:id/chat/:sid" element={<RequireAuth><ChatConversation /></RequireAuth>} />
               <Route path="/admin" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
               <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
+            </ErrorBoundary>
             <InstallPrompt />
           </BrowserRouter>
         </QueryClientProvider>
