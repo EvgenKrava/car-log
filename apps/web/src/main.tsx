@@ -3,7 +3,7 @@ import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
 import './i18n';
-import { StrictMode } from 'react';
+import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useMediaQuery, CssBaseline, ThemeProvider } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,21 +13,25 @@ import { RequireAdmin } from './auth/RequireAdmin';
 import { buildTheme } from './theme';
 import { ThemeModeProvider, useThemeMode } from './lib/theme-mode';
 import { Garage } from './routes/Garage';
-import { Profile } from './routes/Profile';
 import { Vehicle } from './routes/Vehicle';
-import { ChatConversation } from './routes/ChatConversation';
-import { PublicVehicle } from './routes/PublicVehicle';
 import { Login } from './routes/auth/Login';
-import { SignUp } from './routes/auth/SignUp';
-import { ConfirmSignUp } from './routes/auth/ConfirmSignUp';
-import { ForgotPassword } from './routes/auth/ForgotPassword';
-import { ResetPassword } from './routes/auth/ResetPassword';
 import { Callback } from './routes/Callback';
-import { UserManagement } from './routes/admin/UserManagement';
-import { Dashboard } from './routes/admin/Dashboard';
 import { InstallPrompt } from './components/InstallPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { NotFound } from './routes/NotFound';
+import { RouteFallback } from './components/RouteFallback';
+
+// Eager: Login (logged-out entry), Garage + Vehicle (core), Callback (OAuth return).
+// Everything else loads on first visit.
+const Profile = lazy(() => import('./routes/Profile').then((m) => ({ default: m.Profile })));
+const ChatConversation = lazy(() => import('./routes/ChatConversation').then((m) => ({ default: m.ChatConversation })));
+const PublicVehicle = lazy(() => import('./routes/PublicVehicle').then((m) => ({ default: m.PublicVehicle })));
+const SignUp = lazy(() => import('./routes/auth/SignUp').then((m) => ({ default: m.SignUp })));
+const ConfirmSignUp = lazy(() => import('./routes/auth/ConfirmSignUp').then((m) => ({ default: m.ConfirmSignUp })));
+const ForgotPassword = lazy(() => import('./routes/auth/ForgotPassword').then((m) => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('./routes/auth/ResetPassword').then((m) => ({ default: m.ResetPassword })));
+const UserManagement = lazy(() => import('./routes/admin/UserManagement').then((m) => ({ default: m.UserManagement })));
+const Dashboard = lazy(() => import('./routes/admin/Dashboard').then((m) => ({ default: m.Dashboard })));
+const NotFound = lazy(() => import('./routes/NotFound').then((m) => ({ default: m.NotFound })));
 import { PushRefresh } from './components/PushRefresh';
 
 const queryClient = new QueryClient();
@@ -45,6 +49,7 @@ function Root() {
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <ErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
@@ -61,6 +66,7 @@ function Root() {
               <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </ErrorBoundary>
             <InstallPrompt />
           </BrowserRouter>

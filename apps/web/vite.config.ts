@@ -11,6 +11,20 @@ export default defineConfig({
     // verified fetch for an unverified one would reintroduce the bug it fixes. Everything
     // else keeps the default behaviour.
     assetsInlineLimit: (filePath) => (filePath.includes('pcm-capture-worklet') ? false : undefined),
+    rollupOptions: {
+      output: {
+        // Vendor code changes far less often than app code. Keeping the big libraries in
+        // their own chunks gives them stable hashes across deploys, so the service worker
+        // only re-downloads what actually changed.
+        manualChunks: (id) => {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/](@mui|@emotion|@popperjs)[\\/]/.test(id)) return 'mui';
+          if (/[\\/](aws-amplify|@aws-amplify|@aws-sdk|@aws-crypto|@smithy)[\\/]/.test(id)) return 'amplify';
+          if (/[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run)[\\/]/.test(id)) return 'react';
+          return undefined;
+        },
+      },
+    },
   },
   plugins: [
     react(),
@@ -41,6 +55,9 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // heic2any (1.35 MB) is a dynamic import used only for HEIC scans — fetch on
+        // demand, never precache it on install.
+        globIgnores: ['**/heic2any-*.js'],
       },
       devOptions: { enabled: false },
     }),
