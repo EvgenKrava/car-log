@@ -16,13 +16,24 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, HttpMethods } from 'aws-cdk-lib/aws-s3';
-import { Distribution, PriceClass, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
+import {
+  Distribution, PriceClass, ViewerProtocolPolicy, ResponseHeadersPolicy, HeadersFrameOption, HeadersReferrerPolicy,
+} from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { Certificate, CertificateValidation } from 'aws-cdk-lib/aws-certificatemanager';
+import { ARecord, AaaaRecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
+import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 import { Rule, Schedule, RuleTargetInput } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
 import type { Construct } from 'constructs';
 
 const __dirnameLocal = dirname(fileURLToPath(import.meta.url));
+
+// Public hostname. A subdomain of a zone this account already owns — zero incremental cost.
+export const ZONE_NAME = 'onlytools.click';
+export const WEB_DOMAIN = `carlog.${ZONE_NAME}`;
+export const WEB_ORIGIN = `https://${WEB_DOMAIN}`;
+const DEV_ORIGIN = 'http://localhost:5173';
 
 type CarLogStackProps = StackProps & {
   // Resolved from SSM SecureString parameters at synth time in bin/carlog.ts. Both must be
@@ -71,8 +82,8 @@ export class CarLogStack extends Stack {
       attributeMapping: { email: ProviderAttribute.GOOGLE_EMAIL },
     });
 
-    // Web origin known after distribution is created; use placeholder callback that we
-    // reconcile post-deploy via CLI, plus localhost for dev.
+    // The live origin is a fixed custom domain, so it can be registered at synth time
+    // (deploy-web.sh still reconciles the same URLs from the WebUrl output — harmless).
     const client = new UserPoolClient(this, 'UserPoolClient', {
       userPool,
       generateSecret: false,
@@ -83,8 +94,8 @@ export class CarLogStack extends Stack {
       oAuth: {
         flows: { authorizationCodeGrant: true },
         scopes: [OAuthScope.OPENID, OAuthScope.EMAIL, OAuthScope.PROFILE],
-        callbackUrls: ['http://localhost:5173/callback'],
-        logoutUrls: ['http://localhost:5173'],
+        callbackUrls: [`${WEB_ORIGIN}/callback`, `${DEV_ORIGIN}/callback`],
+        logoutUrls: [WEB_ORIGIN, DEV_ORIGIN],
       },
     });
     // CloudFormation must create the IdP before updating the client to reference it,
@@ -96,8 +107,9 @@ export class CarLogStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       cors: [{
-        allowedMethods: [HttpMethods.PUT, HttpMethods.GET],
-        allowedOrigins: ['https://dkn291e7rr9st.cloudfront.net', 'http://localhost:5173'],
+        // POST: uploads are presigned S3 POST policies (size-bounded); GET: presigned reads.
+        allowedMethods: [HttpMethods.PUT, HttpMethods.POST, HttpMethods.GET],
+        allowedOrigins: [WEB_ORIGIN, DEV_ORIGIN],
         allowedHeaders: ['*'],
         maxAge: 3000,
       }],
@@ -116,7 +128,7 @@ export class CarLogStack extends Stack {
     // API). Routes are added further below, once the Lambda integration exists.
     const httpApi = new HttpApi(this, 'HttpApi', {
       corsPreflight: {
-        allowOrigins: ['*'],
+        allowOrigins: [WEB_ORIGIN, DEV_ORIGIN],
         allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.PUT, CorsHttpMethod.DELETE, CorsHttpMethod.OPTIONS],
         allowHeaders: ['Content-Type', 'Authorization'],
       },
@@ -161,11 +173,11 @@ export class CarLogStack extends Stack {
     table.grantReadWriteData(fn);
     photosBucket.grantReadWrite(fn);
     // The import worker runs as a detached async invocation of this same function.
-    // grantInvoke(fn) self-references and can cycle; a wildcard-scoped policy statement
-    // on the role avoids the circular dependency.
+    // grantInvoke(fn) self-references and can cycle, so the statement is scoped by the
+    // generated name prefix instead (CarLogStack-CarsFn<hash>-<suffix>).
     fn.addToRolePolicy(new PolicyStatement({
       actions: ['lambda:InvokeFunction'],
-      resources: [`arn:aws:lambda:${this.region}:${this.account}:function:*`],
+      resources: [`arn:aws:lambda:${this.region}:${this.account}:function:${this.stackName}-CarsFn*`],
     }));
     fn.addToRolePolicy(new PolicyStatement({
       actions: [
@@ -244,6 +256,7 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/admin/metrics', methods: [HttpMethod.GET], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/sharing', methods: [HttpMethod.PUT], integration, authorizer });
     httpApi.addRoutes({ path: '/push/subscription', methods: [HttpMethod.POST, HttpMethod.DELETE], integration, authorizer });
+    httpApi.addRoutes({ path: '/me', methods: [HttpMethod.DELETE], integration, authorizer }); // self-service account deletion
     httpApi.addRoutes({ path: '/public/cars/{carId}', methods: [HttpMethod.GET], integration }); // NO authorizer — public
 
     // Rate limiting: throttle the default stage so no client can flood the API.
@@ -268,13 +281,34 @@ export class CarLogStack extends Stack {
       autoDeleteObjects: true,
     });
 
+    // Hosted zone lookup is resolved once and cached in cdk.context.json (committed).
+    const zone = HostedZone.fromLookup(this, 'Zone', { domainName: ZONE_NAME });
+    // CloudFront requires the certificate in us-east-1 — this stack's region.
+    const certificate = new Certificate(this, 'WebCertificate', {
+      domainName: WEB_DOMAIN,
+      validation: CertificateValidation.fromDns(zone),
+    });
+    // No CSP: MUI/emotion needs style-src 'unsafe-inline' and the presigned S3 / Cognito /
+    // API origins make a safe policy fiddly. The rest is free hardening.
+    const securityHeaders = new ResponseHeadersPolicy(this, 'SecurityHeaders', {
+      securityHeadersBehavior: {
+        strictTransportSecurity: { accessControlMaxAge: Duration.days(365), includeSubdomains: true, override: true },
+        contentTypeOptions: { override: true },
+        frameOptions: { frameOption: HeadersFrameOption.DENY, override: true },
+        referrerPolicy: { referrerPolicy: HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
+      },
+    });
+
     const distribution = new Distribution(this, 'WebDistribution', {
       defaultRootObject: 'index.html',
+      domainNames: [WEB_DOMAIN],
+      certificate,
       // Cost: cheapest price class (North America + Europe edges only).
       priceClass: PriceClass.PRICE_CLASS_100,
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(webBucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        responseHeadersPolicy: securityHeaders,
       },
       errorResponses: [
         { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html' },
@@ -282,13 +316,17 @@ export class CarLogStack extends Stack {
       ],
     });
 
+    const aliasTarget = RecordTarget.fromAlias(new CloudFrontTarget(distribution));
+    new ARecord(this, 'WebAlias', { zone, recordName: WEB_DOMAIN, target: aliasTarget });
+    new AaaaRecord(this, 'WebAliasV6', { zone, recordName: WEB_DOMAIN, target: aliasTarget });
+
     new CfnOutput(this, 'ApiUrl', { value: httpApi.apiEndpoint });
     new CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
     new CfnOutput(this, 'UserPoolClientId', { value: client.userPoolClientId });
     new CfnOutput(this, 'CognitoDomain', { value: domain.baseUrl() });
     new CfnOutput(this, 'WebBucketName', { value: webBucket.bucketName });
     new CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
-    new CfnOutput(this, 'WebUrl', { value: `https://${distribution.distributionDomainName}` });
+    new CfnOutput(this, 'WebUrl', { value: WEB_ORIGIN });
     new CfnOutput(this, 'VapidPublicKey', { value: props.vapidPublicKey });
   }
 }

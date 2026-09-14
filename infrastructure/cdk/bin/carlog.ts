@@ -33,7 +33,9 @@ function readSecureParam(name: string): string {
 
 const app = new App();
 new CarLogStack(app, 'CarLogStack', {
-  env: { region },
+  // `account` is required for HostedZone.fromLookup; the CDK CLI fills CDK_DEFAULT_ACCOUNT
+  // from the active profile.
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region },
   googleClientSecret: readSecureParam('/carlog/google-client-secret'),
   vapidPublicKey: readSecureParam('/carlog/vapid-public-key'),
   vapidPrivateKey: readSecureParam('/carlog/vapid-private-key'),
