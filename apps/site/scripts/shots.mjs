@@ -2,11 +2,13 @@
 // on some networks, this repo's included. Override with PW_CHANNEL=chromium (or another
 // installed channel) if you have Playwright's browser installed and prefer it.
 //
-// Run this script, then sign in with email/password in the window that opens (Google blocks
-// automated browsers) — the script waits (up to 10 minutes) until you're past /login. By
-// default it then opens /garage and captures the first car it finds; set CAR_URL to a
-// specific car's URL to capture that one instead (CAR_URL=first is the same as leaving it
-// unset). It captures every route at phone + desktop, light + dark, into src/assets/shots/.
+// Run this script, then sign in with the email + password form in the window that opens —
+// NOT the "Continue with Google" button, which loops forever in an automation-controlled
+// browser (Google blocks OAuth there). The script waits (up to 10 minutes) until you're back
+// on our own origin, signed in. By default it then opens /garage and captures the first car
+// it finds; set CAR_URL to a specific car's URL to capture that one instead (CAR_URL=first is
+// the same as leaving it unset). It captures every route at phone + desktop, light + dark,
+// into src/assets/shots/.
 //
 // Sign-in happens in one headed, persistent-profile context (so Google sees a normal
 // returning browser). Captures happen in separate headless contexts, one per size, built
@@ -40,7 +42,11 @@ try {
   try {
     const signInPage = await signInCtx.newPage();
     await signInPage.goto(`${ORIGIN}/login`);
-    await signInPage.waitForURL((u) => !u.pathname.startsWith('/login') && !u.pathname.startsWith('/callback'), { timeout: 600_000 });
+    // Wait for an authenticated page on OUR origin specifically — leaving /login for
+    // accounts.google.com (via "Continue with Google") is not signed in, it's Google looping
+    // on the automated browser. Keep waiting through any such detour until the owner comes
+    // back and signs in with email + password instead.
+    await signInPage.waitForURL((u) => u.origin === ORIGIN && (u.pathname === '/garage' || u.pathname.startsWith('/cars/')), { timeout: 600_000 });
 
     const requested = process.env.CAR_URL?.trim();
     if (requested && requested.toLowerCase() !== 'first') {
