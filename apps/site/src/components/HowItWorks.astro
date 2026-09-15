@@ -1,0 +1,19 @@
+---
+import type { Locale } from '../i18n';
+import { t } from '../i18n';
+interface Props { locale: Locale }
+const s = t(Astro.props.locale);
+---
+<section id="how" class="container">
+  <h2>{s.how.h2}</h2>
+  <ol class="steps">
+    {s.how.steps.map((st, i) => (
+      <li class="card"><span class="n">{i + 1}</span><h3>{st.title}</h3><p class="muted">{st.body}</p></li>
+    ))}
+  </ol>
+</section>
+<style>
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; counter-reset: s; }
+  .n { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; margin-bottom: 10px; }
+  @media (min-width: 720px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+</style>

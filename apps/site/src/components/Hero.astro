@@ -1,0 +1,25 @@
+---
+import type { Locale } from '../i18n';
+import { t } from '../i18n';
+import { APP_HOME, APP_SIGNUP } from '../lib/seo';
+interface Props { locale: Locale }
+const s = t(Astro.props.locale);
+---
+<section class="container hero">
+  <div class="copy">
+    <h1>{s.hero.h1}</h1>
+    <p class="muted lead">{s.hero.sub}</p>
+    <div class="ctas">
+      <a class="btn" href={APP_SIGNUP}>{s.hero.ctaPrimary}</a>
+      <a class="btn secondary" href={APP_HOME}>{s.hero.ctaSecondary}</a>
+    </div>
+  </div>
+  <div class="shot"><slot /></div>
+</section>
+<style>
+  .hero { display: grid; gap: 32px; align-items: center; }
+  .lead { font-size: 1.125rem; max-width: 34rem; }
+  .ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+  .shot { display: flex; justify-content: center; }
+  @media (min-width: 720px) { .hero { grid-template-columns: 1.1fr 0.9fr; } }
+</style>

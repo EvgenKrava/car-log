@@ -1,0 +1,18 @@
+---
+import type { Locale } from '../i18n';
+import { t } from '../i18n';
+interface Props { locale: Locale }
+const s = t(Astro.props.locale);
+---
+<section id="faq" class="container faq">
+  <h2>{s.faq.h2}</h2>
+  {s.faq.items.map((f) => (
+    <details class="card"><summary>{f.q}</summary><p class="muted">{f.a}</p></details>
+  ))}
+</section>
+<style>
+  .faq { max-width: 760px; }
+  details { margin-bottom: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { margin: 10px 0 0; }
+</style>

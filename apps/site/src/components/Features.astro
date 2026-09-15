@@ -1,0 +1,27 @@
+---
+import type { Locale } from '../i18n';
+import { t } from '../i18n';
+interface Props { locale: Locale }
+const s = t(Astro.props.locale);
+const icons = ['🕒', '🧾', '🔔', '📷', '📥', '💬'];
+---
+<section id="features" class="container">
+  <h2>{s.features.h2}</h2>
+  <div class="grid">
+    {s.features.items.map((f, i) => (
+      <article class="card">
+        <div class="icon" aria-hidden="true">{icons[i]}</div>
+        <h3>{f.title}</h3>
+        <p class="muted">{f.body}</p>
+      </article>
+    ))}
+  </div>
+  <ul class="strip">{s.features.strip.map((x) => <li>{x}</li>)}</ul>
+</section>
+<style>
+  .grid { display: grid; gap: 16px; }
+  .icon { font-size: 1.5rem; margin-bottom: 8px; }
+  .strip { list-style: none; padding: 0; margin: 28px 0 0; display: flex; gap: 10px; flex-wrap: wrap; }
+  .strip li { border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: .9rem; }
+  @media (min-width: 720px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+</style>

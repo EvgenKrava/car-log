@@ -37,7 +37,7 @@ const url = canonical(locale, path);
     <meta property="og:locale" content={locale === 'uk' ? 'uk_UA' : 'en_US'} />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="sitemap" href="/sitemap-index.xml" />
-    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+    {jsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
   </head>
   <body>
     <header class="container">
