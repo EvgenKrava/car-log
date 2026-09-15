@@ -7,20 +7,18 @@ import BuildIcon from '@mui/icons-material/Build';
 import CategoryIcon from '@mui/icons-material/Category';
 import type { EventCategory } from '@carlog/contracts';
 
-// A calm, muted hue per category — six distinct points on the wheel at a chroma
-// that sits beside the #5B5BD6 accent without clashing. Each colour is used as a
-// saturated foreground on a low-opacity tint of itself (see categoryTint), the
-// same treatment the vehicle hero's StatTile uses, so categories read as part of
-// the existing system rather than a bolt-on palette. Colours are picked to stay
-// legible as foreground in BOTH themes (mirroring how the accent works unchanged
-// in light and dark).
+// One iOS system colour per category — the same hues the platform uses for its
+// own tags, so categories read as native beside the indigo tint. Each colour is
+// used as a saturated foreground on a low-opacity tint of itself (see
+// categoryTint), the same treatment the vehicle hero's StatTile uses. Brakes take
+// pink rather than the error red so an overdue badge never looks like a category.
 export const CATEGORY_META: Record<EventCategory, { color: string; Icon: SvgIconComponent }> = {
-  oil_change: { color: '#C08A2E', Icon: OpacityIcon },   // amber — oil is literally amber
-  tires: { color: '#6B7A8F', Icon: TireRepairIcon },     // slate — rubber/road
-  brakes: { color: '#C0563E', Icon: PanToolIcon },        // terracotta — heat/stop (kept off the error red)
-  inspection: { color: '#2F8F83', Icon: FactCheckIcon },  // teal — the "checked/ok" family
-  repair: { color: '#3B6FD4', Icon: BuildIcon },          // blue — mechanical work
-  other: { color: '#6B7280', Icon: CategoryIcon },        // neutral grey
+  oil_change: { color: '#FF9500', Icon: OpacityIcon },   // systemOrange — oil is amber
+  tires: { color: '#32ADE6', Icon: TireRepairIcon },     // systemCyan — road/rubber
+  brakes: { color: '#FF2D55', Icon: PanToolIcon },        // systemPink — heat/stop, off the error red
+  inspection: { color: '#34C759', Icon: FactCheckIcon },  // systemGreen — the "checked/ok" family
+  repair: { color: '#007AFF', Icon: BuildIcon },          // systemBlue — mechanical work
+  other: { color: '#8E8E93', Icon: CategoryIcon },        // systemGray
 };
 
 // Low-opacity wash of a category colour for icon tiles / chip fills. Deeper in

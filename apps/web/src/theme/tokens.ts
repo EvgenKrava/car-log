@@ -1,29 +1,48 @@
+// iOS semantic colours (Human Interface Guidelines system palette) with CarLog's
+// indigo kept as the tint. Surfaces follow the "inset grouped" model: a grouped
+// background with flat white/charcoal cells on top, separated by translucent
+// hairlines rather than borders and shadows.
 export const tokens = {
   color: {
     accent: '#5B5BD6',
     accentHover: '#4A4AC4',
     light: {
-      bg: '#F7F8FA',
-      surface: '#FFFFFF',
-      border: '#E6E8EC',
-      textPrimary: '#1A1C1F',
-      textSecondary: '#5C6370',
+      bg: '#F2F2F7',                      // systemGroupedBackground
+      surface: '#FFFFFF',                 // secondarySystemGroupedBackground
+      border: 'rgba(60, 60, 67, 0.29)',   // separator
+      fill: 'rgba(120, 120, 128, 0.12)',  // tertiarySystemFill (search fields, segmented tracks)
+      textPrimary: '#000000',
+      textSecondary: 'rgba(60, 60, 67, 0.6)',
+      textTertiary: 'rgba(60, 60, 67, 0.3)',
+      glass: 'rgba(255, 255, 255, 0.78)', // translucent bars
+      tint: '#5B5BD6',
+      success: '#34C759',
+      error: '#FF3B30',
+      warning: '#FF9500',
     },
     dark: {
-      bg: '#0F1115',
-      surface: '#181B20',
-      border: '#262A31',
-      textPrimary: '#F2F3F5',
-      textSecondary: '#A0A6B0',
+      bg: '#000000',
+      surface: '#1C1C1E',
+      border: 'rgba(84, 84, 88, 0.65)',
+      fill: 'rgba(118, 118, 128, 0.24)',
+      textPrimary: '#FFFFFF',
+      textSecondary: 'rgba(235, 235, 245, 0.6)',
+      textTertiary: 'rgba(235, 235, 245, 0.3)',
+      glass: 'rgba(28, 28, 30, 0.78)',
+      tint: '#8A8AF0',                    // indigo lifted for contrast on black
+      success: '#30D158',
+      error: '#FF453A',
+      warning: '#FF9F0A',
     },
-    success: '#2E9E6B',
-    error: '#D64545',
-    warning: '#C9861A',
+    success: '#34C759',
+    error: '#FF3B30',
+    warning: '#FF9500',
   },
-  radius: { sm: 8, md: 12, lg: 16 },
+  // sm: inputs/menus · md: dialogs · lg: cards (inset grouped cells) · sheet: phone bottom sheets
+  radius: { sm: 12, md: 28, lg: 20, sheet: 34 },
   shadow: {
-    sm: '0 1px 2px rgba(16,24,40,0.06), 0 1px 3px rgba(16,24,40,0.10)',
-    md: '0 4px 12px rgba(16,24,40,0.08), 0 2px 6px rgba(16,24,40,0.06)',
+    sm: '0 1px 3px rgba(0,0,0,0.08)',
+    md: '0 8px 24px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06)',
   },
   // Motion: quiet confidence — things arrive decelerating, leave accelerating.
   // Animate only transform/opacity; user-initiated appearance only (never refetches).
@@ -34,5 +53,9 @@ export const tokens = {
       exit: 'cubic-bezier(0.4, 0, 1, 1)',     // accelerate — leaving
     },
   },
-  font: { family: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" },
+  // System font first (SF Pro on Apple devices); Inter is the bundled fallback elsewhere.
+  font: {
+    family: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif",
+    rounded: "ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif",
+  },
 } as const;
