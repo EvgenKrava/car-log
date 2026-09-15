@@ -4,7 +4,7 @@
 
 ### 🚀 Live demo
 
-**[https://dkn291e7rr9st.cloudfront.net](https://dkn291e7rr9st.cloudfront.net)**
+**[https://carlog.onlytools.click](https://carlog.onlytools.click)**
 
 Hosted on AWS CloudFront (region `us-east-1`). Create an account or sign in to try it — add a car, log a service event, attach a receipt, and set a reminder.
 
