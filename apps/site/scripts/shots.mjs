@@ -29,6 +29,11 @@ mkdirSync(OUT, { recursive: true });
 
 const STATE_PATH = join(tmpdir(), `carlog-shots-state-${process.pid}.json`);
 const PROFILE_DIR = join(tmpdir(), 'carlog-shots-profile');
+
+process.on('SIGINT', () => {
+  rmSync(STATE_PATH, { force: true });
+  process.exit(130);
+});
 // Pages the app can be on mid sign-in (including the auth-provider detour); anything else on
 // our origin means signed in. Deliberately over-inclusive of routes that don't exist yet
 // (/signup, /confirm, /forgot, /reset) so this doesn't need to change if they're added.
@@ -54,9 +59,9 @@ try {
     await signInPage.waitForURL((u) => u.origin === ORIGIN && !AUTH_PATHS.some((p) => u.pathname.startsWith(p)), { timeout: 600_000 });
     console.log('Signed in — capturing… keep this window open until "done" is printed');
 
-    // The app's own post-login redirect already lands on the garage — today at `/`, a later
-    // task moves it to `/garage` — so stay put rather than navigating, and use this URL for
-    // the `garage` route capture below instead of a hardcoded path.
+    // The app's own post-login redirect already lands on the garage, wherever that route is —
+    // so stay put rather than navigating, and use this URL for the `garage` route capture
+    // below instead of a hardcoded path.
     garageUrl = signInPage.url();
 
     const requested = process.env.CAR_URL?.trim();
@@ -108,6 +113,7 @@ try {
     }
   }
   console.log('done');
+  rmSync(PROFILE_DIR, { recursive: true, force: true });
 } finally {
   rmSync(STATE_PATH, { force: true });
 }

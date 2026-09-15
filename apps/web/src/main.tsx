@@ -7,7 +7,7 @@ import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useMediaQuery, CssBaseline, ThemeProvider } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireAuth } from './auth';
 import { RequireAdmin } from './auth/RequireAdmin';
 import { buildTheme } from './theme';
@@ -52,6 +52,8 @@ function Root() {
             <ErrorBoundary>
             <Suspense fallback={<RouteFallback />}>
             <Routes>
+              {/* Dev only: production has no `/` route — it belongs to the static marketing site. */}
+              {import.meta.env.DEV && <Route path="/" element={<Navigate to={GARAGE_PATH} replace />} />}
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/confirm" element={<ConfirmSignUp />} />

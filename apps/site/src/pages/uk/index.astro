@@ -12,13 +12,14 @@ import garageShot from '../../assets/shots/garage-desktop-light.png';
 const locale = 'uk';
 const s = t(locale);
 const featureShots = [timelineShot, timelineShot, remindersShot, garageShot, garageShot, timelineShot];
-const heroShotDark = await getImage({ src: shotDark, width: 390, format: 'webp' });
+const heroShotDark1x = await getImage({ src: shotDark, width: 390, format: 'webp' });
+const heroShotDark2x = await getImage({ src: shotDark, width: 780, format: 'webp' });
 ---
 <Base locale={locale} path="/" title={s.metaTitle} description={s.metaDescription} jsonLd={softwareAppJsonLd(locale)} landing>
   <Landing locale={locale} featureShots={featureShots}>
     <picture slot="hero-shot" class="phone">
-      <source srcset={heroShotDark.src} media="(prefers-color-scheme: dark)" />
-      <Image src={shotLight} alt={s.hero.shotAlt} width={390} loading="eager" />
+      <source srcset={`${heroShotDark1x.src} 1x, ${heroShotDark2x.src} 2x`} type="image/webp" media="(prefers-color-scheme: dark)" />
+      <Image src={shotLight} alt={s.hero.shotAlt} width={390} densities={[1, 2]} loading="eager" />
     </picture>
   </Landing>
 </Base>

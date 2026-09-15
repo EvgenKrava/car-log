@@ -5,6 +5,7 @@
 ```text
 apps/
   web/
+  site/           Astro marketing site (static, served alongside the SPA)
   api/
 
 packages/
