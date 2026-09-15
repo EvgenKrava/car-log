@@ -1,0 +1,13 @@
+---
+import Base from '../../layouts/Base.astro';
+import { t } from '../../i18n';
+const locale = 'uk';
+const s = t(locale);
+---
+<Base locale={locale} path="/terms" title={`${s.footer.terms} — ${s.siteName}`} description={s.metaDescription}>
+  <section class="container">
+    <a href="/" class="muted">{s.legal.back}</a>
+    <h1>{s.footer.terms}</h1>
+    <p>Coming soon.</p>
+  </section>
+</Base>

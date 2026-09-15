@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /garage
+Disallow: /cars/
+Disallow: /profile
+Disallow: /admin
+Disallow: /login
+Disallow: /signup
+Disallow: /confirm
+Disallow: /forgot
+Disallow: /reset
+Disallow: /callback
+Disallow: /s/
+Disallow: /app.html
+Sitemap: https://carlog.onlytools.click/sitemap-index.xml

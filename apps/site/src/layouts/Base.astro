@@ -1,0 +1,73 @@
+---
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/700.css';
+import '@fontsource/inter/800.css';
+import '../styles/global.css';
+import { t, type Locale } from '../i18n';
+import { alternates, canonical, APP_HOME, CONTACT_EMAIL, localePath } from '../lib/seo';
+import LangSwitch from '../components/LangSwitch.astro';
+
+interface Props {
+  locale: Locale; path: string; title: string; description: string;
+  ogImage?: string; jsonLd?: Record<string, unknown>; landing?: boolean;
+}
+const { locale, path, title, description, ogImage = `/og-${locale}.png`, jsonLd, landing = false } = Astro.props;
+const s = t(locale);
+const url = canonical(locale, path);
+---
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={url} />
+    {alternates(path).map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+    <meta name="theme-color" content="#5B5BD6" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={s.siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url} />
+    <meta property="og:image" content={`${canonical('en', '/')}${ogImage.slice(1)}`} />
+    <meta property="og:locale" content={locale === 'uk' ? 'uk_UA' : 'en_US'} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <header class="container">
+      <a class="brand" href={localePath(locale, '/')}><img src="/icons/icon.svg" alt="" width="28" height="28" /> {s.siteName}</a>
+      <nav>
+        {landing && <a href="#features">{s.nav.features}</a>}
+        {landing && <a href="#how">{s.nav.how}</a>}
+        {landing && <a href="#faq">{s.nav.faq}</a>}
+        <LangSwitch locale={locale} path={path} label={s.footer.language} />
+        <a class="btn" href={APP_HOME}>{s.nav.openApp}</a>
+      </nav>
+    </header>
+    <main><slot /></main>
+    <footer class="container">
+      <div class="links">
+        <a href={localePath(locale, '/privacy')}>{s.footer.privacy}</a>
+        <a href={localePath(locale, '/terms')}>{s.footer.terms}</a>
+        <a href={`mailto:${CONTACT_EMAIL}`}>{s.footer.contact}</a>
+        <LangSwitch locale={locale} path={path} label={s.footer.language} />
+      </div>
+      <p class="muted">© {new Date().getFullYear()} {s.siteName} · {s.footer.madeIn}</p>
+    </footer>
+  </body>
+</html>
+<style>
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 16px; flex-wrap: wrap; }
+  .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: var(--text); font-size: 1.125rem; }
+  nav { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  nav a:not(.btn) { color: var(--text); font-weight: 500; }
+  footer { padding-block: 40px; border-top: 1px solid var(--border); margin-top: 40px; }
+  .links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
+  @media (max-width: 719px) { nav a:not(.btn):not(.lang) { display: none; } }
+</style>

@@ -1,0 +1,13 @@
+---
+import Base from '../../layouts/Base.astro';
+import { t } from '../../i18n';
+const locale = 'uk';
+const s = t(locale);
+---
+<Base locale={locale} path="/privacy" title={`${s.footer.privacy} — ${s.siteName}`} description={s.metaDescription}>
+  <section class="container">
+    <a href="/" class="muted">{s.legal.back}</a>
+    <h1>{s.footer.privacy}</h1>
+    <p>Coming soon.</p>
+  </section>
+</Base>

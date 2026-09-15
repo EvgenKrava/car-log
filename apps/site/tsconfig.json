@@ -1,0 +1,5 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": { "types": ["astro/client"], "baseUrl": ".", "noEmit": true },
+  "include": ["src", "test", "scripts"]
+}

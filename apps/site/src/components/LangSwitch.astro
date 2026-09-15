@@ -1,0 +1,11 @@
+---
+import type { Locale } from '../i18n';
+import { localePath, otherLocale } from '../lib/seo';
+interface Props { locale: Locale; path: string; label: string }
+const { locale, path, label } = Astro.props;
+const other = otherLocale(locale);
+---
+<a href={localePath(other, path)} hreflang={other} lang={other} aria-label={label} class="lang">
+  {other === 'uk' ? 'Українська' : 'English'}
+</a>
+<style>.lang { font-weight: 500; }</style>

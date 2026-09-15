@@ -1,0 +1,9 @@
+---
+import Base from '../../layouts/Base.astro';
+import { t } from '../../i18n';
+const locale = 'uk';
+const s = t(locale);
+---
+<Base locale={locale} path="/" title={s.metaTitle} description={s.metaDescription} landing>
+  <section class="container"><h1>{s.hero.h1}</h1></section>
+</Base>
