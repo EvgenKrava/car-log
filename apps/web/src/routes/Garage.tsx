@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Container, Fab, Grid, IconButton, Stack } from '@mui/material';
+import { Button, Container, Fab, Grid, Stack } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { useCars } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ImportCarDialog } from '../components/ImportCarDialog';
+import { AddCarSheet } from '../components/AddCarSheet';
 import { GarageAttention } from '../components/GarageAttention';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -23,17 +24,13 @@ export function Garage() {
   const { data: cars, isLoading, isError } = useCars();
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // The "+" opens a sheet (create / import) rather than the car form directly, so
+  // importing a CarLog file lives behind the same button as adding a car.
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
     <AppShell>
-      <PageHeader
-        title={t('common:appName')}
-        actions={
-          <IconButton onClick={() => setImportOpen(true)} aria-label={t('garage:importCar')} color="inherit">
-            <UploadFileOutlinedIcon />
-          </IconButton>
-        }
-      />
+      <PageHeader title={t('common:appName')} />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
           <Grid container spacing={2}>
@@ -71,7 +68,7 @@ export function Garage() {
           </>
         )}
       </Container>
-      <Fab color="primary" onClick={() => setOpen(true)} aria-label={t('garage:addCar')}
+      <Fab color="primary" onClick={() => setSheetOpen(true)} aria-label={t('garage:addSheetTitle')}
         sx={{ position: 'fixed', bottom: 24, right: 24,
           '@keyframes carlogFabIn': {
             from: { opacity: 0, transform: 'scale(0.8)' },
@@ -82,6 +79,12 @@ export function Garage() {
           '&:active': { transform: 'scale(0.96)' } }}>
         <AddIcon />
       </Fab>
+      <AddCarSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onCreate={() => setOpen(true)}
+        onImport={() => setImportOpen(true)}
+      />
       <CarFormDialog open={open} onClose={() => setOpen(false)} mode="create" />
       <ImportCarDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </AppShell>

@@ -2,6 +2,7 @@
   "empty": "Add your first car",
   "emptyHint": "Start keeping a maintenance history for every vehicle you own.",
   "addCar": "Add a car",
+  "addSheetTitle": "Add to garage",
   "loadError": "Could not load your garage.",
   "attentionTitle": "Needs attention",
   "importCar": "Import car",
