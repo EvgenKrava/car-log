@@ -47,15 +47,20 @@ try {
     // on the automated browser. Keep waiting through any such detour until the owner comes
     // back and signs in with email + password instead.
     await signInPage.waitForURL((u) => u.origin === ORIGIN && (u.pathname === '/garage' || u.pathname.startsWith('/cars/')), { timeout: 600_000 });
+    console.log('Signed in — capturing… keep this window open until "done" is printed');
 
     const requested = process.env.CAR_URL?.trim();
     if (requested && requested.toLowerCase() !== 'first') {
       carUrl = requested;
     } else {
+      // Garage cards are MUI CardActionArea buttons (onClick navigation), not <a> tags — no
+      // href to read, so open the first one and read the resulting URL instead.
       await signInPage.goto(`${ORIGIN}/garage`);
-      const carLink = await signInPage.waitForSelector('a[href^="/cars/"]', { timeout: 60_000 });
-      const href = await carLink.getAttribute('href');
-      carUrl = new URL(href, ORIGIN).toString();
+      const card = signInPage.locator('.MuiCardActionArea-root').first();
+      await card.waitFor({ state: 'visible', timeout: 60_000 });
+      await card.click();
+      await signInPage.waitForURL((u) => u.origin === ORIGIN && u.pathname.startsWith('/cars/'), { timeout: 60_000 });
+      carUrl = signInPage.url().split('?')[0];
     }
     console.log('using car', carUrl);
 
@@ -93,6 +98,7 @@ try {
       await browser.close();
     }
   }
+  console.log('done');
 } finally {
   rmSync(STATE_PATH, { force: true });
 }
