@@ -1,13 +1,14 @@
 ---
+import type { ImageMetadata } from 'astro';
 import type { Locale } from '../i18n';
 import Hero from './Hero.astro';
 import Features from './Features.astro';
 import HowItWorks from './HowItWorks.astro';
 import Faq from './Faq.astro';
-interface Props { locale: Locale }
-const { locale } = Astro.props;
+interface Props { locale: Locale; featureShots?: ImageMetadata[] }
+const { locale, featureShots } = Astro.props;
 ---
 <Hero locale={locale}><slot name="hero-shot" /></Hero>
-<Features locale={locale} />
+<Features locale={locale} shots={featureShots} />
 <HowItWorks locale={locale} />
 <Faq locale={locale} />

@@ -1,11 +1,24 @@
 ---
+import { Image, getImage } from 'astro:assets';
 import Base from '../layouts/Base.astro';
 import Landing from '../components/Landing.astro';
 import { t } from '../i18n';
 import { softwareAppJsonLd } from '../lib/json-ld';
+import shotLight from '../assets/shots/timeline-phone-light.png';
+import shotDark from '../assets/shots/timeline-phone-dark.png';
+import timelineShot from '../assets/shots/timeline-desktop-light.png';
+import remindersShot from '../assets/shots/reminders-desktop-light.png';
+import garageShot from '../assets/shots/garage-desktop-light.png';
 const locale = 'en';
 const s = t(locale);
+const featureShots = [timelineShot, timelineShot, remindersShot, garageShot, garageShot, timelineShot];
+const heroShotDark = await getImage({ src: shotDark, width: 390, format: 'webp' });
 ---
 <Base locale={locale} path="/" title={s.metaTitle} description={s.metaDescription} jsonLd={softwareAppJsonLd(locale)} landing>
-  <Landing locale={locale} />
+  <Landing locale={locale} featureShots={featureShots}>
+    <picture slot="hero-shot" class="phone">
+      <source srcset={heroShotDark.src} media="(prefers-color-scheme: dark)" />
+      <Image src={shotLight} alt={s.hero.shotAlt} width={390} loading="eager" />
+    </picture>
+  </Landing>
 </Base>
