@@ -18,21 +18,55 @@ import { fileURLToPath } from 'node:url';
 
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
-// The mark: a bold side-view car, drawn in a 512 box. `hole` is the paint for the
-// cut-outs (windows, wheel wells) — the same paint as the background, so they punch
-// through cleanly. `scale` shrinks the mark around its centre for maskable safe zones.
+// The mark: a clipboard service checklist (oil, tire, wrench, check) with a car in
+// front, drawn in a 512 box. Two-tone: `fg` is the paper/car, `hole` the ink — pass
+// the background paint as `hole` so cut-outs punch through cleanly and the dark
+// variant is an exact inversion. `scale` shrinks the mark around its centre for
+// maskable safe zones.
 const mark = (fg, hole, scale = 1) => `
-  <g transform="translate(256 256) scale(${scale}) translate(-256 -308)">
-    <rect x="48" y="290" width="416" height="86" rx="26" fill="${fg}"/>
-    <path fill="${fg}" d="M144 296 L188 216 Q200 196 224 196 L326 196 Q350 196 362 216 L406 296 Z"/>
-    <path fill="${hole}" d="M198 280 L226 232 Q230 226 238 226 L262 226 L262 280 Z"/>
-    <path fill="${hole}" d="M286 226 L314 226 Q322 226 326 232 L354 280 L286 280 Z"/>
-    <circle cx="144" cy="376" r="56" fill="${hole}"/>
-    <circle cx="144" cy="376" r="38" fill="${fg}"/>
-    <circle cx="144" cy="376" r="15" fill="${hole}"/>
-    <circle cx="368" cy="376" r="56" fill="${hole}"/>
-    <circle cx="368" cy="376" r="38" fill="${fg}"/>
-    <circle cx="368" cy="376" r="15" fill="${hole}"/>
+  <g transform="translate(256 256) scale(${scale}) translate(-256 -256)">
+  <g transform="translate(-4 -6)">
+    <!-- clipboard -->
+    <rect x="92" y="104" width="216" height="330" rx="24" fill="${fg}"/>
+    <rect x="156" y="78" width="88" height="48" rx="16" fill="${fg}"/>
+    <rect x="178" y="94" width="44" height="14" rx="7" fill="${hole}"/>
+    <!-- row 1: oil -->
+    <path fill="${hole}" d="M144 154 C156 170 168 184 168 198 A24 24 0 0 1 120 198 C120 184 132 170 144 154 Z"/>
+    <rect x="186" y="180" width="94" height="20" rx="10" fill="${hole}"/>
+    <!-- row 2: tire (ring with outer tread) -->
+    <circle cx="144" cy="256" r="24" fill="${hole}"/>
+    ${[0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<rect x="140" y="226" width="8" height="10" rx="2" fill="${hole}" transform="rotate(${a} 144 256)"/>`).join('')}
+    <circle cx="144" cy="256" r="13" fill="${fg}"/>
+    <circle cx="144" cy="256" r="5" fill="${hole}"/>
+    <rect x="186" y="246" width="94" height="20" rx="10" fill="${hole}"/>
+    <!-- row 3: wrench -->
+    <g transform="rotate(-45 144 322)">
+      <rect x="137" y="306" width="14" height="52" rx="7" fill="${hole}"/>
+      <circle cx="144" cy="300" r="17" fill="${hole}"/>
+      <rect x="138" y="278" width="12" height="26" rx="4" fill="${fg}"/>
+    </g>
+    <rect x="186" y="312" width="94" height="20" rx="10" fill="${hole}"/>
+    <!-- row 4: check -->
+    <path d="M126 388 L140 402 L166 372" fill="none" stroke="${hole}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="186" y="378" width="94" height="20" rx="10" fill="${hole}"/>
+    <!-- car, with an ink halo so it separates from the paper -->
+    <g stroke="${hole}" stroke-width="18" stroke-linejoin="round">
+      <path fill="${fg}" d="M226 372 L250 308 C256 290 272 278 296 278 L384 278 C408 278 424 290 430 308 L454 372 Z"/>
+      <rect x="190" y="352" width="300" height="76" rx="28" fill="${fg}"/>
+      <rect x="208" y="326" width="24" height="20" rx="7" fill="${fg}"/>
+      <rect x="448" y="326" width="24" height="20" rx="7" fill="${fg}"/>
+    </g>
+    <path fill="${fg}" d="M226 372 L250 308 C256 290 272 278 296 278 L384 278 C408 278 424 290 430 308 L454 372 Z"/>
+    <rect x="208" y="326" width="24" height="20" rx="7" fill="${fg}"/>
+    <rect x="448" y="326" width="24" height="20" rx="7" fill="${fg}"/>
+    <rect x="190" y="352" width="300" height="76" rx="28" fill="${fg}"/>
+    <path fill="${hole}" d="M262 350 L280 310 C284 302 292 298 302 298 L378 298 C388 298 396 302 400 310 L418 350 Z"/>
+    <rect x="214" y="380" width="46" height="20" rx="10" fill="${hole}"/>
+    <rect x="420" y="380" width="46" height="20" rx="10" fill="${hole}"/>
+    <rect x="300" y="384" width="80" height="14" rx="7" fill="${hole}"/>
+    <rect x="206" y="420" width="56" height="24" rx="10" fill="${fg}"/>
+    <rect x="418" y="420" width="56" height="24" rx="10" fill="${fg}"/>
+  </g>
   </g>`;
 
 // userSpaceOnUse gradients so cut-outs painted with the same gradient line up with
@@ -59,8 +93,11 @@ const themed = () =>
   <g class="d"><rect width="512" height="512" rx="112" fill="url(#bgDark)"/>${mark('#8A8AF0', 'url(#bgDark)')}</g>
 </svg>`;
 
-// Monochrome: the mark alone on transparency — Android tints the alpha for themed icons.
-const monochrome = () => `${open}${mark('#000000', 'transparent', 0.74)}</svg>`;
+// Monochrome: the mark alone on transparency — Android tints the alpha for themed
+// icons. The ink must be real holes, so the mark is used as a luminance mask
+// (white = keep, black = cut) over a solid square.
+const monochrome = () =>
+  `${open}<defs><mask id="m"><rect width="512" height="512" fill="#000"/>${mark('#FFFFFF', '#000000', 0.74)}</mask></defs><rect width="512" height="512" fill="#000" mask="url(#m)"/></svg>`;
 
 const png = (svg, size, out) => {
   mkdirSync(dirname(out), { recursive: true });
