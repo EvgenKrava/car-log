@@ -12,6 +12,7 @@ import { CATEGORY_META, categoryTint } from '../lib/event-category';
 import { formatDate, formatNumber } from '../i18n/format';
 import { VehicleHeroSkeleton, TimelineEntrySkeleton } from '../components/ui/skeletons';
 import { EmptyState } from '../components/ui/EmptyState';
+import { GARAGE_PATH } from '../lib/paths';
 
 const FUEL_ICONS: Record<FuelType, React.ReactNode> = {
   petrol: <LocalGasStationIcon sx={{ fontSize: 16 }} />,
@@ -201,7 +202,7 @@ function PublicVehicleDetail({ car }: { car: PublicCar }) {
           )}
 
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
-            <Link component={RouterLink} to="/" underline="hover">
+            <Link component={RouterLink} to={GARAGE_PATH} underline="hover">
               {t('share:sharedVia')}
             </Link>
           </Typography>
@@ -235,7 +236,7 @@ export function PublicVehicle() {
         <Container maxWidth="md">
           <EmptyState
             title={t('share:notShared')}
-            action={<Button component={RouterLink} to="/" variant="contained">{t('share:sharedVia')}</Button>}
+            action={<Button component={RouterLink} to={GARAGE_PATH} variant="contained">{t('share:sharedVia')}</Button>}
           />
         </Container>
       </Box>

@@ -19,6 +19,7 @@ import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useThemeMode, type ThemeMode } from '../lib/theme-mode';
 import { isStandalone } from '../lib/install-mode';
+import { GARAGE_PATH } from '../lib/paths';
 import { ChangePasswordDialog } from '../components/ChangePasswordDialog';
 import { DeleteAccountDialog } from '../components/DeleteAccountDialog';
 import { EnableNotificationsCard } from '../components/EnableNotificationsCard';
@@ -89,7 +90,7 @@ export function Profile() {
 
   return (
     <AppShell>
-      <PageHeader title={t('common:profile')} onBack={() => navigate('/')} />
+      <PageHeader title={t('common:profile')} onBack={() => navigate(GARAGE_PATH)} />
       <Container maxWidth="sm" sx={{ py: 3 }}>
         <Stack spacing={2}>
           {/* Identity hero — same accent-wash treatment as the vehicle hero. */}

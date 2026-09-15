@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { UserRowSkeleton } from '../../components/ui/skeletons';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDate } from '../../i18n/format';
+import { GARAGE_PATH } from '../../lib/paths';
 
 type UserCardProps = {
   user: AdminUser;
@@ -90,7 +91,7 @@ export function UserManagement() {
 
   return (
     <AppShell>
-      <PageHeader title={t('admin:title')} onBack={() => navigate('/')} />
+      <PageHeader title={t('admin:title')} onBack={() => navigate(GARAGE_PATH)} />
       <Container maxWidth="sm" sx={{ py: 3 }}>
         {isLoading ? (
           <Stack spacing={1.5}>

@@ -18,6 +18,7 @@ import { StatusView } from '../../components/ui/StatusView';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { DashboardTilesSkeleton } from '../../components/ui/skeletons';
 import { CATEGORY_META, categoryTint } from '../../lib/event-category';
+import { GARAGE_PATH } from '../../lib/paths';
 import { formatDate, formatNumber } from '../../i18n/format';
 
 // One of the four headline numbers — icon in a tinted square beside a small
@@ -122,7 +123,7 @@ export function Dashboard() {
 
   return (
     <AppShell>
-      <PageHeader title={t('admin:dashboardTitle')} onBack={() => navigate('/')} />
+      <PageHeader title={t('admin:dashboardTitle')} onBack={() => navigate(GARAGE_PATH)} />
       <Container maxWidth="sm" sx={{ py: 3 }}>
         {isLoading ? (
           <DashboardTilesSkeleton />

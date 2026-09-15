@@ -1,6 +1,21 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import type { Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { rekeyIndexHtml } from './src/lib/rename-index';
+
+// The marketing site owns `/index.html`; the SPA shell ships as `/app.html` (CloudFront's
+// 403/404 fallback). Runs in generateBundle so VitePWA — which globs dist/ in closeBundle —
+// precaches app.html, not a file that no longer exists.
+const renameIndexToApp = (): Plugin => ({
+  name: 'carlog-rename-index-to-app',
+  apply: 'build',
+  // Vite's own html plugin emits `index.html` into the bundle from its generateBundle
+  // hook; enforce: 'post' guarantees ours runs after it, so the key actually exists to
+  // rename by the time this fires.
+  enforce: 'post',
+  generateBundle(_options, bundle) { rekeyIndexHtml(bundle); },
+});
 
 export default defineConfig({
   build: {
@@ -28,6 +43,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    renameIndexToApp(),
     VitePWA({
       // Custom sw.ts (push + notificationclick handlers) replaces the generated worker.
       // injectManifest hands us the precache manifest via self.__WB_MANIFEST; everything
@@ -42,7 +58,7 @@ export default defineConfig({
         name: 'CarLog',
         short_name: 'CarLog',
         description: 'Your vehicle maintenance log',
-        start_url: '/',
+        start_url: '/garage',
         scope: '/',
         display: 'standalone',
         theme_color: '#5B5BD6',

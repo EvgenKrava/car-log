@@ -2,6 +2,8 @@
 import { cleanupOutdatedCaches, precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { clientsClaim } from 'workbox-core';
+import { APP_ROUTES } from './lib/app-routes';
+import { GARAGE_PATH } from './lib/paths';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -11,7 +13,9 @@ self.skipWaiting();
 clientsClaim();
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
+// Only app navigations get the SPA shell; marketing URLs fall through to the network so
+// installed-PWA users still see the static pages.
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/app.html'), { allowlist: APP_ROUTES }));
 
 self.addEventListener('push', (event) => {
   // With userVisibleOnly: true, every push MUST result in a visible notification —
@@ -31,7 +35,7 @@ self.addEventListener('push', (event) => {
   }
   const title = payload?.title ?? 'CarLog';
   const body = payload?.body;
-  const url = payload?.url ?? '/';
+  const url = payload?.url ?? GARAGE_PATH;
   event.waitUntil(self.registration.showNotification(title, {
     body, data: { url }, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
   }));
@@ -39,7 +43,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data as { url?: string })?.url ?? '/';
+  const url = (event.notification.data as { url?: string })?.url ?? GARAGE_PATH;
   event.waitUntil((async () => {
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = clients.find((c) => 'focus' in c);

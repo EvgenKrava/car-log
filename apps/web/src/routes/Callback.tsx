@@ -4,6 +4,7 @@ import { Box, CircularProgress } from '@mui/material';
 import { Hub } from 'aws-amplify/utils';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { useAuth } from '../auth';
+import { GARAGE_PATH } from '../lib/paths';
 
 export function Callback() {
   const navigate = useNavigate();
@@ -15,13 +16,13 @@ export function Callback() {
     // poll getCurrentUser as a fallback in case the Hub event fired before mount.
     const stop = Hub.listen('auth', ({ payload }) => {
       if (payload.event === 'signInWithRedirect') {
-        void refresh().then(() => navigate('/', { replace: true }));
+        void refresh().then(() => navigate(GARAGE_PATH, { replace: true }));
       } else if (payload.event === 'signInWithRedirect_failure') {
         setFailed(true);
       }
     });
     void getCurrentUser()
-      .then(() => refresh().then(() => navigate('/', { replace: true })))
+      .then(() => refresh().then(() => navigate(GARAGE_PATH, { replace: true })))
       .catch(() => { /* not signed in yet; wait for Hub or show failure below */ });
     return () => stop();
   }, [navigate, refresh]);

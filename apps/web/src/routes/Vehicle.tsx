@@ -42,6 +42,7 @@ import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { VehicleHeroSkeleton, TimelineEntrySkeleton } from '../components/ui/skeletons';
 import { formatNumber } from '../i18n/format';
+import { GARAGE_PATH } from '../lib/paths';
 import { tokens } from '../theme/tokens';
 import { buildCarExport } from '../lib/car-export';
 import { downloadJson, exportFilename } from '../lib/download-json';
@@ -291,7 +292,7 @@ function VehicleDetail({ car }: { car: Car }) {
   // the export menu item has reminders in scope without waiting on the tab render.
   const { data: reminders } = useReminders(car.id);
 
-  const onDelete = async () => { await del.mutateAsync(car.id); navigate('/', { replace: true }); };
+  const onDelete = async () => { await del.mutateAsync(car.id); navigate(GARAGE_PATH, { replace: true }); };
   const onExport = () => {
     if (!events || !reminders) return;
     setExportFailed(false);
@@ -308,7 +309,7 @@ function VehicleDetail({ car }: { car: Car }) {
 
   return (
     <AppShell>
-      <PageHeader title={title} onBack={() => navigate('/')} />
+      <PageHeader title={title} onBack={() => navigate(GARAGE_PATH)} />
       {/* maxWidth=md keeps the reading measure tight on desktop; py=3 xs / py=4 sm+
           gives the hero room to breathe. */}
       <Container maxWidth="md" sx={{ py: { xs: 3, sm: 4 } }}>
@@ -669,7 +670,7 @@ export function Vehicle() {
       <AppShell>
         <Container sx={{ py: 8, textAlign: 'center' }}>
           <Typography variant="h6" gutterBottom>{t('vehicle:notFound')}</Typography>
-          <Button variant="contained" onClick={() => navigate('/')}>{t('vehicle:backToGarage')}</Button>
+          <Button variant="contained" onClick={() => navigate(GARAGE_PATH)}>{t('vehicle:backToGarage')}</Button>
         </Container>
       </AppShell>
     );

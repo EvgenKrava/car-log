@@ -7,6 +7,7 @@ import { authErrorKey } from '../../auth/auth-error';
 import { AuthLayout } from './AuthLayout';
 import { PasswordField } from '../../components/ui/PasswordField';
 import { GoogleSignInButton } from '../../components/ui/GoogleSignInButton';
+import { GARAGE_PATH } from '../../lib/paths';
 
 export function Login() {
   const { t } = useTranslation(['auth']);
@@ -20,7 +21,7 @@ export function Login() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true); setError(null);
-    try { await signIn(email, password); navigate('/', { replace: true }); }
+    try { await signIn(email, password); navigate(GARAGE_PATH, { replace: true }); }
     catch (err) { setError(t(authErrorKey(err))); }
     finally { setBusy(false); }
   };

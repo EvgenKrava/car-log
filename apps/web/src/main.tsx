@@ -12,6 +12,7 @@ import { AuthProvider, RequireAuth } from './auth';
 import { RequireAdmin } from './auth/RequireAdmin';
 import { buildTheme } from './theme';
 import { ThemeModeProvider, useThemeMode } from './lib/theme-mode';
+import { GARAGE_PATH } from './lib/paths';
 import { Garage } from './routes/Garage';
 import { Vehicle } from './routes/Vehicle';
 import { Login } from './routes/auth/Login';
@@ -58,7 +59,7 @@ function Root() {
               <Route path="/reset" element={<ResetPassword />} />
               <Route path="/callback" element={<Callback />} />
               <Route path="/s/:carId" element={<PublicVehicle />} />
-              <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
+              <Route path={GARAGE_PATH} element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />
               <Route path="/cars/:id/chat/:sid" element={<RequireAuth><ChatConversation /></RequireAuth>} />
