@@ -1,6 +1,7 @@
-# Privacy Policy
-
-_Last updated: 2026-09-14 — draft, under review._
+---
+title: Privacy Policy
+updated: "2026-09-14"
+---
 
 ## What CarLog is
 

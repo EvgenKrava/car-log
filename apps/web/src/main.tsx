@@ -32,7 +32,6 @@ const ResetPassword = lazy(() => import('./routes/auth/ResetPassword').then((m) 
 const UserManagement = lazy(() => import('./routes/admin/UserManagement').then((m) => ({ default: m.UserManagement })));
 const Dashboard = lazy(() => import('./routes/admin/Dashboard').then((m) => ({ default: m.Dashboard })));
 const NotFound = lazy(() => import('./routes/NotFound').then((m) => ({ default: m.NotFound })));
-const Legal = lazy(() => import('./routes/Legal').then((m) => ({ default: m.Legal })));
 import { PushRefresh } from './components/PushRefresh';
 
 const queryClient = new QueryClient();
@@ -59,8 +58,6 @@ function Root() {
               <Route path="/reset" element={<ResetPassword />} />
               <Route path="/callback" element={<Callback />} />
               <Route path="/s/:carId" element={<PublicVehicle />} />
-              <Route path="/privacy" element={<Legal doc="privacy" />} />
-              <Route path="/terms" element={<Legal doc="terms" />} />
               <Route path="/" element={<RequireAuth><Garage /></RequireAuth>} />
               <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
               <Route path="/cars/:id" element={<RequireAuth><Vehicle /></RequireAuth>} />

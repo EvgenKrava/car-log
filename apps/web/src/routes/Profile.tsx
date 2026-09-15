@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Avatar, Box, Button, Card, CardContent, Container, Link, Stack, ToggleButton,
@@ -229,8 +229,8 @@ export function Profile() {
             {t('common:signOut')}
           </Button>
           <Stack direction="row" spacing={2} justifyContent="center">
-            <Link component={RouterLink} to="/privacy" variant="caption" color="text.secondary">{t('auth:privacy')}</Link>
-            <Link component={RouterLink} to="/terms" variant="caption" color="text.secondary">{t('auth:terms')}</Link>
+            <Link href="/privacy" variant="caption" color="text.secondary">{t('auth:privacy')}</Link>
+            <Link href="/terms" variant="caption" color="text.secondary">{t('auth:terms')}</Link>
           </Stack>
         </Stack>
       </Container>

@@ -1,13 +1,8 @@
 ---
-import Base from '../../layouts/Base.astro';
-import { t } from '../../i18n';
-const locale = 'uk';
-const s = t(locale);
+import Legal from '../../layouts/Legal.astro';
+import * as doc from '../../legal/uk/terms.md';
+const { title, updated } = doc.frontmatter as { title: string; updated: string };
 ---
-<Base locale={locale} path="/terms" title={`${s.footer.terms} — ${s.siteName}`} description={s.metaDescription}>
-  <section class="container">
-    <a href="/" class="muted">{s.legal.back}</a>
-    <h1>{s.footer.terms}</h1>
-    <p>Coming soon.</p>
-  </section>
-</Base>
+<Legal locale="uk" path="/terms" title={title} updated={updated} description="Умови, з якими ви погоджуєтеся, користуючись CarLog.">
+  <doc.Content />
+</Legal>

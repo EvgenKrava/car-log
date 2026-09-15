@@ -1,13 +1,8 @@
 ---
-import Base from '../layouts/Base.astro';
-import { t } from '../i18n';
-const locale = 'en';
-const s = t(locale);
+import Legal from '../layouts/Legal.astro';
+import * as doc from '../legal/en/privacy.md';
+const { title, updated } = doc.frontmatter as { title: string; updated: string };
 ---
-<Base locale={locale} path="/privacy" title={`${s.footer.privacy} — ${s.siteName}`} description={s.metaDescription}>
-  <section class="container">
-    <a href="/" class="muted">{s.legal.back}</a>
-    <h1>{s.footer.privacy}</h1>
-    <p>Coming soon.</p>
-  </section>
-</Base>
+<Legal locale="en" path="/privacy" title={title} updated={updated} description="What CarLog stores, why, and how to delete it.">
+  <doc.Content />
+</Legal>

@@ -1,6 +1,7 @@
-# Terms of Service
-
-_Last updated: 2026-09-14 — draft, under review._
+---
+title: Terms of Service
+updated: "2026-09-14"
+---
 
 ## Using CarLog
 

@@ -1,0 +1,20 @@
+---
+import Base from './Base.astro';
+import { t, type Locale } from '../i18n';
+import { localePath } from '../lib/seo';
+interface Props { locale: Locale; path: '/privacy' | '/terms'; title: string; updated: string; description: string }
+const { locale, path, title, updated, description } = Astro.props;
+const s = t(locale);
+---
+<Base locale={locale} path={path} title={`${title} — ${s.siteName}`} description={description}>
+  <article class="container legal card">
+    <a href={localePath(locale, '/')}>{s.legal.back}</a>
+    <h1>{title}</h1>
+    <p class="muted">{s.legal.updated}: {updated}</p>
+    <slot />
+  </article>
+</Base>
+<style>
+  .legal { max-width: 760px; margin-block: 32px; }
+  .legal :global(h2) { font-size: 1.25rem; margin-top: 1.6em; }
+</style>
