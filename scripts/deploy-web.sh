@@ -36,13 +36,22 @@ aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$
   --allowed-o-auth-flows-user-pool-client \
   --supported-identity-providers COGNITO $IDP_NAMES >/dev/null
 
+pnpm --filter @carlog/site build
 pnpm --filter @carlog/web build
-aws s3 sync apps/web/dist "s3://$BUCKET" --delete
-# The service worker and manifest must never be edge-cached, or clients get stuck
-# on a stale SW. Re-upload them with no-cache (hashed assets/* stay long-cached).
-aws s3 cp apps/web/dist/sw.js "s3://$BUCKET/sw.js" \
-  --cache-control "no-cache" --content-type "application/javascript"
-aws s3 cp apps/web/dist/manifest.webmanifest "s3://$BUCKET/manifest.webmanifest" \
-  --cache-control "no-cache" --content-type "application/manifest+json"
+
+# The site owns index.html, uk/, privacy/, terms/, og-*.png, robots.txt, sitemap-*.xml;
+# the app owns app.html, assets/, sw.js, registerSW.js, manifest.webmanifest, icons/.
+# Refuse to deploy if a path exists in both — the later copy would silently win.
+DUP=$(comm -12 <(cd apps/site/dist && find . -type f | sort) <(cd apps/web/dist && find . -type f | sort))
+if [ -n "$DUP" ]; then echo "Path collision between site and web builds:"; echo "$DUP"; exit 1; fi
+
+STAGE=$(mktemp -d)
+cp -R apps/site/dist/. "$STAGE"
+cp -R apps/web/dist/. "$STAGE"
+aws s3 sync "$STAGE" "s3://$BUCKET" --delete
+# HTML, the service worker and the manifest must never be edge- or browser-cached, or
+# clients get stuck on a stale shell / SW. Hashed assets/* and _astro/* stay long-cached.
+aws s3 cp "$STAGE" "s3://$BUCKET" --recursive --exclude "*" --include "*.html" --include "sw.js" --include "manifest.webmanifest" --cache-control "no-cache"
+rm -rf "$STAGE"
 aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" >/dev/null
 echo "Deployed web to $WEB_URL"
