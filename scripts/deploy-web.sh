@@ -51,7 +51,10 @@ cp -R apps/web/dist/. "$STAGE"
 aws s3 sync "$STAGE" "s3://$BUCKET" --delete
 # HTML, the service worker and the manifest must never be edge- or browser-cached, or
 # clients get stuck on a stale shell / SW. Hashed assets/* and _astro/* stay long-cached.
-aws s3 cp "$STAGE" "s3://$BUCKET" --recursive --exclude "*" --include "*.html" --include "sw.js" --include "manifest.webmanifest" --cache-control "no-cache"
+# Re-upload HTML with no-cache; SW and manifest need explicit content types that the CLI can't guess.
+aws s3 cp "$STAGE" "s3://$BUCKET" --recursive --exclude "*" --include "*.html" --cache-control "no-cache"
+aws s3 cp "$STAGE/sw.js" "s3://$BUCKET/sw.js" --cache-control "no-cache" --content-type "application/javascript"
+aws s3 cp "$STAGE/manifest.webmanifest" "s3://$BUCKET/manifest.webmanifest" --cache-control "no-cache" --content-type "application/manifest+json"
 rm -rf "$STAGE"
 aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" >/dev/null
-echo "Deployed web to $WEB_URL"
+echo "Deployed site + web to $WEB_URL"
