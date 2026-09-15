@@ -5,10 +5,10 @@
 // Run this script, then sign in with the email + password form in the window that opens —
 // NOT the "Continue with Google" button, which loops forever in an automation-controlled
 // browser (Google blocks OAuth there). The script waits (up to 10 minutes) until you're back
-// on our own origin, signed in. By default it then opens /garage and captures the first car
-// it finds; set CAR_URL to a specific car's URL to capture that one instead (CAR_URL=first is
-// the same as leaving it unset). It captures every route at phone + desktop, light + dark,
-// into src/assets/shots/.
+// on our own origin, signed in — wherever the app's own post-login redirect lands (the
+// garage). By default it captures the first car it finds there; set CAR_URL to a specific
+// car's URL to capture that one instead (CAR_URL=first is the same as leaving it unset). It
+// captures every route at phone + desktop, light + dark, into src/assets/shots/.
 //
 // Sign-in happens in one headed, persistent-profile context (so Google sees a normal
 // returning browser). Captures happen in separate headless contexts, one per size, built
@@ -29,8 +29,13 @@ mkdirSync(OUT, { recursive: true });
 
 const STATE_PATH = join(tmpdir(), `carlog-shots-state-${process.pid}.json`);
 const PROFILE_DIR = join(tmpdir(), 'carlog-shots-profile');
+// Pages the app can be on mid sign-in (including the auth-provider detour); anything else on
+// our origin means signed in. Deliberately over-inclusive of routes that don't exist yet
+// (/signup, /confirm, /forgot, /reset) so this doesn't need to change if they're added.
+const AUTH_PATHS = ['/login', '/signup', '/confirm', '/forgot', '/reset', '/callback'];
 
 let carUrl;
+let garageUrl;
 
 try {
   // Sign in: headed, persistent profile so Google treats it as a normal browser.
@@ -46,16 +51,20 @@ try {
     // accounts.google.com (via "Continue with Google") is not signed in, it's Google looping
     // on the automated browser. Keep waiting through any such detour until the owner comes
     // back and signs in with email + password instead.
-    await signInPage.waitForURL((u) => u.origin === ORIGIN && (u.pathname === '/garage' || u.pathname.startsWith('/cars/')), { timeout: 600_000 });
+    await signInPage.waitForURL((u) => u.origin === ORIGIN && !AUTH_PATHS.some((p) => u.pathname.startsWith(p)), { timeout: 600_000 });
     console.log('Signed in — capturing… keep this window open until "done" is printed');
+
+    // The app's own post-login redirect already lands on the garage — today at `/`, a later
+    // task moves it to `/garage` — so stay put rather than navigating, and use this URL for
+    // the `garage` route capture below instead of a hardcoded path.
+    garageUrl = signInPage.url();
 
     const requested = process.env.CAR_URL?.trim();
     if (requested && requested.toLowerCase() !== 'first') {
       carUrl = requested;
     } else {
       // Garage cards are MUI CardActionArea buttons (onClick navigation), not <a> tags — no
-      // href to read, so open the first one and read the resulting URL instead.
-      await signInPage.goto(`${ORIGIN}/garage`);
+      // href to read, so click the first one and read the resulting URL instead.
       const card = signInPage.locator('.MuiCardActionArea-root').first();
       await card.waitFor({ state: 'visible', timeout: 60_000 });
       await card.click();
@@ -72,7 +81,7 @@ try {
   // Capture: headless, one browser + one context per size so viewport/deviceScaleFactor/
   // isMobile apply correctly (phone shots come out 780×1688px, desktop 2560×1600px).
   const SIZES = { phone: { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true }, desktop: { width: 1280, height: 800, deviceScaleFactor: 2, isMobile: false } };
-  const ROUTES = { garage: `${ORIGIN}/garage`, timeline: carUrl, reminders: `${carUrl}?tab=reminders` };
+  const ROUTES = { garage: garageUrl, timeline: carUrl, reminders: `${carUrl}?tab=reminders` };
 
   for (const [sizeName, size] of Object.entries(SIZES)) {
     const browser = await chromium.launch({ headless: true, channel: CHANNEL });
