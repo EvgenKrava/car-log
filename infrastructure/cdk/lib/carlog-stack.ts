@@ -18,6 +18,7 @@ import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, HttpMethods } from 'aws-cdk-lib/aws-s3';
 import {
   Distribution, PriceClass, ViewerProtocolPolicy, ResponseHeadersPolicy, HeadersFrameOption, HeadersReferrerPolicy,
+  Function as CfFunction, FunctionCode, FunctionEventType,
 } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Certificate, CertificateValidation } from 'aws-cdk-lib/aws-certificatemanager';
@@ -300,6 +301,21 @@ export class CarLogStack extends Stack {
       },
     });
 
+    // S3 behind OAC has no directory indexes. The static marketing site emits
+    // /privacy/index.html; this rewrite lets /privacy (and /uk, /uk/privacy…) hit it. App
+    // routes like /garage become /garage/index.html → 404 → the app.html fallback below.
+    const rewriteIndex = new CfFunction(this, 'RewriteIndex', {
+      code: FunctionCode.fromInline(`
+function handler(event) {
+  var req = event.request;
+  var uri = req.uri;
+  if (uri.endsWith('/')) { req.uri = uri + 'index.html'; }
+  else if (!uri.includes('.')) { req.uri = uri + '/index.html'; }
+  return req;
+}`),
+    });
+
+    // Marketing site at /, SPA shell at /app.html.
     const distribution = new Distribution(this, 'WebDistribution', {
       defaultRootObject: 'index.html',
       domainNames: [WEB_DOMAIN],
@@ -310,10 +326,11 @@ export class CarLogStack extends Stack {
         origin: S3BucketOrigin.withOriginAccessControl(webBucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         responseHeadersPolicy: securityHeaders,
+        functionAssociations: [{ function: rewriteIndex, eventType: FunctionEventType.VIEWER_REQUEST }],
       },
       errorResponses: [
-        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html' },
-        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
+        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/app.html' },
+        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/app.html' },
       ],
     });
 

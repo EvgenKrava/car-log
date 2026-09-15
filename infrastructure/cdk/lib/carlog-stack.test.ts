@@ -86,4 +86,20 @@ describe('CarLogStack', () => {
       AuthorizationType: 'JWT',
     });
   });
+
+  it('falls back to the SPA shell app.html and rewrites extensionless URIs', () => {
+    t.hasResourceProperties('AWS::CloudFront::Distribution', {
+      DistributionConfig: Match.objectLike({
+        DefaultRootObject: 'index.html',
+        CustomErrorResponses: Match.arrayWith([
+          Match.objectLike({ ErrorCode: 403, ResponseCode: 200, ResponsePagePath: '/app.html' }),
+          Match.objectLike({ ErrorCode: 404, ResponseCode: 200, ResponsePagePath: '/app.html' }),
+        ]),
+        DefaultCacheBehavior: Match.objectLike({
+          FunctionAssociations: [Match.objectLike({ EventType: 'viewer-request' })],
+        }),
+      }),
+    });
+    t.resourceCountIs('AWS::CloudFront::Function', 1);
+  });
 });
