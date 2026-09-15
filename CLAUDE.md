@@ -83,6 +83,7 @@ Use the **`yevhenii`** AWS CLI profile (region `us-east-1`) for all AWS operatio
 - Single package test: `pnpm --filter @carlog/domain test`
 - Single test file: `pnpm --filter @carlog/domain test src/car.test.ts`
 - Web dev server: `pnpm --filter @carlog/web dev`
+- Regenerate app icons (light + dark sets, favicon, apple-touch, maskable/monochrome) from the vector mark in `apps/web/scripts/icons.mjs`: `pnpm --filter @carlog/web icons` (needs `rsvg-convert`, `brew install librsvg`)
 - CDK synth: `AWS_PROFILE=yevhenii pnpm --filter @carlog/cdk synth`
 - Deploy backend: `AWS_PROFILE=yevhenii CDK_DEFAULT_REGION=us-east-1 pnpm --filter @carlog/cdk exec cdk deploy --require-approval never`
 - Deploy web (build + reconcile Cognito URLs + S3 sync + CloudFront invalidate): `./scripts/deploy-web.sh`
