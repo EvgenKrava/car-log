@@ -44,4 +44,5 @@ export const uk: Strings = {
   },
   footer: { privacy: 'Конфіденційність', terms: 'Умови', contact: 'Контакт', madeIn: 'Зроблено в Україні', language: 'Мова' },
   legal: { back: '← CarLog', updated: 'Оновлено' },
+  notFound: { title: 'Сторінку не знайдено', body: 'За цією адресою нічого немає. Можливо, сторінку перенесено або в посиланні помилка.', home: 'На головну', app: 'Відкрити CarLog' },
 };

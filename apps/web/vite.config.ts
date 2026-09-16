@@ -4,9 +4,10 @@ import type { Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { rekeyIndexHtml } from './src/lib/rename-index';
 
-// The marketing site owns `/index.html`; the SPA shell ships as `/app.html` (CloudFront's
-// 403/404 fallback). Runs in generateBundle so VitePWA — which globs dist/ in closeBundle —
-// precaches app.html, not a file that no longer exists.
+// The marketing site owns `/index.html`; the SPA shell ships as `/app.html`, which the
+// CloudFront viewer-request function serves for app routes (packages/config/app-routes.ts).
+// Runs in generateBundle so VitePWA — which globs dist/ in closeBundle — precaches
+// app.html, not a file that no longer exists.
 const renameIndexToApp = (): Plugin => ({
   name: 'carlog-rename-index-to-app',
   apply: 'build',

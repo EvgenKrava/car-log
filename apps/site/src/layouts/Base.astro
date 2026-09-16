@@ -11,8 +11,10 @@ import LangSwitch from '../components/LangSwitch.astro';
 interface Props {
   locale: Locale; path: string; title: string; description: string;
   ogImage?: string; jsonLd?: Record<string, unknown>; landing?: boolean;
+  // Error pages: no canonical / hreflang (they have no URL of their own) and keep crawlers out.
+  noindex?: boolean;
 }
-const { locale, path, title, description, ogImage = `/og-${locale}.png`, jsonLd, landing = false } = Astro.props;
+const { locale, path, title, description, ogImage = `/og-${locale}.png`, jsonLd, landing = false, noindex = false } = Astro.props;
 const s = t(locale);
 const url = canonical(locale, path);
 ---
@@ -23,8 +25,8 @@ const url = canonical(locale, path);
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={url} />
-    {alternates(path).map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={url} />}
+    {!noindex && alternates(path).map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
     <meta name="theme-color" content="#5B5BD6" />
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -32,7 +34,7 @@ const url = canonical(locale, path);
     <meta property="og:site_name" content={s.siteName} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={url} />
+    {!noindex && <meta property="og:url" content={url} />}
     <meta property="og:image" content={`${canonical('en', '/')}${ogImage.slice(1)}`} />
     <meta property="og:locale" content={locale === 'uk' ? 'uk_UA' : 'en_US'} />
     <meta name="twitter:card" content="summary_large_image" />

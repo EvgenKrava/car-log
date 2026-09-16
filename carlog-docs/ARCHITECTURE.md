@@ -13,7 +13,7 @@ packages/
   contracts/
   api-client/
   utils/
-  config/
+  config/         shared tsconfig + the app-route list (SW allowlist, robots.txt, CloudFront)
 
 infrastructure/
   cdk/
@@ -32,6 +32,15 @@ Uploads:
 Browser
 → Pre-signed URL
 → Amazon S3
+
+## Web Flow
+
+One S3 bucket + CloudFront distribution serves the marketing site (`/`, `/uk/`, `/privacy`, …)
+and the SPA shell (`app.html`). A viewer-request Function routes by URI:
+
+- app route (`packages/config/app-routes.ts`) → `app.html`
+- `/`, `/uk/`, extensionless site page → `<dir>/index.html`
+- anything else → untouched; a missing key is a real HTTP 404 with the site's `404.html`
 
 ## Principles
 

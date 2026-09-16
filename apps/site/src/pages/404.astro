@@ -1,0 +1,30 @@
+---
+import Base from '../layouts/Base.astro';
+import { t } from '../i18n';
+import { localePath, APP_HOME } from '../lib/seo';
+// CloudFront serves this one file for every missing URL, English and Ukrainian alike, so
+// it carries both languages rather than guessing a locale from the path.
+const en = t('en');
+const uk = t('uk');
+---
+<Base locale="en" path="/404" title={`${en.notFound.title} — ${en.siteName}`} description={en.notFound.body} noindex>
+  <section class="container not-found">
+    <div class="card">
+      <p class="code">404</p>
+      <h1>{en.notFound.title}</h1>
+      <p>{en.notFound.body}</p>
+      <p class="actions"><a class="btn" href={localePath('en', '/')}>{en.notFound.home}</a> <a class="btn secondary" href={APP_HOME}>{en.notFound.app}</a></p>
+    </div>
+    <div class="card" lang="uk">
+      <h2>{uk.notFound.title}</h2>
+      <p>{uk.notFound.body}</p>
+      <p class="actions"><a class="btn" href={localePath('uk', '/')}>{uk.notFound.home}</a> <a class="btn secondary" href={APP_HOME}>{uk.notFound.app}</a></p>
+    </div>
+  </section>
+</Base>
+<style>
+  .not-found { max-width: 640px; margin-block: 48px; display: grid; gap: 16px; }
+  .code { font-size: 3rem; font-weight: 800; color: var(--accent); margin: 0; line-height: 1; }
+  h1, h2 { margin-top: 8px; }
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 0; }
+</style>

@@ -15,4 +15,5 @@ export type Strings = {
   faq: { h2: string; items: [Faq, Faq, Faq, Faq, Faq] };
   footer: { privacy: string; terms: string; contact: string; madeIn: string; language: string };
   legal: { back: string; updated: string };
+  notFound: { title: string; body: string; home: string; app: string };
 };

@@ -27,6 +27,7 @@ import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 import { Rule, Schedule, RuleTargetInput } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
 import type { Construct } from 'constructs';
+import { APP_ROUTE_ROOTS } from '@carlog/config/app-routes';
 
 const __dirnameLocal = dirname(fileURLToPath(import.meta.url));
 
@@ -301,15 +302,31 @@ export class CarLogStack extends Stack {
       },
     });
 
-    // S3 behind OAC has no directory indexes. The static marketing site emits
-    // /privacy/index.html; this rewrite lets /privacy (and /uk, /uk/privacy…) hit it. App
-    // routes like /garage become /garage/index.html → 404 → the app.html fallback below.
+    // S3 behind OAC has no directory indexes and answers every missing key with 403. The
+    // viewer-request function decides what a URI means before it reaches S3:
+    //   app routes (packages/config/app-routes.ts)  → /app.html, the SPA shell
+    //   `/`, `/uk/` and extensionless site pages       → the Astro `<dir>/index.html`
+    //   anything else                                  → untouched
+    // A key that still misses is a genuine 404 (see errorResponses below) — the shell must
+    // never answer for unknown URLs, or crawlers see a soft-404 (e.g. a typo'd sitemap).
+    const appPages = APP_ROUTE_ROOTS.filter((r) => r.kind === 'exact').map((r) => r.path);
+    const appTrees = APP_ROUTE_ROOTS.filter((r) => r.kind === 'subtree').map((r) => r.path);
     const rewriteIndex = new CfFunction(this, 'RewriteIndex', {
       code: FunctionCode.fromInline(`
+var APP_PAGES = ${JSON.stringify(appPages)};
+var APP_TREES = ${JSON.stringify(appTrees)};
+function isAppRoute(uri) {
+  if (APP_PAGES.indexOf(uri) !== -1) { return true; }
+  for (var i = 0; i < APP_TREES.length; i++) {
+    if (uri === APP_TREES[i] || uri.startsWith(APP_TREES[i] + '/')) { return true; }
+  }
+  return false;
+}
 function handler(event) {
   var req = event.request;
   var uri = req.uri;
-  if (uri.endsWith('/')) { req.uri = uri + 'index.html'; }
+  if (isAppRoute(uri)) { req.uri = '/app.html'; }
+  else if (uri.endsWith('/')) { req.uri = uri + 'index.html'; }
   else if (!uri.includes('.')) { req.uri = uri + '/index.html'; }
   return req;
 }`),
@@ -328,9 +345,10 @@ function handler(event) {
         responseHeadersPolicy: securityHeaders,
         functionAssociations: [{ function: rewriteIndex, eventType: FunctionEventType.VIEWER_REQUEST }],
       },
+      // Missing keys are real 404s with the site's static 404 page (apps/site/src/pages/404.astro).
       errorResponses: [
-        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/app.html' },
-        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/app.html' },
+        { httpStatus: 403, responseHttpStatus: 404, responsePagePath: '/404.html' },
+        { httpStatus: 404, responseHttpStatus: 404, responsePagePath: '/404.html' },
       ],
     });
 

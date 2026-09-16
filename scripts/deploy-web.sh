@@ -39,7 +39,7 @@ aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$
 pnpm --filter @carlog/site build
 pnpm --filter @carlog/web build
 
-# The site owns index.html, uk/, privacy/, terms/, og-*.png, robots.txt, sitemap-*.xml;
+# The site owns index.html, 404.html, uk/, privacy/, terms/, og-*.png, robots.txt, sitemap-*.xml;
 # the app owns app.html, assets/, sw.js, registerSW.js, manifest.webmanifest, icons/.
 # Refuse to deploy if a path exists in both — the later copy would silently win.
 DUP=$(comm -12 <(cd apps/site/dist && find . -type f | sort) <(cd apps/web/dist && find . -type f | sort))

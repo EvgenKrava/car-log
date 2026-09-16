@@ -44,4 +44,5 @@ export const en: Strings = {
   },
   footer: { privacy: 'Privacy', terms: 'Terms', contact: 'Contact', madeIn: 'Made in Ukraine', language: 'Language' },
   legal: { back: '← CarLog', updated: 'Last updated' },
+  notFound: { title: 'Page not found', body: 'There is nothing at this address. It may have moved, or the link may be mistyped.', home: 'Go to the home page', app: 'Open CarLog' },
 };

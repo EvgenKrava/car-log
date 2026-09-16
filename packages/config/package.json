@@ -2,5 +2,5 @@
   "name": "@carlog/config",
   "version": "0.0.0",
   "private": true,
-  "files": ["tsconfig.json"]
+  "files": ["tsconfig.json", "app-routes.ts"]
 }

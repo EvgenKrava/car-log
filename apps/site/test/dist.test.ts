@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'node-html-parser';
+import { APP_ROUTE_ROOTS } from '@carlog/config/app-routes';
 
 const DIST = fileURLToPath(new URL('../dist/', import.meta.url));
 const SITE = 'https://carlog.onlytools.click';
@@ -31,7 +32,8 @@ function urlForRelPath(rel: string): string {
 }
 
 describe('built site', () => {
-  const pages = htmlFiles(DIST);
+  // CloudFront serves 404.html for any missing key; it is not a page of the site.
+  const pages = htmlFiles(DIST).filter((p) => relative(DIST, p) !== '404.html');
   it('has both locales of every page', () => {
     const rel = pages.map((p) => relative(DIST, p));
     for (const p of rel.filter((r) => !r.startsWith('uk/'))) expect(rel).toContain(`uk/${p}`);
@@ -65,6 +67,25 @@ describe('built site', () => {
       if (!href || APP_LINKS.has(href) || WEB_OWNED.includes(href)) continue;
       expect(existsSync(fileFor(href)) || existsSync(join(DIST, href)), `${href} not in dist and not WEB_OWNED`).toBe(true);
     }
+  });
+
+  it('ships a 404 page that is not indexable', () => {
+    const file = join(DIST, '404.html');
+    expect(existsSync(file)).toBe(true);
+    const doc = parse(readFileSync(file, 'utf8'));
+    expect(doc.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex');
+    expect(doc.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(doc.querySelectorAll('link[rel="alternate"][hreflang]')).toHaveLength(0);
+    expect(doc.querySelector('title')?.text.trim()).toBeTruthy();
+    expect(doc.querySelector('a[href="/"]')).not.toBeNull();
+  });
+
+  it('robots.txt keeps crawlers out of every app route and the shell', () => {
+    const lines = readFileSync(join(DIST, 'robots.txt'), 'utf8').split('\n');
+    for (const { path, kind } of APP_ROUTE_ROOTS) expect(lines).toContain(`Disallow: ${kind === 'exact' ? path : `${path}/`}`);
+    expect(lines).toContain('Disallow: /app.html');
+    // `/s/` must not be widened to `/s`, which would also block /sitemap-index.xml and /signup.
+    expect(lines).not.toContain('Disallow: /s');
   });
 
   it('ships robots.txt, sitemap and OG images', () => {
