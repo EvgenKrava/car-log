@@ -1,7 +1,7 @@
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
 import type {
   LlmProvider, ExtractionContext, CarChatContext, ChatAttachment,
-  ChatTurnEntry, ChatTurnResult, ChatToolDefinition,
+  ChatTurnEntry, ChatTurnResult, ChatToolDefinition, ChatToolChoice,
 } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 
@@ -14,13 +14,29 @@ import { LlmUnavailableError } from './llm-errors';
 // documented fallback for that gap — never widen `raw` to `any` instead.
 type ContentBlockParam = Record<string, unknown>;
 
-// Claude Haiku 4.5 — cheapest current Claude model with vision support, invoked in our
+// Claude Haiku 5.5 — cheapest current Claude model with vision support, invoked in our
 // own account via SigV4 (the Lambda's execution role), not a cross-account bearer token.
-// This account only has cross-region inference profiles provisioned, not on-demand
-// throughput for this model — a bare `anthropic.claude-haiku-4-5-20251001-v1:0` 400s with
-// "on-demand throughput isn't supported"; the `us.` prefix routes to whichever US region
-// has capacity. Overridable via env for a deploy that wants a different model/profile.
-const MODEL = process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+// The model is served only through inference profiles (no on-demand throughput) — a bare
+// `anthropic.claude-haiku-5-5` 400s with "on-demand throughput isn't supported"; the `us.`
+// prefix routes to whichever US region has capacity. Overridable via env for a deploy that
+// wants a different model/profile.
+const MODEL = process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-haiku-5-5';
+
+// Haiku 5.5 thinks adaptively by default; effort is the only depth control (default
+// `medium`). Chat runs at `low`: up to three calls must fit the ~26s turn budget, and
+// the replies are short. Extraction forces its tool call, which skips thinking, so its
+// effort only shapes the tool input — `medium` keeps the works/parts mapping careful.
+const CHAT_EFFORT = 'low';
+const EXTRACT_EFFORT = 'medium';
+
+// Haiku 5.5's safety classifiers can decline a request (HTTP 200, stop_reason
+// 'refusal'); there is no server-side fallback for this model. Callers treat the
+// declined output as empty instead of reading partial content.
+function logRefusal(where: string, res: { stop_reason: string | null; stop_details?: unknown }): boolean {
+  if (res.stop_reason !== 'refusal') return false;
+  console.warn(`Bedrock ${where} refused`, JSON.stringify(res.stop_details ?? null));
+  return true;
+}
 
 // The tool schema mirrors the CandidateEvent shape so the model emits committable JSON.
 // The domain use-case (extractEvents) is the authoritative validator — this schema only
@@ -197,8 +213,7 @@ export class BedrockLlmProvider implements LlmProvider {
       res = await this.client.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        // Haiku 4.5 supports neither adaptive thinking nor output_config.effort (400s on
-        // both) — it's fast enough for this structured-output task without them.
+        output_config: { effort: EXTRACT_EFFORT },
         tools: [EXTRACT_TOOL],
         tool_choice: { type: 'tool', name: 'record_events' },
         messages: [{ role: 'user', content: prompt(text, ctx) }],
@@ -209,6 +224,8 @@ export class BedrockLlmProvider implements LlmProvider {
       console.error('Bedrock call failed', e.name, e.message);
       throw new LlmUnavailableError();
     }
+    // A refusal reads as shapeless output: the use-case retries once, then fails cleanly.
+    if (logRefusal('extraction', res)) return null;
     // Pull the tool-use input (the structured JSON) out of the response content.
     const toolUse = res.content.find((c: { type: string }) => c.type === 'tool_use');
     return toolUse && 'input' in toolUse ? toolUse.input : null;
@@ -228,6 +245,7 @@ export class BedrockLlmProvider implements LlmProvider {
       res = await this.client.messages.create({
         model: MODEL,
         max_tokens: 16000,
+        output_config: { effort: EXTRACT_EFFORT },
         tools: [EXTRACT_TOOL],
         tool_choice: { type: 'tool', name: 'record_events' },
         messages: [{ role: 'user', content: [docBlock, { type: 'text', text: promptText }] }],
@@ -237,6 +255,7 @@ export class BedrockLlmProvider implements LlmProvider {
       console.error('Bedrock vision call failed', e.name, e.message);
       throw new LlmUnavailableError();
     }
+    if (logRefusal('vision extraction', res)) return null;
     const toolUse = res.content.find((c: { type: string }) => c.type === 'tool_use');
     return toolUse && 'input' in toolUse ? toolUse.input : null;
   }
@@ -249,10 +268,13 @@ export class BedrockLlmProvider implements LlmProvider {
     context: CarChatContext,
     attachments: ChatAttachment[],
     tools: ChatToolDefinition[],
+    toolChoice: ChatToolChoice,
   ): Promise<ChatTurnResult> {
     // Attach the current turn's files to the LAST user entry as vision blocks, mirroring
     // extractEventsFromDocument. Earlier turns stay plain text — their analysis already
-    // lives in the assistant replies, and re-sending bytes would blow the cap.
+    // lives in the assistant replies, and re-sending bytes would blow the cap. Every round
+    // of this turn gets the same blocks: echoed thinking blocks are bound to the exact
+    // prefix (system, tools, earlier messages) that produced them.
     const lastUserIdx = transcript.reduce(
       (found, entry, i) => (entry.role === 'user' ? i : found), -1,
     );
@@ -303,12 +325,15 @@ export class BedrockLlmProvider implements LlmProvider {
     try {
       res = await this.client.messages.create({
         model: MODEL,
-        // Headroom above a short answer plus any tool_use blocks. No thinking/effort:
-        // Haiku 4.5 supports neither (400s on both), and is fast enough without them —
-        // well inside the ~29s Lambda / 30s API Gateway cap across a multi-round tool turn.
+        // Headroom above a short answer plus any tool_use blocks; thinking counts toward
+        // it too, which `low` effort keeps short — well inside the ~29s Lambda / 30s API
+        // Gateway cap across a multi-round tool turn.
         max_tokens: 4096,
+        output_config: { effort: CHAT_EFFORT },
         system: chatSystem(context, new Date().toISOString().slice(0, 10)),
-        ...(bedrockTools ? { tools: bedrockTools } : {}),
+        // The final text-only round keeps the same tools and switches tool_choice to
+        // 'none' — dropping `tools` would invalidate the echoed thinking blocks.
+        ...(bedrockTools ? { tools: bedrockTools, tool_choice: { type: toolChoice } } : {}),
         messages: bedrockMessages,
       });
     } catch (err) {
@@ -316,6 +341,10 @@ export class BedrockLlmProvider implements LlmProvider {
       console.error('Bedrock chat failed', e.name, e.message);
       throw new LlmUnavailableError();
     }
+
+    // A declined round ends the loop with no text; the use-case falls back to its
+    // canned reply (or the summaries of actions already taken this turn).
+    if (logRefusal('chat', res)) return { text: '', toolCalls: [], raw: res.content };
 
     const text = res.content.map((c) => ('text' in c ? c.text : '')).join('').trim();
     const toolCalls = res.content

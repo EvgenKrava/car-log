@@ -47,6 +47,10 @@ export type ChatToolResult = { id: string; content: string; isError: boolean };
 // The outcome of ONE model call in the tool loop. `toolCalls` empty ⇒ the turn is done.
 export type ChatTurnResult = { text: string; toolCalls: ChatToolCall[]; raw: unknown };
 
+// 'auto' lets the model call the offered tools; 'none' forces a text-only answer while
+// still offering the same tools, so the request prefix stays identical across rounds.
+export type ChatToolChoice = 'auto' | 'none';
+
 export interface LlmProvider {
   // Returns the model's raw structured output as unknown JSON. The extractEvents
   // use-case validates it against the contract schema — the provider is NOT
@@ -55,13 +59,16 @@ export interface LlmProvider {
   // Vision: read a maintenance document (image or PDF) and return raw structured output.
   extractEventsFromDocument(base64: string, mediaType: string, ctx: ExtractionContext): Promise<unknown>;
   // ONE model call in the chat tool loop. `transcript` is the conversation so far plus any
-  // prior rounds of this turn; `attachments` are the current turn's decoded files (first
-  // round only); `tools` is [] on the final forced-text round. Loop policy lives in the
-  // domain use-case, not here.
+  // prior rounds of this turn; `attachments` are the current turn's decoded files (same on
+  // every round); `tools` is the same set on every round, and `toolChoice` is 'none' on
+  // the final forced-text round. Everything before the newest round must be sent
+  // unchanged — a provider may bind its echoed reasoning to that exact prefix. Loop
+  // policy lives in the domain use-case, not here.
   chatTurn(
     transcript: ChatTurnEntry[],
     context: CarChatContext,
     attachments: ChatAttachment[],
     tools: ChatToolDefinition[],
+    toolChoice: ChatToolChoice,
   ): Promise<ChatTurnResult>;
 }
