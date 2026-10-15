@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Car, Event, Reminder, ChatMessage, ChatAction } from '@carlog/contracts';
-import type { LlmProvider, ChatTurnResult, ChatTurnEntry } from './llm-provider';
+import type { LlmProvider, ChatTurnResult, ChatTurnEntry, ChatToolChoice } from './llm-provider';
 import type { ChatToolExecutor, ChatToolCall, ChatToolOutcome } from './chat-tools';
 import { CHAT_TOOLS } from './chat-tools';
 import {
@@ -88,21 +88,23 @@ describe('chatAboutCar', () => {
   const ctx = buildCarChatContext(car, events, reminders);
   const userTurn: ChatMessage[] = [{ role: 'user', content: 'Remind me to change the oil' }];
 
-  // A provider that replays a scripted ChatTurnResult per call and records the tools
-  // it was offered on each round.
+  // A provider that replays a scripted ChatTurnResult per call and records the tool
+  // choice it was given on each round (and the tool set, which must never change).
   const scripted = (rounds: ChatTurnResult[]) => {
-    const offered: number[] = [];
+    const offered: ChatToolChoice[] = [];
+    const toolSets: unknown[] = [];
     const llm: LlmProvider = {
       extractEvents: vi.fn(),
       extractEventsFromDocument: vi.fn(),
-      chatTurn: vi.fn(async (_t, _c, _a, tools) => {
-        offered.push(tools.length);
+      chatTurn: vi.fn(async (_t, _c, _a, tools, toolChoice) => {
+        offered.push(toolChoice);
+        toolSets.push(tools);
         const next = rounds.shift();
         if (!next) throw new Error('provider called more times than scripted');
         return next;
       }),
     };
-    return { llm, offered };
+    return { llm, offered, toolSets };
   };
 
   const text = (t: string): ChatTurnResult => ({ text: t, toolCalls: [], raw: { t } });
@@ -126,7 +128,7 @@ describe('chatAboutCar', () => {
       reply: 'You are due for oil soon.', actions: [],
     });
     expect(exec.calls).toEqual([]);
-    expect(offered).toEqual([CHAT_TOOLS.length]); // tools offered on the first round
+    expect(offered).toEqual(['auto']); // tool calls allowed on the first round
   });
 
   it('replays a stored assistant message as assistant_text, not as a user turn', async () => {
@@ -215,13 +217,16 @@ describe('chatAboutCar', () => {
     expect(secondCallTranscript).toContainEqual({ role: 'assistant', raw });
   });
 
-  it('stops offering tools on the last permitted model call', async () => {
+  it('forbids tool calls on the last permitted model call, keeping the same tools', async () => {
     const keepCalling = () => call('t', 'create_reminder');
-    const { llm, offered } = scripted([keepCalling(), keepCalling(), text('Final answer.')]);
+    const { llm, offered, toolSets } = scripted([keepCalling(), keepCalling(), text('Final answer.')]);
     const out = await chatAboutCar(userTurn, llm, ctx, executor({ content: 'ok', isError: false }));
     expect(out.reply).toBe('Final answer.');
     expect(llm.chatTurn).toHaveBeenCalledTimes(MAX_MODEL_CALLS);
-    expect(offered).toEqual([CHAT_TOOLS.length, CHAT_TOOLS.length, 0]); // forced text last
+    expect(offered).toEqual(['auto', 'auto', 'none']); // forced text last
+    // Dropping the tools on the final round would change the prefix the earlier rounds'
+    // reasoning is bound to.
+    expect(toolSets).toEqual([CHAT_TOOLS, CHAT_TOOLS, CHAT_TOOLS]);
   });
 
   it('forces the final text round early when the clock budget runs low', async () => {
@@ -233,15 +238,15 @@ describe('chatAboutCar', () => {
     const { llm, offered } = scripted([call('t1', 'create_reminder'), text('Ran out of time, here is what I know.')]);
     const out = await chatAboutCar(userTurn, llm, ctx, executor({ content: 'ok', isError: false }), [], { now });
     expect(out.reply).toBe('Ran out of time, here is what I know.');
-    expect(offered).toEqual([CHAT_TOOLS.length, 0]); // second round had no tools
+    expect(offered).toEqual(['auto', 'none']); // second round could not call tools
   });
 
-  it('sends attachments on the first round only', async () => {
+  it('sends the same attachments on every round of the turn', async () => {
     const { llm } = scripted([call('t1', 'create_reminder'), text('ok')]);
     const attachments = [{ base64: 'AAA', mediaType: 'image/png' }];
     await chatAboutCar(userTurn, llm, ctx, executor({ content: 'ok', isError: false }), attachments);
     expect(vi.mocked(llm.chatTurn).mock.calls[0]![2]).toEqual(attachments);
-    expect(vi.mocked(llm.chatTurn).mock.calls[1]![2]).toEqual([]);
+    expect(vi.mocked(llm.chatTurn).mock.calls[1]![2]).toEqual(attachments);
   });
 
   it('keeps a failed tool from failing the turn', async () => {
@@ -357,7 +362,7 @@ describe('chatAboutCar', () => {
   });
 
   it('does not execute tool calls returned on a tool-free final round', async () => {
-    // A provider that misbehaves on the forced-text-only final round (offered 0 tools)
+    // A provider that misbehaves on the forced-text-only final round (tool choice 'none')
     // must not have its tool calls executed — there is no further round to narrate them,
     // so executing would commit writes the user never sees.
     const misbehaving: ChatTurnResult = {
@@ -370,7 +375,7 @@ describe('chatAboutCar', () => {
     const exec = executor({ content: 'ok', isError: false });
     const out = await chatAboutCar(userTurn, llm, ctx, exec);
     expect(out.reply).toBe('Doing it anyway.');
-    // Rounds 0 and 1 (tools offered) legitimately executed their calls; the final
+    // Rounds 0 and 1 (tool calls allowed) legitimately executed their calls; the final
     // tool-free round's 'rogue' call must NOT have reached the executor.
     expect(exec.calls.map((c) => c.id)).not.toContain('rogue');
     expect(exec.calls).toHaveLength(2);

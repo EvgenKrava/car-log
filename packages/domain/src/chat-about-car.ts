@@ -1,8 +1,9 @@
 import type { Car, Event, Reminder, ChatMessage, ChatAction } from '@carlog/contracts';
 import type {
   LlmProvider, CarChatContext, ChatAttachment, ChatTurnEntry, ChatToolResult, ChatTurnResult,
+  ChatToolChoice,
 } from './llm-provider';
-import { CHAT_TOOLS, type ChatToolExecutor, type ChatToolDefinition } from './chat-tools';
+import { CHAT_TOOLS, type ChatToolExecutor } from './chat-tools';
 
 // Bound the timeline handed to the model so a large imported history can't inflate the
 // prompt past the latency/token budget. The most recent events carry the most relevant
@@ -103,7 +104,7 @@ export const MAX_TURN_ACTIONS = 10;
 
 // Answer the latest user message, letting the model call tools to read and change this
 // car's data. Bounded by MAX_MODEL_CALLS and TURN_BUDGET_MS: when either runs out the
-// final call is made with no tools, so the model must answer in text.
+// final call is made with tool choice 'none', so the model must answer in text.
 export async function chatAboutCar(
   messages: ChatMessage[],
   llm: LlmProvider,
@@ -132,17 +133,15 @@ export async function chatAboutCar(
   for (let round = 0; round < MAX_MODEL_CALLS; round += 1) {
     const isLastRound = round === MAX_MODEL_CALLS - 1;
     const remaining = TURN_BUDGET_MS - (now() - startedAt);
-    // Offer tools only while there is room for a follow-up call to narrate the result.
-    const tools: ChatToolDefinition[] =
-      isLastRound || remaining < MIN_ROUND_BUDGET_MS ? [] : CHAT_TOOLS;
-
-    // Bytes go on the first round only — by round 2 the model has already read them, and
-    // re-sending them each round would blow the token budget.
-    const turnAttachments = round === 0 ? attachments : [];
+    // Allow tool calls only while there is room for a follow-up call to narrate the result.
+    // The tool set itself never changes within a turn (see LlmProvider.chatTurn).
+    const toolChoice: ChatToolChoice =
+      isLastRound || remaining < MIN_ROUND_BUDGET_MS ? 'none' : 'auto';
 
     let result: ChatTurnResult;
     try {
-      result = await llm.chatTurn(transcript, context, turnAttachments, tools);
+      // Same attachments every round: the earlier rounds' prefix must stay unchanged.
+      result = await llm.chatTurn(transcript, context, attachments, CHAT_TOOLS, toolChoice);
     } catch (err) {
       // Nothing committed yet ⇒ let the provider error surface as the usual 503.
       if (actions.length === 0) throw err;
@@ -158,7 +157,7 @@ export async function chatAboutCar(
     // A tool-free round's only job is to produce the final text. If a provider returns
     // tool calls anyway on such a round, executing them would commit writes the loop can
     // never narrate back to the user (there is no further round to report the outcome).
-    if (tools.length === 0) break;
+    if (toolChoice === 'none') break;
 
     // Execute this round's calls concurrently, then return ALL results in ONE entry:
     // splitting them across entries trains the model out of parallel tool use.
