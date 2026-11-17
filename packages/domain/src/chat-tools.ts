@@ -16,7 +16,7 @@ export interface ChatToolExecutor {
 
 // Neutral JSON-Schema shape handed to the provider. It only STEERS the model toward the
 // right input; the contract schema in the executor is the authoritative validator (same
-// split as EXTRACT_TOOL in the Bedrock adapter).
+// split as EXTRACT_TOOL in the Claude adapter).
 export type ChatToolDefinition = {
   name: string;
   description: string;

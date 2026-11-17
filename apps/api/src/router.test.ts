@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { inMemoryAiSettingsDeps } from './in-memory-ai-settings';
+import type { AiSettingsDeps } from './ai-settings-service';
 import { route } from './router';
 import { InMemoryCarRepository } from './in-memory-car-repository';
 import { InMemoryEventRepository } from './in-memory-event-repository';
@@ -40,7 +42,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota; userData: InMemoryUserDataRepository };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota; userData: InMemoryUserDataRepository; aiSettings: AiSettingsDeps };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -62,6 +64,7 @@ beforeEach(() => {
     pushSubs: new InMemoryPushSubscriptionRepository(),
     quota: new InMemoryUsageQuota(),
     userData: new InMemoryUserDataRepository(),
+    aiSettings: inMemoryAiSettingsDeps(),
   };
 });
 

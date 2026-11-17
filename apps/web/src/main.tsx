@@ -32,6 +32,7 @@ const ForgotPassword = lazy(() => import('./routes/auth/ForgotPassword').then((m
 const ResetPassword = lazy(() => import('./routes/auth/ResetPassword').then((m) => ({ default: m.ResetPassword })));
 const UserManagement = lazy(() => import('./routes/admin/UserManagement').then((m) => ({ default: m.UserManagement })));
 const Dashboard = lazy(() => import('./routes/admin/Dashboard').then((m) => ({ default: m.Dashboard })));
+const AiSettings = lazy(() => import('./routes/admin/AiSettings').then((m) => ({ default: m.AiSettings })));
 const NotFound = lazy(() => import('./routes/NotFound').then((m) => ({ default: m.NotFound })));
 import { PushRefresh } from './components/PushRefresh';
 
@@ -67,6 +68,7 @@ function Root() {
               <Route path="/cars/:id/chat/:sid" element={<RequireAuth><ChatConversation /></RequireAuth>} />
               <Route path="/admin" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
               <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
+              <Route path="/admin/ai" element={<RequireAdmin><AiSettings /></RequireAdmin>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>

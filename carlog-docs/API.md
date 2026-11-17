@@ -48,3 +48,9 @@ POST /cars/{id}/chat/sessions/{sid}/actions/{aid}/confirm   # perform a proposed
 POST /cars/{id}/chat/sessions/{sid}/actions/{aid}/decline   # dismiss a proposed delete
 POST /cars/{id}/chat/attachments/presign
 POST /cars/{id}/chat/transcribe               # voice clip (16kHz WAV) -> text via Amazon Transcribe
+
+## Admin: AI settings (admin group only)
+
+GET  /admin/ai-settings        # provider, model, key hint (last 4 chars) — never the key
+PUT  /admin/ai-settings        # { provider, model, anthropicApiKey?: string | null } — omit = keep, null = remove
+POST /admin/ai-settings/test   # one tiny request with { provider, model, anthropicApiKey? }

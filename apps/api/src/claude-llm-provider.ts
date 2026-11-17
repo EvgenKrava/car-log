@@ -1,42 +1,34 @@
-import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import type {
   LlmProvider, ExtractionContext, CarChatContext, ChatAttachment,
   ChatTurnEntry, ChatTurnResult, ChatToolDefinition, ChatToolChoice,
 } from '@carlog/domain';
 import { LlmUnavailableError } from './llm-errors';
 
-// The Bedrock SDK's own entry point exports only the client classes (verified via
-// `node -e "console.log(Object.keys(require('@anthropic-ai/bedrock-sdk')))"` →
-// ['default', 'AnthropicBedrockMantle', 'BaseAnthropic', 'AnthropicBedrock']) — no
-// ContentBlockParam, and no re-exported subpath for it either. `@anthropic-ai/sdk` (which
-// does define it) is only a transitive dependency of this package, not a direct one, so
-// its subpath types are not resolvable from our own source files. This local alias is the
-// documented fallback for that gap — never widen `raw` to `any` instead.
-type ContentBlockParam = Record<string, unknown>;
+// The one part of an SDK client this adapter uses. `Anthropic` (Claude API) and
+// `AnthropicBedrock` (Amazon Bedrock) expose the same Messages API, so one adapter serves
+// both providers; `create` is all either needs.
+export type MessagesClient = { messages: Pick<Anthropic['messages'], 'create'> };
 
-// Claude Haiku 5.5 — cheapest current Claude model with vision support, invoked in our
-// own account via SigV4 (the Lambda's execution role), not a cross-account bearer token.
-// The model is served only through inference profiles (no on-demand throughput) — a bare
-// `anthropic.claude-haiku-5-5` 400s with "on-demand throughput isn't supported"; the `us.`
-// prefix routes to whichever US region has capacity. Overridable via env for a deploy that
-// wants a different model/profile.
-const MODEL = process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-haiku-5-5';
+// The provider's own model id plus what the model accepts. `effort` is false for models
+// that reject output_config.effort (Claude Haiku 4.5 400s on it).
+export type ClaudeModelSpec = { id: string; effort: boolean };
 
-// Haiku 5.5 thinks adaptively by default; effort is the only depth control (default
-// `medium`). Chat runs at `low`: up to three calls must fit the ~26s turn budget, and
-// the replies are short. Extraction forces its tool call, which skips thinking, so its
-// effort only shapes the tool input — `medium` keeps the works/parts mapping careful.
+export type ClaudeLlmProviderOptions = {
+  client: MessagesClient;
+  model: ClaudeModelSpec;
+  // Names the provider in logs ("anthropic" / "bedrock").
+  label: string;
+};
+
+// Claude Haiku 5.5 thinks adaptively by default; effort is the only depth control
+// (default `medium`). Chat runs at `low`: up to three calls must fit the ~26s turn
+// budget, and the replies are short. Extraction forces its tool call, which skips
+// thinking, so its effort only shapes the tool input — `medium` keeps the works/parts
+// mapping careful.
 const CHAT_EFFORT = 'low';
 const EXTRACT_EFFORT = 'medium';
 
-// Haiku 5.5's safety classifiers can decline a request (HTTP 200, stop_reason
-// 'refusal'); there is no server-side fallback for this model. Callers treat the
-// declined output as empty instead of reading partial content.
-function logRefusal(where: string, res: { stop_reason: string | null; stop_details?: unknown }): boolean {
-  if (res.stop_reason !== 'refusal') return false;
-  console.warn(`Bedrock ${where} refused`, JSON.stringify(res.stop_details ?? null));
-  return true;
-}
 
 // The tool schema mirrors the CandidateEvent shape so the model emits committable JSON.
 // The domain use-case (extractEvents) is the authoritative validator — this schema only
@@ -198,71 +190,101 @@ function chatSystem(ctx: CarChatContext, today: string): string {
   return lines.join('\n');
 }
 
-export class BedrockLlmProvider implements LlmProvider {
-  // SigV4 auth via the Lambda's own execution role (default AWS credential provider
-  // chain) — no bearer token, no cross-account IAM. BEDROCK_REGION lets the Bedrock call
-  // target a different region than this Lambda's own AWS_REGION if ever needed; falls
-  // back to AWS_REGION, then us-east-1.
-  private readonly client = new AnthropicBedrock({
-    awsRegion: process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? 'us-east-1',
-  });
 
-  async extractEvents(text: string, ctx: ExtractionContext): Promise<unknown> {
-    let res;
+// Image and PDF attachments as Messages API content blocks. Media types are validated to
+// the accepted set upstream; the SDK types image media as a narrow union, so assert here.
+function fileBlock(base64: string, mediaType: string): Anthropic.ContentBlockParam {
+  return mediaType === 'application/pdf'
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType as Anthropic.Base64ImageSource['media_type'], data: base64 } };
+}
+
+function toolUseInput(res: Anthropic.Message): unknown {
+  const toolUse = res.content.find((c): c is Anthropic.ToolUseBlock => c.type === 'tool_use');
+  return toolUse ? toolUse.input : null;
+}
+
+export class ClaudeLlmProvider implements LlmProvider {
+  private readonly client: MessagesClient;
+  private readonly model: ClaudeModelSpec;
+  private readonly label: string;
+
+  constructor(options: ClaudeLlmProviderOptions) {
+    this.client = options.client;
+    this.model = options.model;
+    this.label = options.label;
+  }
+
+  // Sends `output_config.effort` only to models that accept it.
+  private effort(level: 'low' | 'medium'): { output_config?: { effort: 'low' | 'medium' } } {
+    return this.model.effort ? { output_config: { effort: level } } : {};
+  }
+
+  // Claude's safety classifiers can decline a request (HTTP 200, stop_reason 'refusal');
+  // Claude Haiku 5.5 has no server-side fallback. Callers treat the declined output as
+  // empty instead of reading partial content.
+  private refused(where: string, res: Anthropic.Message): boolean {
+    if (res.stop_reason !== 'refusal') return false;
+    console.warn(`${this.label} ${where} refused`, JSON.stringify(res.stop_details ?? null));
+    return true;
+  }
+
+  private async create(where: string, params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> {
     try {
-      res = await this.client.messages.create({
-        model: MODEL,
-        max_tokens: 16000,
-        output_config: { effort: EXTRACT_EFFORT },
-        tools: [EXTRACT_TOOL],
-        tool_choice: { type: 'tool', name: 'record_events' },
-        messages: [{ role: 'user', content: prompt(text, ctx) }],
-      });
+      return await this.client.messages.create(params);
     } catch (err) {
-      // Log the error class + message for diagnosis (model-not-found, throttling, etc.).
+      // Log the error class + message for diagnosis (bad key, model not found, throttling…).
       const e = err as Error;
-      console.error('Bedrock call failed', e.name, e.message);
+      console.error(`${this.label} ${where} failed`, e.name, e.message);
       throw new LlmUnavailableError();
     }
+  }
+
+  // The smallest real request, for the admin "Test" button. Throws the SDK's own error so
+  // the caller can tell a bad key from a missing model or an outage.
+  async ping(): Promise<void> {
+    await this.client.messages.create({
+      model: this.model.id,
+      // Room for any thinking before the one-word reply (thinking counts toward it).
+      max_tokens: 256,
+      ...this.effort('low'),
+      messages: [{ role: 'user', content: 'Reply with the single word OK.' }],
+    });
+  }
+
+  async extractEvents(text: string, ctx: ExtractionContext): Promise<unknown> {
+    const res = await this.create('extraction', {
+      model: this.model.id,
+      max_tokens: 16000,
+      ...this.effort(EXTRACT_EFFORT),
+      tools: [EXTRACT_TOOL],
+      tool_choice: { type: 'tool', name: 'record_events' },
+      messages: [{ role: 'user', content: prompt(text, ctx) }],
+    });
     // A refusal reads as shapeless output: the use-case retries once, then fails cleanly.
-    if (logRefusal('extraction', res)) return null;
-    // Pull the tool-use input (the structured JSON) out of the response content.
-    const toolUse = res.content.find((c: { type: string }) => c.type === 'tool_use');
-    return toolUse && 'input' in toolUse ? toolUse.input : null;
+    if (this.refused('extraction', res)) return null;
+    return toolUseInput(res);
   }
 
   async extractEventsFromDocument(base64: string, mediaType: string, ctx: ExtractionContext): Promise<unknown> {
-    // Vision: images use an image block; PDFs use a document block (per the claude-api
-    // skill's base64 content-block shapes). Same record_events tool + parse as the text path.
-    // media_type is validated to SCAN_DOC_CONTENT_TYPES upstream; the SDK's image block
-    // types it as a narrow union, so assert it here (runtime value is one of ours).
-    const docBlock = mediaType === 'application/pdf'
-      ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
-      : { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp', data: base64 } };
+    // Vision: images use an image block; PDFs use a document block. Same record_events
+    // tool + parse as the text path.
     const promptText = instructions(ctx, 'maintenance invoice/receipt document');
-    let res;
-    try {
-      res = await this.client.messages.create({
-        model: MODEL,
-        max_tokens: 16000,
-        output_config: { effort: EXTRACT_EFFORT },
-        tools: [EXTRACT_TOOL],
-        tool_choice: { type: 'tool', name: 'record_events' },
-        messages: [{ role: 'user', content: [docBlock, { type: 'text', text: promptText }] }],
-      });
-    } catch (err) {
-      const e = err as Error;
-      console.error('Bedrock vision call failed', e.name, e.message);
-      throw new LlmUnavailableError();
-    }
-    if (logRefusal('vision extraction', res)) return null;
-    const toolUse = res.content.find((c: { type: string }) => c.type === 'tool_use');
-    return toolUse && 'input' in toolUse ? toolUse.input : null;
+    const res = await this.create('vision extraction', {
+      model: this.model.id,
+      max_tokens: 16000,
+      ...this.effort(EXTRACT_EFFORT),
+      tools: [EXTRACT_TOOL],
+      tool_choice: { type: 'tool', name: 'record_events' },
+      messages: [{ role: 'user', content: [fileBlock(base64, mediaType), { type: 'text', text: promptText }] }],
+    });
+    if (this.refused('vision extraction', res)) return null;
+    return toolUseInput(res);
   }
 
   // One model call in the domain's chat tool loop. Maps the neutral transcript onto
-  // Bedrock content blocks and maps the response back. Loop policy (round count, time
-  // budget) lives in the domain use-case — this method makes exactly one call.
+  // Messages API content blocks and maps the response back. Loop policy (round count,
+  // time budget) lives in the domain use-case — this method makes exactly one call.
   async chatTurn(
     transcript: ChatTurnEntry[],
     context: CarChatContext,
@@ -278,23 +300,23 @@ export class BedrockLlmProvider implements LlmProvider {
     const lastUserIdx = transcript.reduce(
       (found, entry, i) => (entry.role === 'user' ? i : found), -1,
     );
-    const messages = transcript.map((entry, i) => {
+    const messages = transcript.map((entry, i): Anthropic.MessageParam => {
       if (entry.role === 'assistant') {
         // `raw` is this adapter's own content array from a previous round of the CURRENT
-        // turn, echoed back UNCHANGED — Bedrock rejects modified thinking blocks.
-        return { role: 'assistant' as const, content: entry.raw as ContentBlockParam[] };
+        // turn, echoed back UNCHANGED — modified thinking blocks are rejected.
+        return { role: 'assistant', content: entry.raw as Anthropic.ContentBlockParam[] };
       }
       if (entry.role === 'assistant_text') {
         // A stored assistant reply replayed from conversation history — text only, no
         // provider `raw` to echo since it was persisted in DynamoDB, not produced in an
         // in-flight round of this turn.
-        return { role: 'assistant' as const, content: entry.content };
+        return { role: 'assistant', content: entry.content };
       }
       if (entry.role === 'tool_results') {
         return {
-          role: 'user' as const,
-          content: entry.results.map((r) => ({
-            type: 'tool_result' as const,
+          role: 'user',
+          content: entry.results.map((r): Anthropic.ToolResultBlockParam => ({
+            type: 'tool_result',
             tool_use_id: r.id,
             content: r.content,
             is_error: r.isError,
@@ -302,53 +324,41 @@ export class BedrockLlmProvider implements LlmProvider {
         };
       }
       if (i === lastUserIdx && attachments.length > 0) {
-        const blocks = attachments.map((a) => a.mediaType === 'application/pdf'
-          ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: a.base64 } }
-          : { type: 'image' as const, source: { type: 'base64' as const, media_type: a.mediaType as 'image/jpeg' | 'image/png' | 'image/webp', data: a.base64 } });
-        return { role: 'user' as const, content: [...blocks, { type: 'text' as const, text: entry.content }] };
+        const blocks = attachments.map((a) => fileBlock(a.base64, a.mediaType));
+        return { role: 'user', content: [...blocks, { type: 'text', text: entry.content }] };
       }
-      return { role: 'user' as const, content: entry.content };
+      return { role: 'user', content: entry.content };
     });
 
-    // `tools`/`messages` are built from the domain's neutral shapes (`inputSchema` is a plain
-    // `Record<string, unknown>`; `messages` from the local ContentBlockParam alias — see the
-    // comment atop this file). Both are structurally compatible with the SDK's own param
-    // types but not the literal types TS infers here, so bridge via the SDK's own parameter
-    // type — no `any`.
-    type CreateParams = Parameters<typeof this.client.messages.create>[0];
-    const bedrockTools = tools.length > 0
-      ? tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema })) as unknown as NonNullable<CreateParams['tools']>
-      : undefined;
-    const bedrockMessages = messages as unknown as CreateParams['messages'];
+    // The domain's `inputSchema` is a plain JSON Schema object; the SDK types it as an
+    // object schema with optional `properties`/`required`, which every chat tool has.
+    const sdkTools = tools.map((t): Anthropic.Tool => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+    }));
 
-    let res;
-    try {
-      res = await this.client.messages.create({
-        model: MODEL,
-        // Headroom above a short answer plus any tool_use blocks; thinking counts toward
-        // it too, which `low` effort keeps short — well inside the ~29s Lambda / 30s API
-        // Gateway cap across a multi-round tool turn.
-        max_tokens: 4096,
-        output_config: { effort: CHAT_EFFORT },
-        system: chatSystem(context, new Date().toISOString().slice(0, 10)),
-        // The final text-only round keeps the same tools and switches tool_choice to
-        // 'none' — dropping `tools` would invalidate the echoed thinking blocks.
-        ...(bedrockTools ? { tools: bedrockTools, tool_choice: { type: toolChoice } } : {}),
-        messages: bedrockMessages,
-      });
-    } catch (err) {
-      const e = err as Error;
-      console.error('Bedrock chat failed', e.name, e.message);
-      throw new LlmUnavailableError();
-    }
+    const res = await this.create('chat', {
+      model: this.model.id,
+      // Headroom above a short answer plus any tool_use blocks; thinking counts toward it
+      // too, which `low` effort keeps short — well inside the ~29s Lambda / 30s API
+      // Gateway cap across a multi-round tool turn.
+      max_tokens: 4096,
+      ...this.effort(CHAT_EFFORT),
+      system: chatSystem(context, new Date().toISOString().slice(0, 10)),
+      // The final text-only round keeps the same tools and switches tool_choice to
+      // 'none' — dropping `tools` would invalidate the echoed thinking blocks.
+      ...(sdkTools.length > 0 ? { tools: sdkTools, tool_choice: { type: toolChoice } } : {}),
+      messages,
+    });
 
     // A declined round ends the loop with no text; the use-case falls back to its
     // canned reply (or the summaries of actions already taken this turn).
-    if (logRefusal('chat', res)) return { text: '', toolCalls: [], raw: res.content };
+    if (this.refused('chat', res)) return { text: '', toolCalls: [], raw: res.content };
 
-    const text = res.content.map((c) => ('text' in c ? c.text : '')).join('').trim();
+    const text = res.content.map((c) => (c.type === 'text' ? c.text : '')).join('').trim();
     const toolCalls = res.content
-      .filter((c): c is Extract<typeof c, { type: 'tool_use' }> => c.type === 'tool_use')
+      .filter((c): c is Anthropic.ToolUseBlock => c.type === 'tool_use')
       .map((c) => ({ id: c.id, name: c.name, input: c.input }));
     return { text, toolCalls, raw: res.content };
   }

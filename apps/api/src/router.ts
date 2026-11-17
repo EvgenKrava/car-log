@@ -12,6 +12,7 @@ import { handleImportCarRoute } from './import-car-route';
 import { handlePushRoute } from './push-routes';
 import { handleScanRoute } from './scan-routes';
 import { handleAdminRoute } from './admin-routes';
+import type { AiSettingsDeps } from './ai-settings-service';
 import { handlePublicRoute } from './public-routes';
 import { handleMeRoute } from './me-routes';
 import { quotaKindFor } from './quota-gate';
@@ -49,6 +50,7 @@ export type RouteDeps = {
   pushSubs: PushSubscriptionRepository;
   quota: UsageQuota;
   userData: UserDataRepository;
+  aiSettings: AiSettingsDeps;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -82,7 +84,7 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
       const result = await handleAdminRoute(
         {
           users: deps.adminUsers, metrics: deps.metrics, events: deps.events, apiId: deps.apiId,
-          cars: deps.cars, storage: deps.storage, userData: deps.userData,
+          cars: deps.cars, storage: deps.storage, userData: deps.userData, ai: deps.aiSettings,
         },
         event,
       );

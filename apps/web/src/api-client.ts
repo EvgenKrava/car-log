@@ -23,6 +23,12 @@ import {
   type CreateReminderInput,
   type CompleteReminderInput,
   AdminUserSchema,
+  AiSettingsSchema,
+  AiTestResultSchema,
+  type AiSettings,
+  type AiTestResult,
+  type UpdateAiSettingsInput,
+  type TestAiSettingsInput,
   ListUsersResponseSchema,
   type ListUsersResponse,
   MetricsResponseSchema,
@@ -269,3 +275,12 @@ export const deleteMe = (token: string): Promise<void> =>
 export const deleteUser = (token: string, username: string): Promise<void> =>
   request(token, `/admin/users/${encodeURIComponent(username)}`, AdminUserSchema, { method: 'DELETE' })
     .then(() => undefined);
+
+// App-wide AI provider/model (admin only). The Claude API key is write-only: responses
+// carry its last four characters, never the key.
+export const getAiSettings = (token: string): Promise<AiSettings> =>
+  request(token, '/admin/ai-settings', AiSettingsSchema);
+export const updateAiSettings = (token: string, input: UpdateAiSettingsInput): Promise<AiSettings> =>
+  request(token, '/admin/ai-settings', AiSettingsSchema, { method: 'PUT', body: JSON.stringify(input) });
+export const testAiSettings = (token: string, input: TestAiSettingsInput): Promise<AiTestResult> =>
+  request(token, '/admin/ai-settings/test', AiTestResultSchema, { method: 'POST', body: JSON.stringify(input) });
