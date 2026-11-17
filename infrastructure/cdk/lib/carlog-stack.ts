@@ -36,6 +36,8 @@ export const ZONE_NAME = 'onlytools.click';
 export const WEB_DOMAIN = `carlog.${ZONE_NAME}`;
 export const WEB_ORIGIN = `https://${WEB_DOMAIN}`;
 const DEV_ORIGIN = 'http://localhost:5173';
+// SSM parameter for the Claude API key set on the admin AI settings page.
+const ANTHROPIC_KEY_PARAM = '/carlog/anthropic-api-key';
 
 type CarLogStackProps = StackProps & {
   // Resolved from SSM SecureString parameters at synth time in bin/carlog.ts. Both must be
@@ -151,6 +153,9 @@ export class CarLogStack extends Stack {
         VAPID_PUBLIC_KEY: props.vapidPublicKey,
         VAPID_PRIVATE_KEY: props.vapidPrivateKey,
         VAPID_SUBJECT: 'mailto:admin@carlog.app',
+        // SSM SecureString holding the Claude API key, written by the admin AI settings
+        // page (the API creates it on first save; CloudFormation can't create SecureStrings).
+        ANTHROPIC_KEY_PARAM: ANTHROPIC_KEY_PARAM,
       },
       // 300s: detached import-worker invocations (async self-invoke) chunk large files
       // through Bedrock and need minutes. HTTP calls are still bounded by API Gateway's
@@ -200,17 +205,28 @@ export class CarLogStack extends Stack {
     // Transcribe streaming has no resource-level scoping. Action name to be
     // live-verified at deploy (Task 4) — some SDK versions expose it differently.
     fn.addToRolePolicy(new PolicyStatement({ actions: ['transcribe:StartStreamTranscription'], resources: ['*'] }));
-    // Bedrock chat/extraction (BedrockLlmProvider) — SigV4 via this role, no bearer token.
-    // Keep the model id here in sync with BEDROCK_MODEL_ID's default in
-    // apps/api/src/bedrock-llm-provider.ts. The `us.` cross-region inference profile needs
-    // both its own ARN (in this stack's region) AND the underlying foundation-model ARN,
-    // which has no account segment and can route to any US region — hence the wildcard.
+    // Bedrock chat/extraction (ClaudeLlmProvider via the Bedrock client) — SigV4 via this
+    // role, no bearer token. The admin AI settings page picks the model at runtime, so every
+    // selectable Bedrock model is allowed; keep this list in sync with the Bedrock ids in
+    // apps/api/src/ai-models.ts. Each `us.` cross-region inference profile needs both its
+    // own ARN (in this stack's region) AND the underlying foundation-model ARN, which has no
+    // account segment and can route to any US region — hence the wildcard.
     fn.addToRolePolicy(new PolicyStatement({
       actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
       resources: [
         `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-5-5`,
         'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-5-5',
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
       ],
+    }));
+    // The Claude API key (admin AI settings page): read at runtime, written and removed
+    // from the admin page. Scoped to the one parameter. The SecureString uses the
+    // AWS-managed aws/ssm KMS key, whose key policy already lets this account use it
+    // through SSM, so no KMS statement is needed. Standard tier: no charge.
+    fn.addToRolePolicy(new PolicyStatement({
+      actions: ['ssm:GetParameter', 'ssm:PutParameter', 'ssm:DeleteParameter'],
+      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter${ANTHROPIC_KEY_PARAM}`],
     }));
 
     const authorizer = new HttpJwtAuthorizer('JwtAuthorizer', userPool.userPoolProviderUrl, {
@@ -257,6 +273,8 @@ export class CarLogStack extends Stack {
     httpApi.addRoutes({ path: '/admin/users/{username}/admin', methods: [HttpMethod.PUT, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/admin/users/{username}/enabled', methods: [HttpMethod.PUT], integration, authorizer });
     httpApi.addRoutes({ path: '/admin/metrics', methods: [HttpMethod.GET], integration, authorizer });
+    httpApi.addRoutes({ path: '/admin/ai-settings', methods: [HttpMethod.GET, HttpMethod.PUT], integration, authorizer });
+    httpApi.addRoutes({ path: '/admin/ai-settings/test', methods: [HttpMethod.POST], integration, authorizer });
     httpApi.addRoutes({ path: '/cars/{id}/sharing', methods: [HttpMethod.PUT], integration, authorizer });
     httpApi.addRoutes({ path: '/push/subscription', methods: [HttpMethod.POST, HttpMethod.DELETE], integration, authorizer });
     httpApi.addRoutes({ path: '/me', methods: [HttpMethod.DELETE], integration, authorizer }); // self-service account deletion

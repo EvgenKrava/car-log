@@ -4,6 +4,7 @@ import { handleAdminRoute, type AdminRouteDeps } from './admin-routes';
 import type { MetricsPort } from './cloudwatch-metrics';
 import type { EventRepository } from '@carlog/domain';
 import type { ApiEvent } from './router';
+import { inMemoryAiSettingsDeps } from './in-memory-ai-settings';
 
 const other: CognitoUser = { username: 'other', sub: 'other-sub', email: 'o@x.com', status: 'CONFIRMED', enabled: true, createdAt: '2026-01-01T00:00:00.000Z' };
 const port = (): CognitoUserAdmin => ({
@@ -32,7 +33,7 @@ const purgeDeps = () => ({
   userData: { deleteAllForOwner: vi.fn(async () => 0) },
 });
 const deps = (over?: Partial<AdminRouteDeps>): AdminRouteDeps => ({
-  users: port(), metrics: metricsPort(), events: eventsRepo(), apiId: 'api-1', ...purgeDeps(), ...over,
+  users: port(), metrics: metricsPort(), events: eventsRepo(), apiId: 'api-1', ...purgeDeps(), ai: inMemoryAiSettingsDeps(), ...over,
 });
 const base = (over: Partial<ApiEvent>): ApiEvent => ({
   method: 'GET', path: '/admin/users', ownerId: 'caller', username: 'caller', groups: ['admin'],
@@ -68,5 +69,46 @@ describe('handleAdminRoute', () => {
   it('GET /admin/metrics 403s a non-admin caller', async () => {
     const res = await handleAdminRoute(deps(), base({ path: '/admin/metrics', groups: [] }));
     expect(res?.statusCode).toBe(403);
+  });
+});
+
+describe('AI settings routes', () => {
+  const KEY = `sk-ant-api03-${'k'.repeat(36)}WXYZ`;
+
+  it('403s a non-admin on every AI settings route, before validating the body', async () => {
+    for (const ev of [
+      { method: 'GET', path: '/admin/ai-settings' },
+      { method: 'PUT', path: '/admin/ai-settings', body: { provider: 'nope' } },
+      { method: 'POST', path: '/admin/ai-settings/test', body: null },
+    ]) {
+      const res = await handleAdminRoute(deps(), base({ ...ev, groups: [] }));
+      expect(res?.statusCode).toBe(403);
+    }
+  });
+
+  it('saves a key and never returns it', async () => {
+    const res = await handleAdminRoute(deps(), base({
+      method: 'PUT', path: '/admin/ai-settings',
+      body: { provider: 'anthropic', model: 'claude-haiku-5-5', anthropicApiKey: KEY },
+    }));
+    expect(res?.statusCode).toBe(200);
+    expect(res!.body).not.toContain(KEY);
+    expect(JSON.parse(res!.body).anthropicKey.hint).toBe('WXYZ');
+  });
+
+  it('400s switching to the Claude API with no key', async () => {
+    const res = await handleAdminRoute(deps(), base({
+      method: 'PUT', path: '/admin/ai-settings', body: { provider: 'anthropic', model: 'claude-haiku-5-5' },
+    }));
+    expect(res?.statusCode).toBe(400);
+    expect(JSON.parse(res!.body).error).toBe('NoAnthropicKey');
+  });
+
+  it('runs a connection test for an admin', async () => {
+    const res = await handleAdminRoute(deps(), base({
+      method: 'POST', path: '/admin/ai-settings/test', body: { provider: 'bedrock', model: 'claude-haiku-4-5' },
+    }));
+    expect(res?.statusCode).toBe(200);
+    expect(JSON.parse(res!.body).ok).toBe(true);
   });
 });

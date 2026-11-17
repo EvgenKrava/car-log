@@ -10,3 +10,4 @@ export * from './chat';
 export * from './export';
 export * from './push';
 export * from './upload';
+export * from './ai-settings';

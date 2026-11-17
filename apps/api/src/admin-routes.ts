@@ -1,4 +1,4 @@
-import { SetEnabledSchema } from '@carlog/contracts';
+import { SetEnabledSchema, TestAiSettingsSchema, UpdateAiSettingsSchema } from '@carlog/contracts';
 import type { CarRepository, EventRepository, PhotoStorage, UserDataRepository } from '@carlog/domain';
 import { ok, type ApiResult } from './errors';
 import type { ApiEvent } from './router';
@@ -7,8 +7,11 @@ import type { CognitoUserAdmin } from './cognito-user-admin';
 import type { MetricsPort } from './cloudwatch-metrics';
 import { getMetrics } from './metrics-service';
 import {
-  listUsers, setAdmin, setEnabled, deleteUser, ForbiddenError, SelfLockoutError, type AdminActor,
+  listUsers, setAdmin, setEnabled, deleteUser, requireAdmin, ForbiddenError, SelfLockoutError, type AdminActor,
 } from './admin-service';
+import {
+  getAiSettings, updateAiSettings, testAiSettings, NoAnthropicKeyError, type AiSettingsDeps,
+} from './ai-settings-service';
 
 export type AdminRouteDeps = {
   users: CognitoUserAdmin;
@@ -19,6 +22,8 @@ export type AdminRouteDeps = {
   cars: CarRepository;
   storage: PhotoStorage;
   userData: UserDataRepository;
+  // App-wide AI provider/model choice and the Claude API key.
+  ai: AiSettingsDeps;
 };
 
 // Returns undefined for non-/admin paths so the main router can continue.
@@ -65,9 +70,21 @@ export async function handleAdminRoute(deps: AdminRouteDeps, event: ApiEvent): P
         actor,
       ));
     }
+    if (path === '/admin/ai-settings' && method === 'GET') {
+      return ok(200, await getAiSettings(deps.ai, actor));
+    }
+    if (path === '/admin/ai-settings' && method === 'PUT') {
+      requireAdmin(actor); // 403 before the body is validated
+      return ok(200, await updateAiSettings(deps.ai, actor, UpdateAiSettingsSchema.parse(body)));
+    }
+    if (path === '/admin/ai-settings/test' && method === 'POST') {
+      requireAdmin(actor); // 403 before the body is validated
+      return ok(200, await testAiSettings(deps.ai, actor, TestAiSettingsSchema.parse(body)));
+    }
     return ok(404, { error: 'Not found' });
   } catch (e) {
     if (e instanceof ForbiddenError) return ok(403, { error: 'Forbidden' });
+    if (e instanceof NoAnthropicKeyError) return ok(400, { error: 'NoAnthropicKey', message: e.message });
     if (e instanceof SelfLockoutError) return ok(409, { error: e.message });
     throw e;
   }

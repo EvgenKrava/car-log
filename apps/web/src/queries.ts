@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './auth';
-import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event, CarExport } from '@carlog/contracts';
-import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, importCar, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, transcribeAudio, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser, deleteMe } from './api-client';
+import type { CreateCarInput, CreateEventInput, CreateReminderInput, CompleteReminderInput, Event, CarExport, UpdateAiSettingsInput, TestAiSettingsInput } from '@carlog/contracts';
+import { createCar, deleteCar, getCar, listCars, updateCar, setCarSharing, getPublicCar, getEvents, createEvent, updateEvent, deleteEvent, listProofs, uploadProof, deleteProof, extractEvents, presignImportTxt, createImportJob, getImportJob, latestImportJob, deleteImportJob, uploadToS3, presignScan, extractFromScan, importCar, listChatSessions, createChatSession, getChatSession, renameChatSession, deleteChatSession, postChatMessage, resolveChatAction, uploadChatAttachment, transcribeAudio, getReminders, createReminder, updateReminder, deleteReminder, completeReminder, listUsers, getMetrics, setUserAdmin, setUserEnabled, deleteUser, deleteMe, getAiSettings, updateAiSettings, testAiSettings } from './api-client';
 import { prepareScanFile } from './lib/prepare-scan';
 
 export function useCars() {
@@ -257,6 +257,22 @@ export function useDeleteUser() {
     mutationFn: ({ username }: { username: string }) => deleteUser(token, username),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
   });
+}
+
+export function useAiSettings() {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useQuery({ queryKey: ['admin', 'ai-settings'], queryFn: () => getAiSettings(token), enabled: Boolean(token) });
+}
+export function useUpdateAiSettings() {
+  const { accessToken } = useAuth(); const token = accessToken ?? ''; const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateAiSettingsInput) => updateAiSettings(token, input),
+    onSuccess: (saved) => qc.setQueryData(['admin', 'ai-settings'], saved),
+  });
+}
+export function useTestAiSettings() {
+  const { accessToken } = useAuth(); const token = accessToken ?? '';
+  return useMutation({ mutationFn: (input: TestAiSettingsInput) => testAiSettings(token, input) });
 }
 
 // Per-car AI chat sessions (persisted, 7-day TTL server-side).

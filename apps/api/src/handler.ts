@@ -4,6 +4,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
+import { SSMClient } from '@aws-sdk/client-ssm';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2, Context,
 } from 'aws-lambda';
@@ -18,7 +19,11 @@ import { DynamoPushSubscriptionRepository } from './push-subscription-repository
 import { DynamoUsageQuota } from './dynamo-usage-quota';
 import { DynamoUserDataRepository } from './dynamo-user-data-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
-import { BedrockLlmProvider } from './bedrock-llm-provider';
+import { DynamoAiSettingsStore } from './ai-settings-store';
+import { SsmAnthropicKeyStore } from './anthropic-key-store';
+import { createClaudeProvider } from './llm-factory';
+import { LlmResolver, SwitchableLlmProvider } from './switchable-llm-provider';
+import type { AiSettingsDeps } from './ai-settings-service';
 import { AwsTranscribeProvider } from './transcribe-provider';
 import { AwsCognitoUserAdmin } from './cognito-user-admin';
 import { AwsCloudWatchMetrics } from './cloudwatch-metrics';
@@ -36,7 +41,19 @@ const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
 });
 const s3 = new S3Client({});
 const lambda = new LambdaClient({});
-const llm = new BedrockLlmProvider();
+// The admin picks the AI provider and model at runtime (admin AI settings page); every
+// AI call goes through the resolver, which re-reads that choice at most once a minute.
+const aiSettingsStore = new DynamoAiSettingsStore(tableName, client);
+const anthropicKeys = new SsmAnthropicKeyStore(
+  new SSMClient({}),
+  process.env.ANTHROPIC_KEY_PARAM ?? '/carlog/anthropic-api-key',
+);
+const llmResolver = new LlmResolver({ settings: aiSettingsStore, keys: anthropicKeys, factory: createClaudeProvider });
+const llm = new SwitchableLlmProvider(llmResolver);
+const aiSettings: AiSettingsDeps = {
+  settings: aiSettingsStore, keys: anthropicKeys, factory: createClaudeProvider,
+  resolver: llmResolver, now: () => new Date(),
+};
 const cars = new DynamoCarRepository(tableName, client);
 const importJobs = new DynamoImportJobRepository(tableName, client);
 const events = new DynamoEventRepository(tableName, client);
@@ -102,6 +119,7 @@ const deps: RouteDeps = {
   pushSubs,
   quota,
   userData,
+  aiSettings,
 };
 
 // JSON.parse used to run outside withErrorHandling, so a bad body crashed the invocation

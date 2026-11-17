@@ -8,6 +8,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import LogoutIcon from '@mui/icons-material/Logout';
 import GroupIcon from '@mui/icons-material/Group';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAuth } from '../../auth';
 
 export function UserMenu() {
@@ -68,6 +69,17 @@ export function UserMenu() {
           >
             <ListItemIcon><GroupIcon fontSize="small" /></ListItemIcon>
             <ListItemText>{t('common:userManagement')}</ListItemText>
+          </MenuItem>
+        ) : null}
+        {isAdmin ? (
+          <MenuItem
+            onClick={() => {
+              close();
+              navigate('/admin/ai');
+            }}
+          >
+            <ListItemIcon><AutoAwesomeIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('admin:aiTitle')}</ListItemText>
           </MenuItem>
         ) : null}
         <MenuItem
