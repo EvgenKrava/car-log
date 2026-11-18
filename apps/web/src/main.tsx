@@ -26,10 +26,6 @@ import { RouteFallback } from './components/RouteFallback';
 const Profile = lazy(() => import('./routes/Profile').then((m) => ({ default: m.Profile })));
 const ChatConversation = lazy(() => import('./routes/ChatConversation').then((m) => ({ default: m.ChatConversation })));
 const PublicVehicle = lazy(() => import('./routes/PublicVehicle').then((m) => ({ default: m.PublicVehicle })));
-const SignUp = lazy(() => import('./routes/auth/SignUp').then((m) => ({ default: m.SignUp })));
-const ConfirmSignUp = lazy(() => import('./routes/auth/ConfirmSignUp').then((m) => ({ default: m.ConfirmSignUp })));
-const ForgotPassword = lazy(() => import('./routes/auth/ForgotPassword').then((m) => ({ default: m.ForgotPassword })));
-const ResetPassword = lazy(() => import('./routes/auth/ResetPassword').then((m) => ({ default: m.ResetPassword })));
 const UserManagement = lazy(() => import('./routes/admin/UserManagement').then((m) => ({ default: m.UserManagement })));
 const Dashboard = lazy(() => import('./routes/admin/Dashboard').then((m) => ({ default: m.Dashboard })));
 const AiSettings = lazy(() => import('./routes/admin/AiSettings').then((m) => ({ default: m.AiSettings })));
@@ -53,13 +49,11 @@ function Root() {
             <ErrorBoundary>
             <Suspense fallback={<RouteFallback />}>
             <Routes>
-              {/* Dev only: production has no `/` route — it belongs to the static marketing site. */}
-              {import.meta.env.DEV && <Route path="/" element={<Navigate to={GARAGE_PATH} replace />} />}
+              {/* onlytools.click is the landing; the app's own root opens the garage. */}
+              <Route path="/" element={<Navigate to={GARAGE_PATH} replace />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/confirm" element={<ConfirmSignUp />} />
-              <Route path="/forgot" element={<ForgotPassword />} />
-              <Route path="/reset" element={<ResetPassword />} />
+              {/* Old self-service auth pages: sign-up and passwords now live in Only Tools. */}
+              {['/signup', '/confirm', '/forgot', '/reset'].map((p) => <Route key={p} path={p} element={<Navigate to="/login" replace />} />)}
               <Route path="/callback" element={<Callback />} />
               <Route path="/s/:carId" element={<PublicVehicle />} />
               <Route path={GARAGE_PATH} element={<RequireAuth><Garage /></RequireAuth>} />

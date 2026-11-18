@@ -8,9 +8,12 @@ import { OWNER_PREFIXES } from '@carlog/domain';
 // verified email signs in through the shared pool, its data is re-keyed to the new sub.
 
 type Item = Record<string, unknown> & { PK: string; SK: string };
-export type LegacyMarker = { PK: string; SK: 'LEGACY'; oldSub: string; shareCarIds?: string[] };
+// One email can own several old accounts (e.g. Google and a password sign-in); all are merged.
+export type LegacyMarker = { PK: string; SK: 'LEGACY'; oldSubs: string[]; shareCarIds?: string[] };
 
 export const legacyKey = (email: string) => ({ PK: `LEGACY#${email.trim().toLowerCase()}`, SK: 'LEGACY' });
+/** Written once the move is done, so the copy script never brings the old rows back. */
+export const claimedKey = (email: string) => ({ PK: `LEGACYDONE#${email.trim().toLowerCase()}`, SK: 'LEGACY' });
 
 /** Rewrites every occurrence of the old sub inside an item (keys, ownerId, S3 keys). */
 export function rekey<T>(item: T, oldSub: string, newSub: string): T {
@@ -36,9 +39,31 @@ export class LegacyClaim {
     const email = await this.emails.verifiedEmail(username);
     if (!email) return 0;
     const marker = (await this.db.send(new GetCommand({ TableName: this.table, Key: legacyKey(email) }))).Item as LegacyMarker | undefined;
-    if (!marker || marker.oldSub === newSub) return 0;
-    const { oldSub } = marker;
+    if (!marker) return 0;
 
+    let moved = 0;
+    for (const oldSub of marker.oldSubs.filter((o) => o !== newSub)) {
+      moved += await this.moveRows(oldSub, newSub);
+      // Public share rows live outside the owner partition and name the owner.
+      for (const carId of marker.shareCarIds ?? []) {
+        const res = await this.db.send(new QueryCommand({
+          TableName: this.table, KeyConditionExpression: 'PK = :pk',
+          ExpressionAttributeValues: { ':pk': `SHARE#${carId}` },
+        }));
+        for (const i of (res.Items ?? []) as Item[]) {
+          if (i.ownerId === oldSub) await this.db.send(new PutCommand({ TableName: this.table, Item: rekey(i, oldSub, newSub) }));
+        }
+      }
+      for (const prefix of OWNER_PREFIXES) await this.moveFiles(`${prefix}${oldSub}/`, `${prefix}${newSub}/`);
+    }
+
+    // Last, so a failure part-way leaves the marker for the next sign-in to finish the job.
+    await this.db.send(new PutCommand({ TableName: this.table, Item: { ...claimedKey(email), newSub, at: new Date().toISOString() } }));
+    await this.db.send(new DeleteCommand({ TableName: this.table, Key: legacyKey(email) }));
+    return moved;
+  }
+
+  private async moveRows(oldSub: string, newSub: string): Promise<number> {
     let moved = 0;
     let cursor: Record<string, unknown> | undefined;
     do {
@@ -52,22 +77,6 @@ export class LegacyClaim {
       moved += items.length;
       cursor = page.LastEvaluatedKey;
     } while (cursor);
-
-    // Public share rows live outside the owner partition and name the owner.
-    for (const carId of marker.shareCarIds ?? []) {
-      const res = await this.db.send(new QueryCommand({
-        TableName: this.table, KeyConditionExpression: 'PK = :pk',
-        ExpressionAttributeValues: { ':pk': `SHARE#${carId}` },
-      }));
-      for (const i of (res.Items ?? []) as Item[]) {
-        await this.db.send(new PutCommand({ TableName: this.table, Item: rekey(i, oldSub, newSub) }));
-      }
-    }
-
-    for (const prefix of OWNER_PREFIXES) await this.moveFiles(`${prefix}${oldSub}/`, `${prefix}${newSub}/`);
-
-    // Last, so a failure part-way leaves the marker for the next sign-in to finish the job.
-    await this.db.send(new DeleteCommand({ TableName: this.table, Key: legacyKey(email) }));
     return moved;
   }
 
