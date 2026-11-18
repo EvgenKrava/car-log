@@ -164,8 +164,9 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
       },
       MuiChip: {
         styleOverrides: {
-          root: { borderRadius: 999, fontWeight: 700 },
-          filled: { backgroundColor: c.fill },
+          // Only the neutral chip gets the soft fill; coloured filled chips (reminder counts,
+          // the selected filter) keep their palette colour so white text stays readable.
+          root: { borderRadius: 999, fontWeight: 700, '&.MuiChip-filled.MuiChip-colorDefault': { backgroundColor: c.fill } },
         },
       },
       MuiMenu: {
