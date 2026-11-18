@@ -1,8 +1,0 @@
----
-import Legal from '../layouts/Legal.astro';
-import * as doc from '../legal/en/terms.md';
-const { title, updated } = doc.frontmatter as { title: string; updated: string };
----
-<Legal locale="en" path="/terms" title={title} updated={updated} description="The terms you agree to when using CarLog.">
-  <doc.Content />
-</Legal>

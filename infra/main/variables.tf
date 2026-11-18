@@ -22,7 +22,7 @@ variable "zone_name" {
 # CDK stack is gone, this becomes carlog.onlytools.click.
 variable "web_domain" {
   type    = string
-  default = "carlog-next.onlytools.click"
+  default = "carlog.onlytools.click"
 }
 
 variable "dev_origin" {

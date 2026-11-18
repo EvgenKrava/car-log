@@ -63,7 +63,13 @@ async function main() {
     other.push(i);
   }
 
-  const toCopy: Item[] = [...other];
+  // Share rows of an already-moved user point at the new sub; copying them again would undo that.
+  const movedSubs = new Set<string>();
+  for (const [sub] of owners) {
+    const email = emails.get(sub);
+    if (email && (await db.send(new GetCommand({ TableName: NEW.table, Key: claimedKey(email) }))).Item) movedSubs.add(sub);
+  }
+  const toCopy: Item[] = other.filter((i) => !(i.PK.startsWith('SHARE#') && movedSubs.has(String(i.ownerId))));
   const markers = new Map<string, Item & { oldSubs: string[]; shareCarIds: string[] }>();
   for (const [sub, rows] of owners) {
     const email = emails.get(sub);
