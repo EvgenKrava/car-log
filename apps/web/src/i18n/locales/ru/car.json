@@ -1,0 +1,23 @@
+{
+  "make": "Марка",
+  "model": "Модель",
+  "year": "Год",
+  "mileage": "Пробег",
+  "fuelType": "Тип топлива",
+  "nickname": "Название",
+  "vin": "VIN",
+  "licensePlate": "Госномер",
+  "addTitle": "Добавить авто",
+  "editTitle": "Редактировать авто",
+  "save": "Сохранить",
+  "saveChanges": "Сохранить изменения",
+  "deleteTitle": "Удалить авто",
+  "deleteConfirm": "Удалить это авто? Это действие нельзя отменить.",
+  "fuelType_petrol": "Бензин",
+  "fuelType_diesel": "Дизель",
+  "fuelType_electric": "Электро",
+  "fuelType_hybrid": "Гибрид",
+  "fuelType_lpg": "Газ",
+  "fuelType_other": "Другое",
+  "engineVolume": "Объём двигателя (л)"
+}

@@ -1,3 +1,4 @@
+import { currentLanguage } from '../i18n/resolve-language';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth';
@@ -20,7 +21,7 @@ export function PushRefresh() {
     }
     if (ranThisSession.current) return;
     ranThisSession.current = true;
-    const lang: 'uk' | 'en' = i18n.language.startsWith('uk') ? 'uk' : 'en';
+    const lang = currentLanguage(i18n.language);
     void refreshPushSubscription(accessToken, lang);
   }, [status, accessToken, i18n.language]);
 

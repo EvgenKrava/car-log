@@ -1,3 +1,4 @@
+import { currentLanguage, type Language } from '../i18n/resolve-language';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -78,10 +79,10 @@ export function Profile() {
   const { mode, setMode } = useThemeMode();
   const [pwOpen, setPwOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
-  const lang: 'en' | 'uk' = i18n.language.startsWith('uk') ? 'uk' : 'en';
+  const lang = currentLanguage(i18n.language);
   const initial = (email?.[0] ?? '?').toUpperCase();
 
-  const setLang = (code: 'en' | 'uk') => {
+  const setLang = (code: Language) => {
     void i18n.changeLanguage(code);
     document.documentElement.lang = code;
   };
@@ -161,11 +162,12 @@ export function Profile() {
                     size="small"
                     exclusive
                     value={lang}
-                    onChange={(_, v: 'en' | 'uk' | null) => { if (v) setLang(v); }}
+                    onChange={(_, v: Language | null) => { if (v) setLang(v); }}
                     aria-label={t('common:language')}
                   >
                     <ToggleButton value="en" sx={{ px: 2, textTransform: 'none' }}>{t('common:languageEnglish')}</ToggleButton>
                     <ToggleButton value="uk" sx={{ px: 2, textTransform: 'none' }}>{t('common:languageUkrainian')}</ToggleButton>
+                    <ToggleButton value="ru" sx={{ px: 2, textTransform: 'none' }}>{t('common:languageRussian')}</ToggleButton>
                   </ToggleButtonGroup>
                 }
               />

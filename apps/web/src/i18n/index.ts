@@ -26,6 +26,19 @@ import ukChat from './locales/uk/chat.json';
 import enPush from './locales/en/push.json';
 import ukPush from './locales/uk/push.json';
 
+import ruCommon from './locales/ru/common.json';
+import ruGarage from './locales/ru/garage.json';
+import ruVehicle from './locales/ru/vehicle.json';
+import ruCar from './locales/ru/car.json';
+import ruAuth from './locales/ru/auth.json';
+import ruEvent from './locales/ru/event.json';
+import ruImport from './locales/ru/import.json';
+import ruReminders from './locales/ru/reminders.json';
+import ruAdmin from './locales/ru/admin.json';
+import ruShare from './locales/ru/share.json';
+import ruChat from './locales/ru/chat.json';
+import ruPush from './locales/ru/push.json';
+
 export const LANG_STORAGE_KEY = 'carlog.lang';
 
 void i18n
@@ -33,18 +46,25 @@ void i18n
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
-    supportedLngs: ['en', 'uk'],
+    supportedLngs: ['en', 'uk', 'ru'],
+    nonExplicitSupportedLngs: true,
     ns: ['common', 'garage', 'vehicle', 'car', 'auth', 'event', 'import', 'reminders', 'admin', 'share', 'chat', 'push'],
     defaultNS: 'common',
     interpolation: { escapeValue: false },
     detection: {
-      order: ['localStorage', 'navigator'],
+      // The `ot_lang` cookie is shared by every Only Tools app on *.onlytools.click, so a
+      // language picked in one app (or on onlytools.click) applies to all of them.
+      order: ['cookie', 'localStorage', 'navigator'],
+      lookupCookie: 'ot_lang',
+      cookieDomain: location.hostname.endsWith('onlytools.click') ? 'onlytools.click' : undefined,
+      cookieMinutes: 60 * 24 * 365,
       lookupLocalStorage: LANG_STORAGE_KEY,
-      caches: ['localStorage'],
+      caches: ['cookie', 'localStorage'],
     },
     resources: {
       en: { common: enCommon, garage: enGarage, vehicle: enVehicle, car: enCar, auth: enAuth, event: enEvent, import: enImport, reminders: enReminders, admin: enAdmin, share: enShare, chat: enChat, push: enPush },
       uk: { common: ukCommon, garage: ukGarage, vehicle: ukVehicle, car: ukCar, auth: ukAuth, event: ukEvent, import: ukImport, reminders: ukReminders, admin: ukAdmin, share: ukShare, chat: ukChat, push: ukPush },
+      ru: { common: ruCommon, garage: ruGarage, vehicle: ruVehicle, car: ruCar, auth: ruAuth, event: ruEvent, import: ruImport, reminders: ruReminders, admin: ruAdmin, share: ruShare, chat: ruChat, push: ruPush },
     },
   });
 
