@@ -9,6 +9,7 @@ locals {
   # SSM parameters that hold secrets. The VAPID keys and the Claude API key already exist
   # (created for the CDK stack); Terraform only reads them.
   anthropic_key_param = "/carlog/anthropic-api-key"
+  plan_limits_param   = "/onlytools/plans/limits"
 }
 
 # Sign-in is the shared Only Tools pool; only-tools-core publishes its ids in SSM.

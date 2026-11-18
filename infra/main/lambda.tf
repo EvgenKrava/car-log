@@ -33,6 +33,7 @@ resource "aws_lambda_function" "api" {
       VAPID_PRIVATE_KEY   = data.aws_ssm_parameter.vapid_private.value
       VAPID_SUBJECT       = "mailto:admin@carlog.app"
       ANTHROPIC_KEY_PARAM = local.anthropic_key_param
+      PLAN_LIMITS_PARAM   = local.plan_limits_param
     }
   }
 
@@ -107,6 +108,11 @@ data "aws_iam_policy_document" "api" {
   statement {
     actions   = ["ssm:GetParameter", "ssm:PutParameter", "ssm:DeleteParameter"]
     resources = ["arn:aws:ssm:${var.region}:${local.account_id}:parameter${local.anthropic_key_param}"]
+  }
+  # Free / Plus limits published by only-tools-core (read-only; may not exist yet).
+  statement {
+    actions   = ["ssm:GetParameter"]
+    resources = ["arn:aws:ssm:${var.region}:${local.account_id}:parameter${local.plan_limits_param}"]
   }
 }
 

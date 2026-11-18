@@ -15,6 +15,7 @@ import { InMemoryUsageQuota } from './in-memory-usage-quota';
 import { InMemoryUserDataRepository } from './in-memory-user-data-repository';
 import { LlmUnavailableError } from './llm-errors';
 import type { PhotoStorage } from '@carlog/domain';
+import { parsePlanLimits, type PlanLimits } from '@carlog/domain';
 import type { CognitoUserAdmin } from './cognito-user-admin';
 import type { MetricsPort } from './cloudwatch-metrics';
 
@@ -42,7 +43,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota; userData: InMemoryUserDataRepository; aiSettings: AiSettingsDeps; claimLegacy: (sub: string, username: string) => Promise<number> };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota; userData: InMemoryUserDataRepository; aiSettings: AiSettingsDeps; claimLegacy: (sub: string, username: string) => Promise<number>; planLimits?: () => Promise<PlanLimits> };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -709,5 +710,48 @@ describe('DELETE /me', () => {
   it('401s unauthenticated', async () => {
     const res = await route(deps, { ...base, method: 'DELETE', path: '/me', ownerId: null });
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('Free / Plus plan limits', () => {
+  const month = () => new Date().toISOString().slice(0, 7);
+  const addCar = (groups: string[]) => route(deps, { ...base, groups, method: 'POST', path: '/cars', ownerId: 'u1', body: validBody });
+
+  it('Free: the 3rd car gets 402 PlanLimit with the upgrade link', async () => {
+    expect((await addCar(['carlog-user'])).statusCode).toBe(201);
+    expect((await addCar(['carlog-user'])).statusCode).toBe(201);
+    const res = await addCar(['carlog-user']);
+    expect(res.statusCode).toBe(402);
+    expect(JSON.parse(res.body)).toMatchObject({ error: 'PlanLimit', kind: 'cars', limit: 2, plan: 'free', upgradeUrl: 'https://onlytools.click/plus/' });
+    expect((await cars.listByOwner('u1')).length).toBe(2);
+  });
+
+  it('Plus and admins have no car limit', async () => {
+    for (let i = 0; i < 3; i += 1) expect((await addCar(['carlog-user', 'plus'])).statusCode).toBe(201);
+    expect((await addCar(['carlog-admin'])).statusCode).toBe(201);
+  });
+
+  it('limits come from the shared SSM document when present', async () => {
+    deps.planLimits = async () => parsePlanLimits(JSON.stringify({ apps: { carlog: { cars: { free: 1, plus: null } } } }));
+    expect((await addCar(['carlog-user'])).statusCode).toBe(201);
+    expect((await addCar(['carlog-user'])).statusCode).toBe(402);
+  });
+
+  it('Free: the 6th receipt scan of the month gets 402 and is not counted', async () => {
+    deps.quota.counts.set(`u1#ocr#${month()}`, 5);
+    const res = await route(deps, { ...base, method: 'POST', path: '/import/scan', ownerId: 'u1', body: { s3Key: 'scans/u1/a.jpg' } });
+    expect(res.statusCode).toBe(402);
+    expect(JSON.parse(res.body)).toMatchObject({ error: 'PlanLimit', kind: 'ocrScansPerMonth', limit: 5 });
+    expect(deps.quota.counts.get(`u1#ocr#${month()}`)).toBe(5);
+  });
+
+  it('Plus: 100 scans a month', async () => {
+    deps.quota.counts.set(`u1#ocr#${month()}`, 5);
+    const ok1 = await route(deps, { ...base, groups: ['carlog-user', 'plus'], method: 'POST', path: '/import/scan', ownerId: 'u1', body: { s3Key: 'scans/u1/a.jpg' } });
+    expect(ok1.statusCode).not.toBe(402);
+    deps.quota.counts.set(`u1#ocr#${month()}`, 100);
+    const res = await route(deps, { ...base, groups: ['carlog-user', 'plus'], method: 'POST', path: '/import/scan', ownerId: 'u1', body: { s3Key: 'scans/u1/a.jpg' } });
+    expect(res.statusCode).toBe(402);
+    expect(JSON.parse(res.body)).toMatchObject({ limit: 100, plan: 'plus' });
   });
 });

@@ -4,8 +4,12 @@ import type { QuotaKind, UsageQuota } from '@carlog/domain';
 
 const pk = (ownerId: string) => `USER#${ownerId}`;
 const sk = (kind: QuotaKind, day: string) => `QUOTA#${kind}#${day}`;
-// Rows expire two days after their window so a late-arriving read never sees a gap.
-const ttlFor = (day: string): number => Math.floor((Date.parse(`${day}T00:00:00.000Z`) + 2 * 86_400_000) / 1000);
+// Rows expire two days after their window (a day, or a YYYY-MM month for `ocr`) so a
+// late-arriving read never sees a gap.
+const ttlFor = (window: string): number => {
+  const start = Date.parse(window.length === 7 ? `${window}-01T00:00:00.000Z` : `${window}T00:00:00.000Z`);
+  return Math.floor((start + (window.length === 7 ? 33 : 2) * 86_400_000) / 1000);
+};
 
 // One conditional UpdateItem per consume: ADD under a "< limit" condition is atomic, so
 // concurrent requests can never overshoot the cap. No read-before-write.

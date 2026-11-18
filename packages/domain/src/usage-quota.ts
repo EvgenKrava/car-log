@@ -1,9 +1,11 @@
 // Per-user daily caps on the metered (AI / transcription) operations. Counted by
 // request, not by model call: one chat turn = 1 `chat` regardless of tool rounds.
 
-export type QuotaKind = 'chat' | 'scan' | 'extract' | 'import' | 'transcribe';
+// `ocr` is the monthly plan allowance (window = YYYY-MM, see plan-limits.ts); the rest are daily.
+export type QuotaKind = 'chat' | 'scan' | 'extract' | 'import' | 'transcribe' | 'ocr';
+export type DailyQuotaKind = Exclude<QuotaKind, 'ocr'>;
 
-export const DAILY_QUOTA: Record<QuotaKind, number> = {
+export const DAILY_QUOTA: Record<DailyQuotaKind, number> = {
   chat: 50, scan: 10, extract: 10, import: 3, transcribe: 30,
 };
 
@@ -29,7 +31,7 @@ export const quotaResetsAt = (day: string): string =>
   new Date(Date.parse(`${day}T00:00:00.000Z`) + 86_400_000).toISOString();
 
 export async function consumeQuota(
-  quota: UsageQuota, ownerId: string, kind: QuotaKind, isAdmin: boolean, now: Date = new Date(),
+  quota: UsageQuota, ownerId: string, kind: DailyQuotaKind, isAdmin: boolean, now: Date = new Date(),
 ): Promise<void> {
   if (isAdmin) return;
   const day = quotaDay(now);

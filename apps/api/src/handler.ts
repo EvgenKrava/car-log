@@ -17,6 +17,7 @@ import { DynamoImportJobRepository } from './import-job-repository';
 import { DynamoChatSessionRepository } from './dynamo-chat-session-repository';
 import { DynamoPushSubscriptionRepository } from './push-subscription-repository';
 import { DynamoUsageQuota } from './dynamo-usage-quota';
+import { ssmPlanLimits } from './plan-limits-source';
 import { DynamoUserDataRepository } from './dynamo-user-data-repository';
 import { S3PhotoStorage } from './s3-photo-storage';
 import { DynamoAiSettingsStore } from './ai-settings-store';
@@ -123,6 +124,7 @@ const deps: RouteDeps = {
   userData,
   aiSettings,
   claimLegacy: (sub, username) => legacy.claim(sub, username),
+  planLimits: ssmPlanLimits(new SSMClient({}), process.env.PLAN_LIMITS_PARAM ?? '/onlytools/plans/limits'),
 };
 
 // JSON.parse used to run outside withErrorHandling, so a bad body crashed the invocation
