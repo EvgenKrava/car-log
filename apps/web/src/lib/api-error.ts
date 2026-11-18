@@ -16,3 +16,14 @@ export function quotaErrorInfo(err: unknown): QuotaErrorInfo | null {
   if (!b || b.error !== 'QuotaExceeded' || typeof b.kind !== 'string' || typeof b.resetsAt !== 'string') return null;
   return { kind: b.kind, resetsAt: b.resetsAt };
 }
+
+export type PlanLimitInfo = { kind: 'cars' | 'ocrScansPerMonth'; limit: number; plan: 'free' | 'plus' };
+export const UPGRADE_URL = 'https://onlytools.click/plus/';
+
+// Non-null only for a 402 carrying the server's PlanLimit body (Free / Plus allowance).
+export function planLimitInfo(err: unknown): PlanLimitInfo | null {
+  if (!(err instanceof ApiError) || err.status !== 402) return null;
+  const b = err.body as { error?: unknown; kind?: unknown; limit?: unknown; plan?: unknown } | null;
+  if (!b || b.error !== 'PlanLimit' || (b.kind !== 'cars' && b.kind !== 'ocrScansPerMonth') || typeof b.limit !== 'number') return null;
+  return { kind: b.kind, limit: b.limit, plan: b.plan === 'plus' ? 'plus' : 'free' };
+}

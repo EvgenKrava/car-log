@@ -48,7 +48,7 @@ describe('self-lockout guards', () => {
   it('allows revoking another admin', async () => {
     const port = fakePort();
     await setAdmin(port, CALLER, 'other', 'other-sub', false);
-    expect(port.removeFromGroup).toHaveBeenCalledWith('other', 'admin');
+    expect(port.removeFromGroup).toHaveBeenCalledWith('other', 'carlog-admin');
   });
   it('blocks disabling yourself', async () => {
     await expect(setEnabled(fakePort(), CALLER, 'me', 'caller-sub', false)).rejects.toBeInstanceOf(SelfLockoutError);

@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { Alert, Button, MenuItem, Stack, TextField } from '@mui/material';
 import { CreateCarSchema, FuelTypeSchema, type Car, type CreateCarInput } from '@carlog/contracts';
 import { useCreateCar, useUpdateCar } from '../queries';
+import { planLimitInfo } from '../lib/api-error';
+import { PlanLimitAlert } from './PlanLimitAlert';
 import { Modal } from './ui/Modal';
 
 const FUEL_TYPES = FuelTypeSchema.options;
@@ -45,6 +47,7 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
   // shows the right vehicle and create starts blank.
   useEffect(() => {
     if (!open) return;
+    create.reset();
     reset(mode === 'edit' && car ? toFormValues(car) : EMPTY_DEFAULTS);
   }, [open, mode, car, reset]);
 
@@ -84,7 +87,7 @@ export function CarFormDialog({ open, onClose, mode, car }: CarFormDialogProps) 
       }
     >
       <Stack spacing={2.5} sx={{ mt: 1 }}>
-        {(create.isError || update.isError) && (
+        {planLimitInfo(create.error) ? <PlanLimitAlert error={create.error} /> : (create.isError || update.isError) && (
           <Alert severity="error">{t('common:loadingError')} {t('common:tryAgain')}</Alert>
         )}
         {text('make', t('car:make'))}

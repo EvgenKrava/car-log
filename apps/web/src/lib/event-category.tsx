@@ -7,18 +7,16 @@ import BuildIcon from '@mui/icons-material/Build';
 import CategoryIcon from '@mui/icons-material/Category';
 import type { EventCategory } from '@carlog/contracts';
 
-// One iOS system colour per category — the same hues the platform uses for its
-// own tags, so categories read as native beside the indigo tint. Each colour is
-// used as a saturated foreground on a low-opacity tint of itself (see
-// categoryTint), the same treatment the vehicle hero's StatTile uses. Brakes take
-// pink rather than the error red so an overdue badge never looks like a category.
+// One Only Tools palette colour per category (see only-tools.css). Each colour is used as
+// a saturated foreground on a low-opacity tint of itself (see categoryTint), the same
+// treatment the vehicle hero's StatTile uses.
 export const CATEGORY_META: Record<EventCategory, { color: string; Icon: SvgIconComponent }> = {
-  oil_change: { color: '#FF9500', Icon: OpacityIcon },   // systemOrange — oil is amber
-  tires: { color: '#32ADE6', Icon: TireRepairIcon },     // systemCyan — road/rubber
-  brakes: { color: '#FF2D55', Icon: PanToolIcon },        // systemPink — heat/stop, off the error red
-  inspection: { color: '#34C759', Icon: FactCheckIcon },  // systemGreen — the "checked/ok" family
-  repair: { color: '#007AFF', Icon: BuildIcon },          // systemBlue — mechanical work
-  other: { color: '#8E8E93', Icon: CategoryIcon },        // systemGray
+  oil_change: { color: '#C77700', Icon: OpacityIcon },   // Only Tools warn — oil is amber
+  tires: { color: '#7B5CFF', Icon: TireRepairIcon },     // Only Tools violet — road/rubber
+  brakes: { color: '#D93A4A', Icon: PanToolIcon },        // Only Tools bad — heat/stop
+  inspection: { color: '#1A9A68', Icon: FactCheckIcon },  // Only Tools good — the "checked/ok" family
+  repair: { color: '#FF7A45', Icon: BuildIcon },          // CarLog orange — mechanical work
+  other: { color: '#71698A', Icon: CategoryIcon },        // Only Tools muted
 };
 
 // Low-opacity wash of a category colour for icon tiles / chip fills. Deeper in

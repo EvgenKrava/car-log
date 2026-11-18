@@ -28,7 +28,7 @@ export function Callback() {
   }, [navigate, refresh]);
 
   useEffect(() => {
-    if (failed) navigate('/login', { replace: true });
+    if (failed) navigate('/login?retry', { replace: true });
   }, [failed, navigate]);
 
   return <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}><CircularProgress /></Box>;

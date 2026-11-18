@@ -3,17 +3,20 @@ import { nowIso, type NotifyCondition } from '@carlog/domain';
 
 export type PushPayload = { title: string; body: string; url: string };
 
-// Server-side copy table, NOT an i18n framework: two languages, plain constants. The
+// Server-side copy table, NOT an i18n framework: three languages, plain constants. The
 // notify worker has no browser i18n context, and pulling in a full i18n library for two
 // push-notification strings would be overkill.
-type Lang = 'uk' | 'en';
+type Lang = 'uk' | 'ru' | 'en';
+const pick = (lang: Lang, t: Record<Lang, string>): string => t[lang];
 
 const carName = (car: Car): string => car.nickname || `${car.make} ${car.model}`;
 
 const mileageBody = (daysStale: number, lang: Lang): string =>
-  lang === 'uk'
-    ? `Пробіг не оновлювався ${daysStale} дн. Торкніться, щоб оновити.`
-    : `Odometer not updated in ${daysStale} days. Tap to update.`;
+  pick(lang, {
+    uk: `Пробіг не оновлювався ${daysStale} дн. Торкніться, щоб оновити.`,
+    ru: `Пробег не обновлялся ${daysStale} дн. Нажмите, чтобы обновить.`,
+    en: `Odometer not updated in ${daysStale} days. Tap to update.`,
+  });
 
 // Whole days between two YYYY-MM-DD (or ISO datetime) dates, UTC-anchored — same
 // convention as packages/domain/src/notify.ts. Positive = dueDate is in the future.
@@ -25,14 +28,14 @@ const daysUntil = (today: string, dueDate: string): number => {
 
 // "In N km" / "N km overdue" — km ≤ 0 means the due mileage has already passed.
 const kmTargetBody = (n: number, lang: Lang): string => {
-  if (n <= 0) return lang === 'uk' ? `Прострочено на ${-n} км` : `${-n} km overdue`;
-  return lang === 'uk' ? `За ${n} км` : `In ${n} km`;
+  if (n <= 0) return pick(lang, { uk: `Прострочено на ${-n} км`, ru: `Просрочено на ${-n} км`, en: `${-n} km overdue` });
+  return pick(lang, { uk: `За ${n} км`, ru: `Через ${n} км`, en: `In ${n} km` });
 };
 
 // "In N days" / "N days overdue" — mirrors kmTargetBody; days ≤ 0 means today >= dueDate.
 const dateTargetBody = (n: number, lang: Lang): string => {
-  if (n <= 0) return lang === 'uk' ? `Прострочено на ${-n} дн.` : `${-n} days overdue`;
-  return lang === 'uk' ? `За ${n} дн.` : `In ${n} days`;
+  if (n <= 0) return pick(lang, { uk: `Прострочено на ${-n} дн.`, ru: `Просрочено на ${-n} дн.`, en: `${-n} days overdue` });
+  return pick(lang, { uk: `За ${n} дн.`, ru: `Через ${n} дн.`, en: `In ${n} days` });
 };
 
 // When both targets are set, the km target drives the body (matches the anchor

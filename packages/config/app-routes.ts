@@ -1,10 +1,5 @@
-// The URL space the SPA owns. Everything else — `/`, `/uk/…`, `/privacy`, `/terms`, sitemap,
-// robots — belongs to the static marketing site, and a URL under neither is a real 404.
-//
-// Single source of truth for three places that must agree:
-//   apps/web        — the service worker's navigation allowlist (lib/app-routes.ts)
-//   apps/site       — robots.txt Disallow lines (pages/robots.txt.ts)
-//   infrastructure  — the CloudFront viewer-request function that serves app.html
+// The URL space the SPA owns, used by the service worker's navigation allowlist
+// (apps/web/src/lib/app-routes.ts). onlytools.click is the landing; this host only serves the app.
 // Keep in sync with the <Route> table in apps/web/src/main.tsx.
 export type AppRouteRoot = {
   path: string;

@@ -1,3 +1,4 @@
+import { currentLanguage } from '../i18n/resolve-language';
 import { useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Snackbar, Stack, Typography } from '@mui/material';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
@@ -25,7 +26,7 @@ export function EnableNotificationsCard() {
   const [failed, setFailed] = useState(false);
   const [enabledOpen, setEnabledOpen] = useState(false);
 
-  const lang: 'uk' | 'en' = i18n.language.startsWith('uk') ? 'uk' : 'en';
+  const lang = currentLanguage(i18n.language);
 
   // Must run synchronously inside the click handler — Notification.requestPermission()
   // called after an await (or from an effect) never shows the native iOS prompt.

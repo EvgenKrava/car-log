@@ -1,3 +1,4 @@
+import { currentLanguage } from '../i18n/resolve-language';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { Box, Button, Collapse, Snackbar, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -60,7 +61,7 @@ export const RemindersSection = forwardRef<RemindersSectionHandle, { car: Car }>
     if (!accessToken) return;
     setPushPromptOpen(false);
     setPushEnableFailed(false);
-    const lang: 'uk' | 'en' = i18n.language.startsWith('uk') ? 'uk' : 'en';
+    const lang = currentLanguage(i18n.language);
     subscribeToPush(accessToken, lang)
       .then(() => localStorage.setItem(PUSH_PROMPT_KEY, '1'))
       .catch(() => setPushEnableFailed(true));

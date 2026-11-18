@@ -10,6 +10,8 @@ import { WorksSummary } from './ui/WorksSummary';
 import { Modal } from './ui/Modal';
 import { prepareScanFile } from '../lib/prepare-scan';
 import { useQuotaMessage } from '../lib/use-quota-message';
+import { planLimitInfo } from '../lib/api-error';
+import { PlanLimitAlert } from './PlanLimitAlert';
 import { EVENT_CATEGORIES, maxScanSize, type CandidateEvent } from '@carlog/contracts';
 import { useExtractFromScan, useCreateEvent } from '../queries';
 import { useAuth } from '../auth';
@@ -29,6 +31,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
   const [drafts, setDrafts] = useState<CandidateEvent[]>([]);
   const [scanData, setScanData] = useState<{ s3Key: string; contentType: string; size: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<unknown>(null);
   const [committing, setCommitting] = useState(false);
   const [attachWarning, setAttachWarning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +42,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     setDrafts([]);
     setScanData(null);
     setError(null);
+    setPlanError(null);
     setCommitting(false);
     setAttachWarning(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -89,6 +93,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
   const onScan = async () => {
     if (!file) return;
     setError(null);
+    setPlanError(null);
     setAttachWarning(false);
     setPhase('scanning');
 
@@ -128,7 +133,9 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
     } catch (e) {
       const quota = quotaMessage(e);
       const msg = (e as Error).message;
-      if (quota) {
+      if (planLimitInfo(e)) {
+        setPlanError(e);
+      } else if (quota) {
         setError(quota);
       } else if (msg.includes('503')) {
         setError(t('import:errorUnavailable'));
@@ -221,6 +228,7 @@ export function ScanInvoiceDialog({ carId, open, onClose }: { carId: string; ope
       }
     >
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
+        {planError ? <PlanLimitAlert error={planError} /> : null}
         {attachWarning ? <Alert severity="warning" sx={{ mb: 2 }}>{t('import:scanAttachFailed')}</Alert> : null}
 
         {phase === 'input' ? (

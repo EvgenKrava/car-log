@@ -8,7 +8,7 @@ import { useCars } from '../queries';
 import { CarFormDialog } from '../components/CarFormDialog';
 import { ImportCarDialog } from '../components/ImportCarDialog';
 import { AddCarSheet } from '../components/AddCarSheet';
-import { GarageAttention } from '../components/GarageAttention';
+import { NotificationBell } from '../components/NotificationBell';
 import { AppShell } from '../components/ui/AppShell';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -30,7 +30,7 @@ export function Garage() {
 
   return (
     <AppShell>
-      <PageHeader title={t('common:appName')} />
+      <PageHeader title={t('common:appName')} actions={cars?.length ? <NotificationBell cars={cars} /> : null} />
       <Container sx={{ py: 3 }}>
         {isLoading ? (
           <Grid container spacing={2}>
@@ -55,7 +55,6 @@ export function Garage() {
           />
         ) : (
           <>
-            <GarageAttention cars={cars} />
             <Grid container spacing={2}>
               {cars.map((car, i) => (
                 <Grid item xs={12} sm={6} md={4} key={car.id}>

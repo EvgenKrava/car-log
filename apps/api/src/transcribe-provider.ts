@@ -4,7 +4,7 @@ import {
 import { TranscribeUnavailableError } from './transcribe-errors';
 
 export interface TranscribeProvider {
-  transcribe(pcm: Buffer, language: 'uk-UA' | 'en-US'): Promise<string>;
+  transcribe(pcm: Buffer, language: 'uk-UA' | 'ru-RU' | 'en-US'): Promise<string>;
 }
 
 const SAMPLE_RATE = 16_000;
@@ -17,7 +17,7 @@ const CALL_TIMEOUT_MS = 25_000; // stay inside the ~29s Lambda / 30s API GW wind
 export class AwsTranscribeProvider implements TranscribeProvider {
   private readonly client = new TranscribeStreamingClient({});
 
-  async transcribe(pcm: Buffer, language: 'uk-UA' | 'en-US'): Promise<string> {
+  async transcribe(pcm: Buffer, language: 'uk-UA' | 'ru-RU' | 'en-US'): Promise<string> {
     async function* audioStream() {
       for (let off = 0; off < pcm.length; off += CHUNK_BYTES) {
         yield { AudioEvent: { AudioChunk: pcm.subarray(off, off + CHUNK_BYTES) } };
