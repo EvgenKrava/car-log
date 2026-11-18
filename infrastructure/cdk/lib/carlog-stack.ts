@@ -139,7 +139,7 @@ export class CarLogStack extends Stack {
     });
 
     const fn = new NodejsFunction(this, 'CarsFn', {
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_24_X,
       entry: join(__dirnameLocal, '../../../apps/api/src/handler.ts'),
       handler: 'handler',
       environment: {
