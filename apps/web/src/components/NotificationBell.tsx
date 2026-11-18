@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Box, Card, Chip, Stack, Typography } from '@mui/material';
+import { Badge, Box, Chip, IconButton, Popover, Stack, Typography } from '@mui/material';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import type { Car } from '@carlog/contracts';
 import { useReminders } from '../queries';
@@ -27,13 +28,13 @@ function AttentionProbe({ car, onReport }: { car: Car; onReport: (id: string, c:
   return null;
 }
 
-// A compact "what needs doing anywhere in the garage" summary above the car grid.
-// For a multi-car owner this answers a question no single vehicle card can. Each
-// row jumps straight to that car's reminders tab. Renders nothing when nothing is due.
-export function GarageAttention({ cars }: { cars: Car[] }) {
+// Bell in the top bar with the number of reminders due or overdue across the garage.
+// Opens a list of the cars that need attention; each row jumps to that car's reminders tab.
+export function NotificationBell({ cars }: { cars: Car[] }) {
   const { t } = useTranslation(['garage', 'reminders']);
   const navigate = useNavigate();
   const [counts, setCounts] = useState<Record<string, Counts>>({});
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   const report = useCallback((id: string, c: Counts) => {
     setCounts((prev) => {
@@ -47,51 +48,45 @@ export function GarageAttention({ cars }: { cars: Car[] }) {
     .map((car) => ({ car, c: counts[car.id] }))
     .filter((x): x is { car: Car; c: Counts } => x.c !== undefined && x.c.overdue + x.c.dueSoon > 0)
     .sort((a, b) => b.c.overdue - a.c.overdue || b.c.dueSoon - a.c.dueSoon);
+  const overdue = rows.reduce((n, r) => n + r.c.overdue, 0);
+  const total = rows.reduce((n, r) => n + r.c.overdue + r.c.dueSoon, 0);
 
   return (
     <>
       {cars.map((car) => <AttentionProbe key={car.id} car={car} onReport={report} />)}
-      {rows.length ? (
-        <Card sx={{ mb: 3, p: { xs: 2, sm: 2.5 } }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-            <NotificationsActiveIcon fontSize="small" color="warning" />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t('garage:attentionTitle')}</Typography>
-          </Stack>
+      <IconButton color="inherit" onClick={(e) => setAnchor(e.currentTarget)}
+        aria-label={total ? t('garage:notificationsCount', { count: total }) : t('garage:notifications')}>
+        <Badge badgeContent={total} color={overdue ? 'error' : 'warning'} max={99}>
+          {total ? <NotificationsActiveIcon /> : <NotificationsNoneIcon />}
+        </Badge>
+      </IconButton>
+      <Popover open={Boolean(anchor)} anchorEl={anchor} onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { width: 320, maxWidth: 'calc(100vw - 32px)', p: 2 } } }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>{t('garage:attentionTitle')}</Typography>
+        {rows.length ? (
           <Stack divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
             {rows.map(({ car, c }) => {
               const title = car.nickname || `${car.make} ${car.model}`;
               return (
-                <Stack
-                  key={car.id}
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  spacing={1}
-                  onClick={() => navigate(`/cars/${car.id}?tab=reminders`)}
-                  sx={{
-                    py: 1,
-                    cursor: 'pointer',
-                    borderRadius: 1,
-                    px: 1,
-                    mx: -1,
-                    '&:hover': { bgcolor: 'action.hover' },
-                  }}
-                >
+                <Stack key={car.id} direction="row" alignItems="center" justifyContent="space-between" spacing={1}
+                  role="button" tabIndex={0}
+                  onClick={() => { setAnchor(null); navigate(`/cars/${car.id}?tab=reminders`); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { setAnchor(null); navigate(`/cars/${car.id}?tab=reminders`); } }}
+                  sx={{ py: 1, px: 1, mx: -1, cursor: 'pointer', borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}>
                   <Typography noWrap sx={{ fontWeight: 600, minWidth: 0 }}>{title}</Typography>
                   <Stack direction="row" spacing={0.75} sx={{ flexShrink: 0 }}>
-                    {c.overdue > 0 ? (
-                      <Chip size="small" color="error" label={c.overdue} aria-label={t('reminders:badgeOverdue')} />
-                    ) : null}
-                    {c.dueSoon > 0 ? (
-                      <Chip size="small" color="warning" label={c.dueSoon} aria-label={t('reminders:badgeDueSoon')} />
-                    ) : null}
+                    {c.overdue > 0 ? <Chip size="small" color="error" label={c.overdue} aria-label={t('reminders:badgeOverdue')} /> : null}
+                    {c.dueSoon > 0 ? <Chip size="small" color="warning" label={c.dueSoon} aria-label={t('reminders:badgeDueSoon')} /> : null}
                   </Stack>
                 </Stack>
               );
             })}
           </Stack>
-        </Card>
-      ) : null}
+        ) : (
+          <Typography color="text.secondary">{t('garage:nothingDue')}</Typography>
+        )}
+      </Popover>
     </>
   );
 }
