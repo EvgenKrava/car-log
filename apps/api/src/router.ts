@@ -16,7 +16,7 @@ import type { AiSettingsDeps } from './ai-settings-service';
 import { handlePublicRoute } from './public-routes';
 import { handleMeRoute } from './me-routes';
 import { quotaKindFor } from './quota-gate';
-import { isAdmin } from './admin-guard';
+import { hasAccess, isAdmin } from './admin-guard';
 import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -51,6 +51,7 @@ export type RouteDeps = {
   quota: UsageQuota;
   userData: UserDataRepository;
   aiSettings: AiSettingsDeps;
+  claimLegacy: (sub: string, username: string) => Promise<number>;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -66,6 +67,8 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     }
 
     if (!ownerId) return ok(401, { error: 'Unauthorized' });
+    // Signed in with Only Tools but CarLog is not granted to this account.
+    if (!hasAccess(event.groups)) return ok(403, { error: 'no_access' });
     const id = pathParams.id;
 
     // Metered operations consume the caller's daily quota before any handler runs.
@@ -74,7 +77,7 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (path === '/me') {
       const result = await handleMeRoute(
-        { cars: deps.cars, storage: deps.storage, userData: deps.userData, identity: deps.adminUsers },
+        { cars: deps.cars, storage: deps.storage, userData: deps.userData, identity: deps.adminUsers, claimLegacy: deps.claimLegacy },
         event, ownerId,
       );
       if (result) return result;

@@ -1,0 +1,9 @@
+output "api_url" { value = aws_apigatewayv2_api.main.api_endpoint }
+output "web_url" { value = local.web_origin }
+output "web_bucket" { value = aws_s3_bucket.web.bucket }
+output "distribution_id" { value = aws_cloudfront_distribution.web.id }
+output "photos_bucket" { value = aws_s3_bucket.photos.bucket }
+output "table_name" { value = aws_dynamodb_table.main.name }
+output "client_id" { value = nonsensitive(data.aws_ssm_parameter.client.value) }
+output "issuer" { value = nonsensitive(data.aws_ssm_parameter.issuer.value) }
+output "vapid_public_key" { value = nonsensitive(data.aws_ssm_parameter.vapid_public.value) }

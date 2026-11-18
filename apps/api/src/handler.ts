@@ -33,6 +33,7 @@ import { WebPushSender } from './push-sender';
 import { route, type ApiEvent, type RouteDeps } from './router';
 import { MalformedBodyError, withErrorHandling } from './errors';
 import { parseGroups } from './admin-guard';
+import { LegacyClaim } from './legacy-claim';
 
 const tableName = process.env.TABLE_NAME ?? '';
 const photosBucket = process.env.PHOTOS_BUCKET ?? '';
@@ -67,6 +68,7 @@ const pushSubs = new DynamoPushSubscriptionRepository(tableName, client);
 const quota = new DynamoUsageQuota(tableName, client);
 const userData = new DynamoUserDataRepository(tableName, client);
 const pushSender = new WebPushSender();
+const legacy = new LegacyClaim(tableName, client, s3, photosBucket, adminUsers);
 
 const enqueueImport = async (payload: ImportWorkPayload): Promise<void> => {
   await lambda.send(new InvokeCommand({
@@ -120,6 +122,7 @@ const deps: RouteDeps = {
   quota,
   userData,
   aiSettings,
+  claimLegacy: (sub, username) => legacy.claim(sub, username),
 };
 
 // JSON.parse used to run outside withErrorHandling, so a bad body crashed the invocation

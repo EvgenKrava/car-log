@@ -42,7 +42,7 @@ const metrics: MetricsPort = {
   errorTotals: vi.fn(async () => ({ count4xx: 0, count5xx: 0, p95LatencyMs: 0 })),
   estimatedCost: vi.fn(async () => ({ currency: 'USD', amount: 0, series: [] })),
 };
-let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota; userData: InMemoryUserDataRepository; aiSettings: AiSettingsDeps };
+let deps: { cars: InMemoryCarRepository; storage: PhotoStorage; events: InMemoryEventRepository; proofs: InMemoryProofRepository; reminders: InMemoryReminderRepository; llm: InMemoryLlmProvider; sessions: InMemoryChatSessionRepository; transcriber: InMemoryTranscribeProvider; importJobs: InMemoryImportJobRepository; enqueueImport: ReturnType<typeof vi.fn>; loadScanBase64: (key: string) => Promise<string | null>; newId: () => string; adminUsers: CognitoUserAdmin; metrics: MetricsPort; apiId: string; pushSubs: InMemoryPushSubscriptionRepository; quota: InMemoryUsageQuota; userData: InMemoryUserDataRepository; aiSettings: AiSettingsDeps; claimLegacy: (sub: string, username: string) => Promise<number> };
 beforeEach(() => {
   cars = new InMemoryCarRepository();
   enqueueSpy = vi.fn().mockResolvedValue(undefined);
@@ -65,13 +65,29 @@ beforeEach(() => {
     quota: new InMemoryUsageQuota(),
     userData: new InMemoryUserDataRepository(),
     aiSettings: inMemoryAiSettingsDeps(),
+    claimLegacy: async () => 0,
   };
 });
 
-const base = { username: null, groups: [] as string[], pathParams: {}, queryParams: {}, body: null };
+const base = { username: null, groups: ['carlog-user'] as string[], pathParams: {}, queryParams: {}, body: null };
 const validBody = { make: 'Toyota', model: 'Corolla', year: 2020, mileage: 45000, fuelType: 'petrol' };
 
 describe('route', () => {
+  it('403s a signed-in account without the CarLog role', async () => {
+    const res = await route(deps, { ...base, groups: [], method: 'GET', path: '/cars', ownerId: 'u1' });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({ error: 'no_access' });
+  });
+
+  it('GET /me moves legacy data and reports the role', async () => {
+    const calls: string[] = [];
+    const d = { ...deps, claimLegacy: async (sub: string, u: string) => { calls.push(`${sub}:${u}`); return 4; } };
+    const res = await route(d, { ...base, method: 'GET', path: '/me', ownerId: 'u1', username: 'google_1' });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ sub: 'u1', isAdmin: false, moved: 4 });
+    expect(calls).toEqual(['u1:google_1']);
+  });
+
   it('POST /cars creates a car scoped to the owner', async () => {
     const res = await route(deps, { ...base, method: 'POST', path: '/cars', ownerId: 'u1', body: validBody });
     expect(res.statusCode).toBe(201);
@@ -641,7 +657,7 @@ describe('daily quota gate', () => {
     const carId = await makeCar('u1');
     const body = { carId, text: 'oil change 2024' };
     for (let i = 0; i < 4; i += 1) {
-      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', groups: ['admin'], body });
+      const res = await route(deps, { ...base, method: 'POST', path: '/import/jobs', ownerId: 'u1', groups: ['carlog-admin'], body });
       expect(res.statusCode).toBe(202);
     }
     expect(deps.quota.counts.size).toBe(0);
