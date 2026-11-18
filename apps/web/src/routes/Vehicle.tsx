@@ -84,7 +84,7 @@ function StatTile({
           flexShrink: 0,
           color: 'primary.main',
           bgcolor: (theme) =>
-            theme.palette.mode === 'dark' ? 'rgba(91,91,214,0.16)' : 'rgba(91,91,214,0.08)',
+            theme.palette.mode === 'dark' ? 'rgba(255,122,69,0.16)' : 'rgba(255,122,69,0.08)',
         }}
       >
         {icon}
@@ -321,8 +321,8 @@ function VehicleDetail({ car }: { car: Car }) {
               sx={{
                 background: (theme) =>
                   theme.palette.mode === 'dark'
-                    ? 'linear-gradient(135deg, rgba(91,91,214,0.20) 0%, rgba(91,91,214,0.05) 55%, transparent 100%)'
-                    : 'linear-gradient(135deg, rgba(91,91,214,0.10) 0%, rgba(91,91,214,0.03) 55%, transparent 100%)',
+                    ? 'linear-gradient(135deg, rgba(255,122,69,0.20) 0%, rgba(255,122,69,0.05) 55%, transparent 100%)'
+                    : 'linear-gradient(135deg, rgba(255,122,69,0.10) 0%, rgba(255,122,69,0.03) 55%, transparent 100%)',
               }}
             >
               <CardContent sx={{ p: { xs: 2.5, sm: 3 }, pb: { xs: 2, sm: 2.5 } }}>
@@ -339,7 +339,7 @@ function VehicleDetail({ car }: { car: Car }) {
                       flexShrink: 0,
                       color: 'primary.main',
                       bgcolor: (theme) =>
-                        theme.palette.mode === 'dark' ? 'rgba(91,91,214,0.18)' : 'rgba(91,91,214,0.10)',
+                        theme.palette.mode === 'dark' ? 'rgba(255,122,69,0.18)' : 'rgba(255,122,69,0.10)',
                     }}
                   >
                     <DirectionsCarFilledIcon sx={{ fontSize: 30 }} />
@@ -570,8 +570,8 @@ function VehicleDetail({ car }: { car: Car }) {
             overflow: 'hidden',
             border: 1,
             borderColor: 'divider',
-            boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
-            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
+            boxShadow: tokens.shadow.md,
+            bgcolor: (theme) => (theme.palette.mode === 'dark' ? tokens.color.dark.glass : tokens.color.light.glass),
             backdropFilter: 'saturate(180%) blur(20px)',
             WebkitBackdropFilter: 'saturate(180%) blur(20px)',
           }}
@@ -596,7 +596,7 @@ function VehicleDetail({ car }: { car: Car }) {
                 // .Mui-selected — a bare `& .Mui-selected` would double-tint the label).
                 '&.Mui-selected': {
                   color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.main),
-                  bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(91,91,214,0.12)'),
+                  bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(255,122,69,0.12)'),
                 },
               },
               '& .MuiBottomNavigationAction-label': { fontSize: 10, mt: '3px' },
@@ -634,8 +634,8 @@ function VehicleDetail({ car }: { car: Car }) {
               display: 'grid',
               placeItems: 'center',
               color: 'primary.main',
-              boxShadow: '0 6px 24px rgba(16,24,40,0.18)',
-              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(38,42,48,0.72)' : 'rgba(255,255,255,0.82)'),
+              boxShadow: tokens.shadow.md,
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? tokens.color.dark.glass : tokens.color.light.glass),
               backdropFilter: 'saturate(180%) blur(20px)',
               WebkitBackdropFilter: 'saturate(180%) blur(20px)',
               transition: 'transform .1s ease',

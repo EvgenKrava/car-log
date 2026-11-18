@@ -1,4 +1,4 @@
-const localeOf = (lng: string): string => (lng.startsWith('uk') ? 'uk-UA' : 'en-US');
+export const localeOf = (lng: string): 'uk-UA' | 'ru-RU' | 'en-US' => (lng.startsWith('uk') ? 'uk-UA' : lng.startsWith('ru') ? 'ru-RU' : 'en-US');
 
 export function formatNumber(value: number, lng: string): string {
   return new Intl.NumberFormat(localeOf(lng)).format(value);

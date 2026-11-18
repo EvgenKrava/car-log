@@ -1,3 +1,4 @@
+import type { Language as AppLanguage } from '../i18n/resolve-language';
 import { savePushSubscription, deletePushSubscription } from '../api-client';
 
 // Standard VAPID key conversion: the server hands us a URL-safe base64 public key;
@@ -29,7 +30,7 @@ function toSubscriptionJson(sub: PushSubscription): { endpoint: string; keys: { 
 // Must be called synchronously from a user-gesture handler (click) — on iOS Safari,
 // Notification.requestPermission() called from a useEffect or after an await silently
 // resolves to 'default' forever, never showing the native prompt.
-export async function subscribeToPush(token: string, lang: 'uk' | 'en'): Promise<void> {
+export async function subscribeToPush(token: string, lang: AppLanguage): Promise<void> {
   if (!pushSupported()) throw new Error('Push not supported');
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') throw new Error(`Permission ${permission}`);
@@ -45,7 +46,7 @@ export async function subscribeToPush(token: string, lang: 'uk' | 'en'): Promise
 // Called once on auth (permission already granted from a prior subscribe) to keep the
 // server's copy of the subscription fresh — re-subscribing is a no-op if the browser's
 // existing subscription is still valid, and re-POSTs it so the row's TTL is refreshed.
-export async function refreshPushSubscription(token: string, lang: 'uk' | 'en'): Promise<void> {
+export async function refreshPushSubscription(token: string, lang: AppLanguage): Promise<void> {
   if (!pushSupported() || Notification.permission !== 'granted') return;
   const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();

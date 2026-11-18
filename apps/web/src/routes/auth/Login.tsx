@@ -1,49 +1,33 @@
-import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Alert, Button, Divider, Link, Stack, TextField } from '@mui/material';
+import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { Button, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../auth';
-import { authErrorKey } from '../../auth/auth-error';
 import { AuthLayout } from './AuthLayout';
-import { PasswordField } from '../../components/ui/PasswordField';
-import { GoogleSignInButton } from '../../components/ui/GoogleSignInButton';
 import { GARAGE_PATH } from '../../lib/paths';
 
+// Sign-in is the shared Only Tools account (auth.onlytools.click). The page sends the user
+// there straight away; the button is for when that was cancelled or failed (?retry).
 export function Login() {
   const { t } = useTranslation(['auth']);
-  const { signIn } = useAuth();
-  const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const { status, signIn } = useAuth();
   const [busy, setBusy] = useState(false);
+  const retry = new URLSearchParams(window.location.search).has('retry');
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true); setError(null);
-    try { await signIn(email, password); navigate(GARAGE_PATH, { replace: true }); }
-    catch (err) { setError(t(authErrorKey(err))); }
-    finally { setBusy(false); }
-  };
+  const go = () => { setBusy(true); void signIn().catch(() => setBusy(false)); };
+
+  useEffect(() => {
+    if (status === 'unauthenticated' && !retry) go();
+  }, [status]);
+
+  if (status === 'authenticated') return <Navigate to={GARAGE_PATH} replace />;
 
   return (
     <AuthLayout title={t('auth:signInTitle')}>
-      <form onSubmit={onSubmit}>
-        <Stack spacing={2}>
-          <GoogleSignInButton />
-          <Divider>{t('auth:orDivider')}</Divider>
-          {error ? <Alert severity="error">{error}</Alert> : null}
-          <TextField label={t('auth:email')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth autoComplete="email" />
-          <PasswordField label={t('auth:password')} value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoComplete="current-password" />
-          <Button type="submit" variant="contained" disabled={busy}>{t('auth:signInAction')}</Button>
-          <Link component={RouterLink} to="/forgot">{t('auth:toForgot')}</Link>
-          <Link component={RouterLink} to="/signup">{t('auth:toSignUp')}</Link>
-          <Stack direction="row" spacing={2} justifyContent="center">
-            <Link href="/privacy" variant="caption" color="text.secondary">{t('auth:privacy')}</Link>
-            <Link href="/terms" variant="caption" color="text.secondary">{t('auth:terms')}</Link>
-          </Stack>
-        </Stack>
-      </form>
+      <Stack spacing={2}>
+        <Typography color="text.secondary">{t('auth:onlyToolsHint')}</Typography>
+        <Button variant="contained" onClick={go} disabled={busy}>{t('auth:signInOnlyTools')}</Button>
+      </Stack>
     </AuthLayout>
   );
 }

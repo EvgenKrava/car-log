@@ -11,7 +11,7 @@ export type PushSubscriptionRecord = {
   ownerId: string;
   endpointHash: string;
   subscription: PushSubscription;
-  lang: 'uk' | 'en';
+  lang: 'uk' | 'ru' | 'en';
   lastNotified: Record<string, string>;
   updatedAt: string;
 };

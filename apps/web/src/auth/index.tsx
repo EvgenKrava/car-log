@@ -1,15 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
-import {
-  signIn as awsSignIn, signUp as awsSignUp, confirmSignUp as awsConfirmSignUp,
-  resendSignUpCode, resetPassword, confirmResetPassword, signOut as awsSignOut,
-  fetchAuthSession, getCurrentUser,
-} from 'aws-amplify/auth';
+import { signInWithRedirect, signOut as awsSignOut, fetchAuthSession } from 'aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
 import { configureAmplify } from './amplify';
 import { refreshDelayMs } from './token-refresh';
-import { isFederatedPayload } from './federation';
+import { NoAccess } from './NoAccess';
+
+export const ACCESS_GROUP = 'carlog-user';
+export const ADMIN_GROUP = 'carlog-admin';
 
 configureAmplify();
 
@@ -20,15 +19,15 @@ type AuthValue = {
   email?: string;
   accessToken?: string;
   isAdmin: boolean;
+  // Signed in to Only Tools, but CarLog is not granted to this account.
+  hasAccess: boolean;
   groups: string[];
-  // True for federated (Google) identities, which have no Cognito password.
+  // Sign-in and passwords are managed by Only Tools (auth.onlytools.click), so the app never
+  // changes a password itself. Kept for the Profile screen, which hides the password row.
   isFederated: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
-  confirmSignUp: (email: string, code: string) => Promise<void>;
-  resendCode: (email: string) => Promise<void>;
-  forgotPassword: (email: string) => Promise<void>;
-  confirmForgotPassword: (email: string, code: string, password: string) => Promise<void>;
+  // GET /me has run for this session: it moves data from the old CarLog sign-in on the first visit.
+  ready: boolean;
+  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -40,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState<string | undefined>();
   const [accessToken, setAccessToken] = useState<string | undefined>();
   const [groups, setGroups] = useState<string[]>([]);
-  const [isFederated, setIsFederated] = useState(false);
+  const [ready, setReady] = useState(false);
 
   // Proactive-refresh timer. Cognito access tokens expire (~1h); we re-run refresh()
   // shortly before expiry so the cached token never goes stale. fetchAuthSession()
@@ -65,8 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await fetchAuthSession();
       const token = session.tokens?.accessToken?.toString();
       if (token) {
-        const user = await getCurrentUser();
-        setEmail(user.signInDetails?.loginId ?? user.username);
+        const idPayload = session.tokens?.idToken?.payload as Record<string, unknown> | undefined;
+        if (typeof idPayload?.email === 'string') setEmail(idPayload.email);
         setAccessToken(token);
         // Group membership rides in `cognito:groups` on both the ID and access
         // tokens, but for federated (Google) identities the access token can omit
@@ -77,26 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (Array.isArray(raw)) for (const g of raw) merged.add(String(g));
         }
         setGroups([...merged]);
-        // Fail closed: if the ID token is absent this cycle (Amplify types it as
-        // possibly undefined), don't overwrite isFederated with a derived `false` —
-        // keep the last known value. Hiding the row for one refresh cycle is
-        // harmless; showing it to a federated user is a dead-end error.
-        const idPayload = session.tokens?.idToken?.payload as Record<string, unknown> | undefined;
-        if (idPayload !== undefined) {
-          setIsFederated(isFederatedPayload(idPayload));
-        }
         setStatus('authenticated');
         scheduleRefresh(token);
       } else {
         clearRefreshTimer();
         setGroups([]);
-        setIsFederated(false);
         setStatus('unauthenticated');
       }
     } catch {
       clearRefreshTimer();
       setGroups([]);
-      setIsFederated(false);
       setStatus('unauthenticated');
     }
   }, [scheduleRefresh, clearRefreshTimer]);
@@ -134,16 +123,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
 
+  const isAdmin = groups.includes(ADMIN_GROUP);
+  const hasAccess = isAdmin || groups.includes(ACCESS_GROUP);
+
+  // Once per session, before any screen loads data: GET /me finishes the move from the old
+  // CarLog sign-in (the first time only). A failure must not lock the user out.
+  const meStarted = useRef(false);
+  useEffect(() => {
+    if (status !== 'authenticated' || !hasAccess || !accessToken || meStarted.current) return;
+    meStarted.current = true;
+    fetch(`${import.meta.env.VITE_API_URL as string}/me`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      .catch(() => undefined)
+      .finally(() => setReady(true));
+  }, [status, hasAccess, accessToken]);
+
   const value = useMemo<AuthValue>(() => ({
-    status, email, accessToken, groups, isFederated, isAdmin: groups.includes('admin'), refresh,
-    signIn: async (e, p) => { await awsSignIn({ username: e, password: p }); await refresh(); },
-    signUp: async (e, p) => { await awsSignUp({ username: e, password: p, options: { userAttributes: { email: e } } }); },
-    confirmSignUp: async (e, c) => { await awsConfirmSignUp({ username: e, confirmationCode: c }); },
-    resendCode: async (e) => { await resendSignUpCode({ username: e }); },
-    forgotPassword: async (e) => { await resetPassword({ username: e }); },
-    confirmForgotPassword: async (e, c, p) => { await confirmResetPassword({ username: e, confirmationCode: c, newPassword: p }); },
-    signOut: async () => { clearRefreshTimer(); await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); setGroups([]); setIsFederated(false); },
-  }), [status, email, accessToken, groups, isFederated, refresh, clearRefreshTimer]);
+    status, email, accessToken, groups, isAdmin, hasAccess, isFederated: true, ready, refresh,
+    signIn: async () => { await signInWithRedirect(); },
+    signOut: async () => { clearRefreshTimer(); await awsSignOut(); setStatus('unauthenticated'); setEmail(undefined); setAccessToken(undefined); setGroups([]); },
+  }), [status, email, accessToken, groups, isAdmin, hasAccess, ready, refresh, clearRefreshTimer]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -155,10 +153,11 @@ export function useAuth(): AuthValue {
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
-  if (status === 'loading') {
+  const { status, hasAccess, ready } = useAuth();
+  if (status === 'unauthenticated') return <Navigate to="/login" replace />;
+  if (status === 'authenticated' && !hasAccess) return <NoAccess />;
+  if (status === 'loading' || !ready) {
     return <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}><CircularProgress /></Box>;
   }
-  if (status === 'unauthenticated') return <Navigate to="/login" replace />;
   return <>{children}</>;
 }

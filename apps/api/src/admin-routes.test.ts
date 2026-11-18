@@ -36,7 +36,7 @@ const deps = (over?: Partial<AdminRouteDeps>): AdminRouteDeps => ({
   users: port(), metrics: metricsPort(), events: eventsRepo(), apiId: 'api-1', ...purgeDeps(), ai: inMemoryAiSettingsDeps(), ...over,
 });
 const base = (over: Partial<ApiEvent>): ApiEvent => ({
-  method: 'GET', path: '/admin/users', ownerId: 'caller', username: 'caller', groups: ['admin'],
+  method: 'GET', path: '/admin/users', ownerId: 'caller', username: 'caller', groups: ['carlog-admin'],
   pathParams: {}, queryParams: {}, body: null, ...over,
 });
 
@@ -57,7 +57,7 @@ describe('handleAdminRoute', () => {
     const selfPort: CognitoUserAdmin = { ...port(), getSub: vi.fn(async () => 'caller-sub') };
     const res = await handleAdminRoute(deps({ users: selfPort }), base({
       path: '/admin/users/me/admin', method: 'DELETE', pathParams: { username: 'me' },
-      groups: ['admin'], ownerId: 'caller-sub',
+      groups: ['carlog-admin'], ownerId: 'caller-sub',
     }));
     expect(res?.statusCode).toBe(409);
   });

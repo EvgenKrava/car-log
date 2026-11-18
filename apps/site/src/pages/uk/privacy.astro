@@ -1,8 +1,0 @@
----
-import Legal from '../../layouts/Legal.astro';
-import * as doc from '../../legal/uk/privacy.md';
-const { title, updated } = doc.frontmatter as { title: string; updated: string };
----
-<Legal locale="uk" path="/privacy" title={title} updated={updated} description="Що зберігає CarLog, навіщо і як це видалити.">
-  <doc.Content />
-</Legal>

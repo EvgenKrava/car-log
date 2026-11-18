@@ -1,3 +1,4 @@
+import type { Language as AppLanguage } from './i18n/resolve-language';
 import { z } from 'zod';
 import { ApiError } from './lib/api-error';
 import { buildUploadForm } from './lib/upload-form';
@@ -205,7 +206,7 @@ export const resolveChatAction = (
 // Sends a recorded clip (16kHz mono WAV) for server-side transcription. Audio is never
 // stored — the API decodes, transcribes via Amazon Transcribe, and discards it.
 export async function transcribeAudio(
-  token: string, carId: string, wav: ArrayBuffer, language: 'uk-UA' | 'en-US',
+  token: string, carId: string, wav: ArrayBuffer, language: 'uk-UA' | 'ru-RU' | 'en-US',
 ): Promise<string> {
   const bytes = new Uint8Array(wav);
   let bin = '';
@@ -250,7 +251,7 @@ export const completeReminder = (token: string, carId: string, reminderId: strin
 // subscribe time from the app's current i18n language, not part of the browser object).
 type PushSubscriptionInput = Omit<PushSubscription, 'lang'>;
 
-export const savePushSubscription = (token: string, sub: PushSubscriptionInput, lang: 'uk' | 'en'): Promise<void> =>
+export const savePushSubscription = (token: string, sub: PushSubscriptionInput, lang: AppLanguage): Promise<void> =>
   request(token, '/push/subscription', z.undefined(), { method: 'POST', body: JSON.stringify({ ...sub, lang }) });
 
 export const deletePushSubscription = (token: string, endpoint: string): Promise<void> =>

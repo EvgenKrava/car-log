@@ -62,8 +62,8 @@ export default defineConfig({
         start_url: '/garage',
         scope: '/',
         display: 'standalone',
-        theme_color: '#5B5BD6',
-        background_color: '#F2F2F7',
+        theme_color: '#FF7A45',
+        background_color: '#FFF8F1',
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

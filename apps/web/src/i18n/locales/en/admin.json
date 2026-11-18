@@ -10,7 +10,7 @@
   "enable": "Enable",
   "disable": "Disable",
   "deleteTitle": "Delete user",
-  "deleteConfirm": "Delete {{email}}? This permanently removes the account and can't be undone.",
+  "deleteConfirm": "Remove {{email}}'s CarLog data and their access to CarLog? Their Only Tools account stays.",
   "actionFailed": "Action failed. Please try again.",
   "dashboard": "Dashboard",
   "dashboardTitle": "Dashboard",

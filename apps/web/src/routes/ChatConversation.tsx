@@ -1,3 +1,4 @@
+import { localeOf } from '../i18n/format';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -86,7 +87,7 @@ export function ChatConversation() {
   // "didn't catch that" over what the first call is still transcribing successfully.
   const finishingRef = useRef(false);
 
-  const voiceLang = (): 'uk-UA' | 'en-US' => (i18n.language.startsWith('uk') ? 'uk-UA' : 'en-US');
+  const voiceLang = () => localeOf(i18n.language);
 
   // Mic access is blocked for this origin (previous denial via the Permissions API, or a
   // rejection from either voice path this session). Both voice affordances share the same

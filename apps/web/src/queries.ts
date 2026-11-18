@@ -347,7 +347,7 @@ export function usePostChatMessage(carId: string) {
 export function useTranscribe(carId: string) {
   const { accessToken } = useAuth(); const token = accessToken ?? '';
   return useMutation({
-    mutationFn: ({ wav, language }: { wav: ArrayBuffer; language: 'uk-UA' | 'en-US' }) =>
+    mutationFn: ({ wav, language }: { wav: ArrayBuffer; language: 'uk-UA' | 'ru-RU' | 'en-US' }) =>
       transcribeAudio(token, carId, wav, language),
   });
 }

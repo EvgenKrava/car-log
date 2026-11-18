@@ -1,48 +1,48 @@
-// iOS semantic colours (Human Interface Guidelines system palette) with CarLog's
-// indigo kept as the tint. Surfaces follow the "inset grouped" model: a grouped
-// background with flat white/charcoal cells on top, separated by translucent
-// hairlines rather than borders and shadows.
+// Only Tools design tokens (direction B "Конструктор"), CarLog's accent is the car orange.
+// Mirrors only-tools-core/packages/ui/only-tools.css: change colours there first, then here,
+// so every Only Tools app keeps one style. MUI needs literal colours (it derives hover and
+// alpha shades from them), which is why they are copied rather than read from CSS variables.
 export const tokens = {
   color: {
-    accent: '#5B5BD6',
-    accentHover: '#4A4AC4',
+    accent: '#FF7A45',
+    accentHover: '#E8642F',
     light: {
-      bg: '#F2F2F7',                      // systemGroupedBackground
-      surface: '#FFFFFF',                 // secondarySystemGroupedBackground
-      border: 'rgba(60, 60, 67, 0.29)',   // separator
-      fill: 'rgba(120, 120, 128, 0.12)',  // tertiarySystemFill (search fields, segmented tracks)
-      textPrimary: '#000000',
-      textSecondary: 'rgba(60, 60, 67, 0.6)',
-      textTertiary: 'rgba(60, 60, 67, 0.3)',
-      glass: 'rgba(255, 255, 255, 0.78)', // translucent bars
-      tint: '#5B5BD6',
-      success: '#34C759',
-      error: '#FF3B30',
-      warning: '#FF9500',
+      bg: '#FFF8F1',                      // --ot-bg: warm paper
+      surface: '#FFFFFF',                 // --ot-surface
+      border: '#EFE4D8',                  // --ot-line
+      fill: '#FDF3E8',                    // --ot-surface-2 (search fields, segmented tracks)
+      textPrimary: '#2A2140',             // --ot-ink: plum ink
+      textSecondary: '#71698A',           // --ot-mut
+      textTertiary: 'rgba(113, 105, 138, 0.55)',
+      glass: 'rgba(255, 253, 250, 0.92)', // --ot-bar
+      tint: '#FF7A45',                    // --ot-car
+      success: '#1A9A68',
+      error: '#D93A4A',
+      warning: '#C77700',
     },
     dark: {
-      bg: '#000000',
-      surface: '#1C1C1E',
-      border: 'rgba(84, 84, 88, 0.65)',
-      fill: 'rgba(118, 118, 128, 0.24)',
-      textPrimary: '#FFFFFF',
-      textSecondary: 'rgba(235, 235, 245, 0.6)',
-      textTertiary: 'rgba(235, 235, 245, 0.3)',
-      glass: 'rgba(28, 28, 30, 0.78)',
-      tint: '#8A8AF0',                    // indigo lifted for contrast on black
-      success: '#30D158',
-      error: '#FF453A',
-      warning: '#FF9F0A',
+      bg: '#17141F',
+      surface: '#221D2E',
+      border: '#342D44',
+      fill: '#1D1927',
+      textPrimary: '#F3EEFA',
+      textSecondary: '#A59CBA',
+      textTertiary: 'rgba(165, 156, 186, 0.55)',
+      glass: 'rgba(29, 25, 39, 0.92)',
+      tint: '#FF8A5C',
+      success: '#2FD08F',
+      error: '#FF6B7A',
+      warning: '#FFB547',
     },
-    success: '#34C759',
-    error: '#FF3B30',
-    warning: '#FF9500',
+    success: '#1A9A68',
+    error: '#D93A4A',
+    warning: '#C77700',
   },
   // sm: inputs/menus · md: dialogs · lg: cards (inset grouped cells) · sheet: phone bottom sheets
-  radius: { sm: 12, md: 28, lg: 20, sheet: 34 },
+  radius: { sm: 14, md: 24, lg: 20, sheet: 24 },
   shadow: {
-    sm: '0 1px 3px rgba(0,0,0,0.08)',
-    md: '0 8px 24px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06)',
+    sm: '0 4px 14px -10px rgba(42, 33, 64, 0.3)',
+    md: '0 8px 24px -16px rgba(42, 33, 64, 0.35)',
   },
   // Motion: quiet confidence — things arrive decelerating, leave accelerating.
   // Animate only transform/opacity; user-initiated appearance only (never refetches).
@@ -53,9 +53,9 @@ export const tokens = {
       exit: 'cubic-bezier(0.4, 0, 1, 1)',     // accelerate — leaving
     },
   },
-  // System font first (SF Pro on Apple devices); Inter is the bundled fallback elsewhere.
+  // Nunito everywhere (self-hosted via @fontsource/nunito), rounded system fonts as the fallback.
   font: {
-    family: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif",
-    rounded: "ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif",
+    family: "'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    rounded: "'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, sans-serif",
   },
 } as const;

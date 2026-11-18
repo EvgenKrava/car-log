@@ -108,7 +108,7 @@ export const ChatAttachmentPresignResponseSchema = z.object({
 export const TRANSCRIBE_AUDIO_MAX_B64 = 2_800_000; // ~60s of 16kHz mono 16-bit WAV, base64
 export const TranscribeRequestSchema = z.object({
   audio: z.string().min(1).max(TRANSCRIBE_AUDIO_MAX_B64), // base64 WAV
-  language: z.enum(['uk-UA', 'en-US']),
+  language: z.enum(['uk-UA', 'ru-RU', 'en-US']),
 });
 export const TranscribeResponseSchema = z.object({ text: z.string() });
 

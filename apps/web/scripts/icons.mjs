@@ -75,8 +75,8 @@ const gradient = (id, top, bottom) =>
   `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="512"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>`;
 
 const VARIANTS = {
-  light: { fg: '#FFFFFF', bg: gradient('bg', '#6E6EE8', '#4E4ECC') },
-  dark: { fg: '#8A8AF0', bg: gradient('bg', '#2C2C30', '#151517') },
+  light: { fg: '#FFFFFF', bg: gradient('bg', '#FF8A5C', '#F0612A') },
+  dark: { fg: '#FF8A5C', bg: gradient('bg', '#2A2338', '#17141F') },
 };
 
 const open = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">`;
@@ -87,10 +87,10 @@ const icon = ({ fg, bg }, { rounded = true, scale = 1 } = {}) =>
 
 // The favicon carries both marks and lets the browser pick by colour scheme.
 const themed = () =>
-  `${open}<defs>${VARIANTS.light.bg}${gradient('bgDark', '#2C2C30', '#151517')}</defs>
+  `${open}<defs>${VARIANTS.light.bg}${gradient('bgDark', '#2A2338', '#17141F')}</defs>
   <style>.d{display:none}@media (prefers-color-scheme:dark){.l{display:none}.d{display:inline}}</style>
   <g class="l"><rect width="512" height="512" rx="112" fill="url(#bg)"/>${mark('#FFFFFF', 'url(#bg)')}</g>
-  <g class="d"><rect width="512" height="512" rx="112" fill="url(#bgDark)"/>${mark('#8A8AF0', 'url(#bgDark)')}</g>
+  <g class="d"><rect width="512" height="512" rx="112" fill="url(#bgDark)"/>${mark('#FF8A5C', 'url(#bgDark)')}</g>
 </svg>`;
 
 // Monochrome: the mark alone on transparency — Android tints the alpha for themed

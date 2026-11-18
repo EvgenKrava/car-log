@@ -60,8 +60,8 @@ function PublicHero({ car }: { car: PublicCar }) {
         sx={{
           background: (theme) =>
             theme.palette.mode === 'dark'
-              ? 'linear-gradient(135deg, rgba(91,91,214,0.20) 0%, rgba(91,91,214,0.05) 55%, transparent 100%)'
-              : 'linear-gradient(135deg, rgba(91,91,214,0.10) 0%, rgba(91,91,214,0.03) 55%, transparent 100%)',
+              ? 'linear-gradient(135deg, rgba(255,122,69,0.20) 0%, rgba(255,122,69,0.05) 55%, transparent 100%)'
+              : 'linear-gradient(135deg, rgba(255,122,69,0.10) 0%, rgba(255,122,69,0.03) 55%, transparent 100%)',
         }}
       >
         <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
@@ -75,7 +75,7 @@ function PublicHero({ car }: { car: PublicCar }) {
                 placeItems: 'center',
                 flexShrink: 0,
                 color: 'primary.main',
-                bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(91,91,214,0.18)' : 'rgba(91,91,214,0.10)'),
+                bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,122,69,0.18)' : 'rgba(255,122,69,0.10)'),
               }}
             >
               <DirectionsCarFilledIcon sx={{ fontSize: 30 }} />

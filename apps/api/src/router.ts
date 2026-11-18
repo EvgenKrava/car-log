@@ -1,5 +1,5 @@
 import { CreateCarSchema, SetSharingSchema } from '@carlog/contracts';
-import { CarNotFoundError, createCar, nowIso, consumeQuota, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository, type UsageQuota, type UserDataRepository } from '@carlog/domain';
+import { CarNotFoundError, createCar, nowIso, consumeQuota, assertCanAddCar, consumeMonthlyScan, planOf, DEFAULT_PLAN_LIMITS, type PlanLimits, type CarRepository, type PhotoStorage, type EventRepository, type ProofRepository, type LlmProvider, type ReminderRepository, type ChatSessionRepository, type UsageQuota, type UserDataRepository } from '@carlog/domain';
 import { ok, withErrorHandling, type ApiResult } from './errors';
 import { handleEventRoute } from './event-routes';
 import { handleReminderRoute } from './reminder-routes';
@@ -16,7 +16,7 @@ import type { AiSettingsDeps } from './ai-settings-service';
 import { handlePublicRoute } from './public-routes';
 import { handleMeRoute } from './me-routes';
 import { quotaKindFor } from './quota-gate';
-import { isAdmin } from './admin-guard';
+import { hasAccess, isAdmin } from './admin-guard';
 import type { ImportJobRepository } from './import-job-repository';
 import type { ImportWorkPayload } from './import-worker';
 import type { CognitoUserAdmin } from './cognito-user-admin';
@@ -51,6 +51,9 @@ export type RouteDeps = {
   quota: UsageQuota;
   userData: UserDataRepository;
   aiSettings: AiSettingsDeps;
+  claimLegacy: (sub: string, username: string) => Promise<number>;
+  /** Free / Plus limits (SSM /onlytools/plans/limits); defaults when absent. */
+  planLimits?: () => Promise<PlanLimits>;
 };
 
 export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
@@ -66,15 +69,22 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
     }
 
     if (!ownerId) return ok(401, { error: 'Unauthorized' });
+    // Signed in with Only Tools but CarLog is not granted to this account.
+    if (!hasAccess(event.groups)) return ok(403, { error: 'no_access' });
     const id = pathParams.id;
 
     // Metered operations consume the caller's daily quota before any handler runs.
     const kind = quotaKindFor(method, path);
     if (kind) await consumeQuota(deps.quota, ownerId, kind, isAdmin(event.groups));
+    // Plan allowance: receipt scans per month (admins are not limited).
+    if (method === 'POST' && path === '/import/scan' && !isAdmin(event.groups)) {
+      const limits = deps.planLimits ? await deps.planLimits() : DEFAULT_PLAN_LIMITS;
+      await consumeMonthlyScan(deps.quota, ownerId, planOf(event.groups, limits), limits);
+    }
 
     if (path === '/me') {
       const result = await handleMeRoute(
-        { cars: deps.cars, storage: deps.storage, userData: deps.userData, identity: deps.adminUsers },
+        { cars: deps.cars, storage: deps.storage, userData: deps.userData, identity: deps.adminUsers, claimLegacy: deps.claimLegacy },
         event, ownerId,
       );
       if (result) return result;
@@ -154,7 +164,12 @@ export function route(deps: RouteDeps, event: ApiEvent): Promise<ApiResult> {
 
     if (path === '/cars' && method === 'GET') return ok(200, await deps.cars.listByOwner(ownerId));
     if (path === '/cars' && method === 'POST') {
-      const car = createCar(ownerId, CreateCarSchema.parse(body));
+      const input = CreateCarSchema.parse(body);
+      if (!isAdmin(event.groups)) {
+        const limits = deps.planLimits ? await deps.planLimits() : DEFAULT_PLAN_LIMITS;
+        assertCanAddCar((await deps.cars.listByOwner(ownerId)).length, planOf(event.groups, limits), limits);
+      }
+      const car = createCar(ownerId, input);
       return ok(201, await deps.cars.create(car));
     }
     if (id && path === `/cars/${id}/sharing` && method === 'PUT') {
