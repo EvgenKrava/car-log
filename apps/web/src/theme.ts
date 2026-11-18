@@ -15,7 +15,7 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
   return createTheme({
     palette: {
       mode,
-      primary: { main: c.tint, dark: mode === 'dark' ? '#7373E0' : tokens.color.accentHover, contrastText: '#FFFFFF' },
+      primary: { main: c.tint, dark: tokens.color.accentHover, contrastText: '#FFFFFF' },
       success: { main: c.success },
       error: { main: c.error },
       warning: { main: c.warning },
@@ -27,16 +27,16 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
     typography: {
       fontFamily: tokens.font.family,
       // iOS text styles: Large Title / Title 2 / Headline / Body / Subheadline / Footnote.
-      h4: { fontSize: '2.125rem', lineHeight: 41 / 34, fontWeight: 700, letterSpacing: '0.01em' },
-      h5: { fontSize: '1.375rem', lineHeight: 28 / 22, fontWeight: 700, letterSpacing: '-0.01em' },
-      h6: { fontSize: '1.0625rem', lineHeight: 22 / 17, fontWeight: 600, letterSpacing: '-0.01em' },
-      subtitle1: { fontSize: '1.0625rem', lineHeight: 22 / 17, fontWeight: 600, letterSpacing: '-0.01em' },
-      subtitle2: { fontSize: '0.9375rem', lineHeight: 20 / 15, fontWeight: 600 },
+      h4: { fontSize: '1.75rem', lineHeight: 1.12, fontWeight: 900, letterSpacing: '-0.02em' },
+      h5: { fontSize: '1.375rem', lineHeight: 1.2, fontWeight: 900, letterSpacing: '-0.015em' },
+      h6: { fontSize: '1.0625rem', lineHeight: 1.25, fontWeight: 800 },
+      subtitle1: { fontSize: '1.0625rem', lineHeight: 1.25, fontWeight: 800 },
+      subtitle2: { fontSize: '0.9375rem', lineHeight: 20 / 15, fontWeight: 800 },
       body1: { fontSize: '1rem', lineHeight: 22 / 16, letterSpacing: '-0.01em', [PHONE]: { fontSize: '1.0625rem', lineHeight: 22 / 17 } },
       body2: { fontSize: '0.9375rem', lineHeight: 20 / 15, letterSpacing: '-0.01em' },
       caption: { fontSize: '0.8125rem', lineHeight: 18 / 13 },
       overline: { fontSize: '0.8125rem', lineHeight: 18 / 13, letterSpacing: '-0.01em', fontWeight: 400 },
-      button: { fontWeight: 600, letterSpacing: '-0.01em' },
+      button: { fontWeight: 800 },
     },
     components: {
       MuiCssBaseline: {
@@ -58,7 +58,7 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
         defaultProps: { disableElevation: true },
         styleOverrides: {
           // Capsule buttons; 44pt minimum touch target at the default size.
-          root: { textTransform: 'none', borderRadius: 999 },
+          root: { textTransform: 'none', borderRadius: tokens.radius.sm },
           sizeSmall: { minHeight: 32, paddingLeft: 14, paddingRight: 14 },
           sizeMedium: { minHeight: 44, paddingLeft: 20, paddingRight: 20 },
           sizeLarge: { minHeight: 50, paddingLeft: 24, paddingRight: 24, fontSize: '1.0625rem' },
@@ -164,7 +164,7 @@ export const buildTheme = (mode: 'light' | 'dark'): Theme => {
       },
       MuiChip: {
         styleOverrides: {
-          root: { borderRadius: 999, fontWeight: 600 },
+          root: { borderRadius: 999, fontWeight: 700 },
           filled: { backgroundColor: c.fill },
         },
       },

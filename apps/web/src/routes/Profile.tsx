@@ -55,7 +55,7 @@ function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string })
           placeItems: 'center',
           color: 'primary.main',
           bgcolor: (theme) =>
-            theme.palette.mode === 'dark' ? 'rgba(91,91,214,0.16)' : 'rgba(91,91,214,0.08)',
+            theme.palette.mode === 'dark' ? 'rgba(255,122,69,0.16)' : 'rgba(255,122,69,0.08)',
         }}
       >
         {icon}
@@ -99,8 +99,8 @@ export function Profile() {
               sx={{
                 background: (theme) =>
                   theme.palette.mode === 'dark'
-                    ? 'linear-gradient(135deg, rgba(91,91,214,0.20) 0%, rgba(91,91,214,0.05) 55%, transparent 100%)'
-                    : 'linear-gradient(135deg, rgba(91,91,214,0.10) 0%, rgba(91,91,214,0.03) 55%, transparent 100%)',
+                    ? 'linear-gradient(135deg, rgba(255,122,69,0.20) 0%, rgba(255,122,69,0.05) 55%, transparent 100%)'
+                    : 'linear-gradient(135deg, rgba(255,122,69,0.10) 0%, rgba(255,122,69,0.03) 55%, transparent 100%)',
               }}
             >
               <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
